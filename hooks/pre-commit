@@ -1,0 +1,20 @@
+#!/bin/bash
+
+check_clang_format() {
+  if ! command -v clang-format &> /dev/null; then
+    echo "Error: clang-format not found. Ensure that's correctly installed in the PATH"
+    exit 1
+  fi
+}
+
+run_clang_format() {
+  changed_files=$(git diff --name-only --cached --diff-filter=ACM "*.cpp" "*.h" "*.hpp")
+  [ -z "$changed_files" ] && exit 0
+
+  echo "Executing clang-format on modified files..."
+  clang-format -i $changed_files
+  git add $changed_files
+}
+
+check_clang_format
+run_clang_format

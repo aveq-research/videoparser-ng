@@ -12,7 +12,7 @@ void set_verbose(bool verbose) {
   }
 }
 
-void parse_file(const std::string filename) {
+void parse_file(const std::string filename, SequenceInfo &sequence_info) {
   avformat_network_init();
 
   AVFormatContext *format_context = nullptr;
@@ -66,7 +66,14 @@ void parse_file(const std::string filename) {
     throw std::runtime_error("Error finding the video codec");
   }
 
-  std::cerr << "Video codec: " << codec->name << std::endl;
+  sequence_info.video_codec = codec->name;
+  sequence_info.video_bitrate = codec_parameters->bit_rate / 1000;
+  sequence_info.video_framerate =
+      av_q2d(format_context->streams[video_stream_idx]->avg_frame_rate);
+  sequence_info.video_width = codec_parameters->width;
+  sequence_info.video_height = codec_parameters->height;
+  sequence_info.video_codec_profile = codec_parameters->profile;
+  sequence_info.video_codec_level = codec_parameters->level;
 
   // Open codec, and iterate through every frame
   AVCodecContext *codec_context = avcodec_alloc_context3(codec);
@@ -99,6 +106,7 @@ void parse_file(const std::string filename) {
         while (avcodec_receive_frame(codec_context, frame) == 0) {
           std::cerr << "Frame " << frame_count++ << std::endl;
           // TODO parse out the data
+          // TODO sum up frame durations if duration is unset
         }
       }
     }

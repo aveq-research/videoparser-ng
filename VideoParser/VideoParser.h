@@ -28,8 +28,20 @@ public:
   ~ScopeExit() { fn(); }
 };
 
+struct SequenceInfo {
+  // double duration = 0.0;        /**< Duration of the file in seconds */
+  // double start_time = 0.0;      /**< Start time of the file in seconds */
+  std::string video_codec;      /**< Codec used for video stream */
+  double video_bitrate = 0.0;   /**< Bitrate of the video stream in kbps */
+  double video_framerate = 0.0; /**< Framerate of the video stream */
+  int video_width = 0;          /**< Width of the video stream in pixels */
+  int video_height = 0;         /**< Height of the video stream in pixels */
+  int video_codec_profile = 0;  /**< Profile of the video codec */
+  int video_codec_level = 0;    /**< Level of the video codec */
+};
+
 void set_verbose(bool verbose);
-void parse_file(const std::string filename);
+void parse_file(const std::string filename, SequenceInfo &sequence_info);
 } // namespace videoparser
 
 #endif // VIDEOPARSER_H

@@ -5,6 +5,8 @@
   - [Installation under Ubuntu](#installation-under-ubuntu)
 - [Build](#build)
 - [Testing](#testing)
+- [Maintenance](#maintenance)
+  - [Fetching new FFmpeg commits](#fetching-new-ffmpeg-commits)
 - [License](#license)
 
 ## Requirements
@@ -64,6 +66,12 @@ First clone all submodules:
 git submodule update --init --recursive
 ```
 
+Then build ffmpeg initially:
+
+```bash
+util/build-ffmpeg.sh
+```
+
 Then run the build script for the project:
 
 ```bash
@@ -78,7 +86,17 @@ Generate the test videos:
 util/generate-test-videos.sh
 ```
 
-Then, TODO
+Then, **TODO**
+
+## Maintenance
+
+### Fetching new FFmpeg commits
+
+Run the script:
+
+```bash
+util/rebase-ffmpeg.sh
+```
 
 ## License
 
