@@ -102,6 +102,6 @@ util/rebase-ffmpeg.sh
 
 Copyright (c) 2023 AVEQ GmbH.
 
-This project is licensed under the GNU GPLv3 License - see the LICENSE.md file for details.
+This project is licensed under the GNU GNU LESSER GENERAL PUBLIC License v2.1 - see the LICENSE.md file for details.
 
-See the LICENSE.md file for details on third-party licenses.
+Also, see the LICENSE.md file for details on third-party licenses.
