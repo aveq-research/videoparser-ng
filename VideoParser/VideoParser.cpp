@@ -12,7 +12,17 @@ void set_verbose(bool verbose) {
   }
 }
 
-void parse_file(const std::string filename, SequenceInfo &sequence_info) {
+/**
+ * @brief Parse the file and return frame-by-frame values.
+ *
+ * @param filename The filename of the video file
+ * @param sequence_info A struct containing the parsed general sequence
+ * information, filled after the first frame is parsed
+ * @param frame_infos A vector of structs containing the parsed frame
+ * information after the call succeeds
+ */
+void parse_file(const std::string filename, SequenceInfo &sequence_info,
+                std::vector<FrameInfo> &frame_infos) {
   avformat_network_init();
 
   AVFormatContext *format_context = nullptr;
@@ -85,6 +95,8 @@ void parse_file(const std::string filename, SequenceInfo &sequence_info) {
     throw std::runtime_error("Error setting codec parameters");
   }
 
+  sequence_info.video_pix_fmt = av_get_pix_fmt_name(codec_context->pix_fmt);
+
   if (avcodec_open2(codec_context, codec, nullptr) < 0) {
     throw std::runtime_error("Error opening codec");
   }
@@ -99,12 +111,15 @@ void parse_file(const std::string filename, SequenceInfo &sequence_info) {
     throw std::runtime_error("Error allocating frame");
   }
 
-  uint32_t frame_count = 0;
+  uint32_t frame_idx = 0;
   while (av_read_frame(format_context, packet) == 0) {
     if (packet->stream_index == video_stream_idx) {
       if (avcodec_send_packet(codec_context, packet) == 0) {
         while (avcodec_receive_frame(codec_context, frame) == 0) {
-          std::cerr << "Frame " << frame_count++ << std::endl;
+          std::cerr << "Frame " << frame_idx++ << std::endl;
+          FrameInfo frame_info;
+          frame_info.frame_idx = frame_idx;
+          frame_infos.push_back(frame_info);
           // TODO parse out the data
           // TODO sum up frame durations if duration is unset
         }

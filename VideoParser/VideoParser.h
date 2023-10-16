@@ -12,6 +12,7 @@
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
+#include <libavutil/pixdesc.h>
 #include <unistd.h>
 }
 
@@ -29,6 +30,7 @@ public:
 };
 
 struct SequenceInfo {
+  // TODO: duration may only be available at the end of the file
   // double duration = 0.0;        /**< Duration of the file in seconds */
   // double start_time = 0.0;      /**< Start time of the file in seconds */
   std::string video_codec;      /**< Codec used for video stream */
@@ -38,10 +40,16 @@ struct SequenceInfo {
   int video_height = 0;         /**< Height of the video stream in pixels */
   int video_codec_profile = 0;  /**< Profile of the video codec */
   int video_codec_level = 0;    /**< Level of the video codec */
+  std::string video_pix_fmt;    /**< Pixel format of the video stream */
+};
+
+struct FrameInfo {
+  int32_t frame_idx = 0; /**< Frame number */
 };
 
 void set_verbose(bool verbose);
-void parse_file(const std::string filename, SequenceInfo &sequence_info);
+void parse_file(const std::string filename, SequenceInfo &sequence_info,
+                std::vector<videoparser::FrameInfo> &frame_infos);
 } // namespace videoparser
 
 #endif // VIDEOPARSER_H
