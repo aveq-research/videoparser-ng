@@ -30,9 +30,7 @@ public:
 };
 
 struct SequenceInfo {
-  // TODO: duration may only be available at the end of the file
-  // double duration = 0.0;        /**< Duration of the file in seconds */
-  // double start_time = 0.0;      /**< Start time of the file in seconds */
+  double video_duration = 0.0;  /**< Duration of the file in seconds */
   std::string video_codec;      /**< Codec used for video stream */
   double video_bitrate = 0.0;   /**< Bitrate of the video stream in kbps */
   double video_framerate = 0.0; /**< Framerate of the video stream */
@@ -48,8 +46,29 @@ struct FrameInfo {
 };
 
 void set_verbose(bool verbose);
-void parse_file(const std::string filename, SequenceInfo &sequence_info,
-                std::vector<videoparser::FrameInfo> &frame_infos);
+
+class VideoParser {
+public:
+  VideoParser(const std::string &filename);
+  SequenceInfo get_sequence_info();
+  bool parse_frame(FrameInfo &frame_info);
+  void close();
+
+private:
+  // Private members declarations
+  AVFormatContext *format_context;
+  int video_stream_idx;
+  SequenceInfo sequence_info;
+  AVCodecContext *codec_context;
+  AVPacket *packet;
+  AVFrame *frame;
+  uint32_t frame_idx;
+  std::function<void()> close_input;
+  double first_pts;
+  double last_pts;
+  uint64_t packet_size_sum; // accumulated packet size sum, if not available
+                            // from format context
+};
 } // namespace videoparser
 
 #endif // VIDEOPARSER_H

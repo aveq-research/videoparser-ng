@@ -37,3 +37,7 @@ ffbuild
 
 # CMake
 build
+
+# Test fixtures
+test/*.ldjson
+test/*.mkv

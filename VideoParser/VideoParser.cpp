@@ -12,34 +12,24 @@ void set_verbose(bool verbose) {
   }
 }
 
-/**
- * @brief Parse the file and return frame-by-frame values.
- *
- * @param filename The filename of the video file
- * @param sequence_info A struct containing the parsed general sequence
- * information, filled after the first frame is parsed
- * @param frame_infos A vector of structs containing the parsed frame
- * information after the call succeeds
- */
-void parse_file(const std::string filename, SequenceInfo &sequence_info,
-                std::vector<FrameInfo> &frame_infos) {
+VideoParser::VideoParser(const std::string &filename) {
+  // Initialize FFmpeg networking
   avformat_network_init();
 
-  AVFormatContext *format_context = nullptr;
-
-  // Open video file
+  // Open the video file
   if (avformat_open_input(&format_context, filename.c_str(), nullptr,
                           nullptr) != 0) {
     throw std::runtime_error("Error opening the file");
   }
 
-  ScopeExit close_input([&format_context]() {
+  // ScopeExit for closing the input and freeing memory
+  close_input = [this]() {
     // Close the video file
     avformat_close_input(&format_context);
 
     // Free up memory
     avformat_free_context(format_context);
-  });
+  };
 
   // Retrieve stream information
   if (avformat_find_stream_info(format_context, nullptr) < 0) {
@@ -56,10 +46,10 @@ void parse_file(const std::string filename, SequenceInfo &sequence_info,
     }
   }
 
-  // warn if there was more than one video stream
+  // Warn if there was more than one video stream
   if (video_stream_idx > 0) {
     std::cerr << "Warning, more than one video stream found, will only "
-                 "consider first"
+                 "consider the first"
               << std::endl;
   }
 
@@ -76,6 +66,7 @@ void parse_file(const std::string filename, SequenceInfo &sequence_info,
     throw std::runtime_error("Error finding the video codec");
   }
 
+  sequence_info.video_duration = format_context->duration / AV_TIME_BASE;
   sequence_info.video_codec = codec->name;
   sequence_info.video_bitrate = codec_parameters->bit_rate / 1000;
   sequence_info.video_framerate =
@@ -85,8 +76,8 @@ void parse_file(const std::string filename, SequenceInfo &sequence_info,
   sequence_info.video_codec_profile = codec_parameters->profile;
   sequence_info.video_codec_level = codec_parameters->level;
 
-  // Open codec, and iterate through every frame
-  AVCodecContext *codec_context = avcodec_alloc_context3(codec);
+  // Open codec
+  codec_context = avcodec_alloc_context3(codec);
   if (!codec_context) {
     throw std::runtime_error("Error allocating codec context");
   }
@@ -101,32 +92,85 @@ void parse_file(const std::string filename, SequenceInfo &sequence_info,
     throw std::runtime_error("Error opening codec");
   }
 
-  AVPacket *packet = av_packet_alloc();
+  // Allocate packet and frame
+  packet = av_packet_alloc();
   if (!packet) {
     throw std::runtime_error("Error allocating packet");
   }
 
-  AVFrame *frame = av_frame_alloc();
+  frame = av_frame_alloc();
   if (!frame) {
     throw std::runtime_error("Error allocating frame");
   }
+}
 
-  uint32_t frame_idx = 0;
+/**
+ * @brief Get the sequence info. Call this after the frames are parsed, if the
+ * video duration is not set yet.
+ *
+ * @return SequenceInfo The sequence info struct.
+ */
+SequenceInfo VideoParser::get_sequence_info() {
+  // update the sequence info based on the accumulated video duration and packet
+  // size sum, if frames were read at all
+  if (frame_idx > 0) {
+    if (sequence_info.video_duration == 0) {
+      sequence_info.video_duration = last_pts - first_pts;
+    }
+
+    // convert via packet size sum (in bytes) to kbit/s
+    sequence_info.video_bitrate =
+        packet_size_sum * 8 / 1000 / sequence_info.video_duration;
+  }
+
+  return sequence_info;
+}
+
+/**
+ * @brief Parse a single frame and set the frame_info struct
+ *
+ * @param frame_info The frame_info struct to be set
+ * @return true If a frame was parsed and the frame_info struct was set
+ * @return false If no frame was parsed (stop parsing)
+ */
+bool VideoParser::parse_frame(FrameInfo &frame_info) {
   while (av_read_frame(format_context, packet) == 0) {
     if (packet->stream_index == video_stream_idx) {
       if (avcodec_send_packet(codec_context, packet) == 0) {
         while (avcodec_receive_frame(codec_context, frame) == 0) {
-          std::cerr << "Frame " << frame_idx++ << std::endl;
-          FrameInfo frame_info;
+          // Set the frame_info values here
           frame_info.frame_idx = frame_idx;
-          frame_infos.push_back(frame_info);
-          // TODO parse out the data
-          // TODO sum up frame durations if duration is unset
+
+          // count general statistics
+          packet_size_sum += packet->size;
+          if (frame_idx == 0) {
+            first_pts =
+                frame->pts *
+                av_q2d(format_context->streams[video_stream_idx]->time_base);
+          }
+          last_pts =
+              frame->pts *
+              av_q2d(format_context->streams[video_stream_idx]->time_base);
+
+          // free up and return next frame
+          av_packet_unref(packet);
+          frame_idx++;
+          return true;
         }
       }
     }
     av_packet_unref(packet);
   }
+
+  // Free the packet, no more frames
+  av_packet_free(&packet);
+  return false;
+}
+
+/**
+ * @brief Close the input and free memory
+ */
+void VideoParser::close() {
   av_packet_free(&packet);
   av_frame_free(&frame);
 }
