@@ -139,10 +139,21 @@ void VideoParser::set_frame_info(FrameInfo &frame_info) {
   }
 
   // collect frame timing information
-  double pts =
-      frame->pts * av_q2d(format_context->streams[video_stream_idx]->time_base);
-  double dts = frame->pkt_dts *
+  double pts = (frame->pts != AV_NOPTS_VALUE ? frame->pts
+                                             : frame->best_effort_timestamp) *
                av_q2d(format_context->streams[video_stream_idx]->time_base);
+  double dts =
+      (frame->pkt_dts != AV_NOPTS_VALUE ? frame->pkt_dts
+                                        : frame->best_effort_timestamp) *
+      av_q2d(format_context->streams[video_stream_idx]->time_base);
+  // set first and last pts to calculate video duration at the end
+  if (frame_idx == 0) {
+    first_pts = pts;
+  }
+  last_pts = pts;
+
+  // count general size statistics
+  packet_size_sum += current_packet->size;
 
   // set the frame type
   FrameType frame_type = UNKNOWN;
@@ -163,14 +174,6 @@ void VideoParser::set_frame_info(FrameInfo &frame_info) {
   frame_info.frame_type = frame_type;
   frame_info.is_idr = frame->flags & AV_FRAME_FLAG_KEY;
 
-  // count general size statistics
-  packet_size_sum += current_packet->size;
-
-  // set first and last pts to calculate video duration at the end
-  if (frame_idx == 0) {
-    first_pts = pts;
-  }
-  last_pts = pts;
   frame_idx++;
 }
 
