@@ -67,6 +67,7 @@ VideoParser::VideoParser(const std::string &filename) {
 
   sequence_info.video_duration = format_context->duration / AV_TIME_BASE;
   sequence_info.video_codec = codec->name;
+  // Note: the below may be zero if not indicated in the file
   sequence_info.video_bitrate = codec_parameters->bit_rate / 1000;
   sequence_info.video_framerate =
       av_q2d(format_context->streams[video_stream_idx]->avg_frame_rate);
@@ -74,6 +75,9 @@ VideoParser::VideoParser(const std::string &filename) {
   sequence_info.video_height = codec_parameters->height;
   sequence_info.video_codec_profile = codec_parameters->profile;
   sequence_info.video_codec_level = codec_parameters->level;
+  // Note: the below may be zero if not indicated in the file
+  sequence_info.video_frame_count =
+      format_context->streams[video_stream_idx]->nb_frames;
 
   // Open codec
   codec_context = avcodec_alloc_context3(codec);
@@ -116,7 +120,15 @@ SequenceInfo VideoParser::get_sequence_info() {
   // size sum, if frames were read at all
   if (frame_idx > 0) {
     if (sequence_info.video_duration == 0) {
+      std::cerr << "Warning: video duration not set initially, setting to "
+                << last_pts - first_pts << std::endl;
       sequence_info.video_duration = last_pts - first_pts;
+    }
+
+    if (sequence_info.video_frame_count == 0) {
+      std::cerr << "Warning: video frame count not set initially, setting to "
+                << frame_idx << std::endl;
+      sequence_info.video_frame_count = frame_idx;
     }
 
     // convert via packet size sum (in bytes) to kbit/s

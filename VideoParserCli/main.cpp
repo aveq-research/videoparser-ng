@@ -26,6 +26,7 @@ void print_sequence_info(const videoparser::SequenceInfo &info) {
   std::cerr << "Video codec level: " << info.video_codec_level << std::endl;
   std::cerr << "Video bit depth: " << info.video_bit_depth << std::endl;
   std::cerr << "Video pixel format: " << info.video_pix_fmt << std::endl;
+  std::cerr << "Video frame count: " << info.video_frame_count << std::endl;
 }
 
 void print_sequence_info_json(const videoparser::SequenceInfo &info) {
@@ -41,6 +42,7 @@ void print_sequence_info_json(const videoparser::SequenceInfo &info) {
   j["video_codec_level"] = info.video_codec_level;
   j["video_bit_depth"] = info.video_bit_depth;
   j["video_pix_fmt"] = info.video_pix_fmt;
+  j["video_frame_count"] = info.video_frame_count;
   std::cout << j.dump() << std::endl;
 }
 

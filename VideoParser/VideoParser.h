@@ -30,6 +30,9 @@ public:
   ~ScopeExit() { fn(); }
 };
 
+/**
+ * @brief General information about the video sequence.
+ */
 struct SequenceInfo {
   double video_duration = 0.0;  /**< Duration of the file in seconds */
   std::string video_codec;      /**< Codec used for video stream */
@@ -41,6 +44,7 @@ struct SequenceInfo {
   int video_codec_level = 0;    /**< Level of the video codec */
   int video_bit_depth = 0;      /**< Bit depth of the video stream */
   std::string video_pix_fmt;    /**< Pixel format of the video stream */
+  uint32_t video_frame_count;   /**< Number of frames in the video stream */
 };
 
 enum FrameType {
@@ -50,17 +54,30 @@ enum FrameType {
   B,
 };
 
+/**
+ * @brief Specific frame information.
+ */
 struct FrameInfo {
-  int32_t frame_idx = 0; /**< Frame number */
+  int32_t frame_idx = 0; /**< Frame number, zero-based */
   double dts;            /**< Decoding timestamp in seconds */
   double pts;            /**< Presentation timestamp in seconds */
   int size;              /**< Frame size in bytes */
-  FrameType frame_type;  /**< Frame type */
-  bool is_idr;           /**< Is IDR frame */
+  FrameType frame_type;  /**< Frame type (0 = unknown, 1 = I, 2 = P, 3 = B) */
+  bool is_idr;           /**< Whether the frame is an IDR frame */
 };
 
 void set_verbose(bool verbose);
 
+/**
+ * @brief A Video Parser implementation.
+ *
+ * This class is used to parse video files and extract information about the
+ * video sequence and individual frames. Call get_sequence_info() to get the
+ * general information about the video sequence, either before or after parsing
+ * the frames. Call parse_frame() to parse the next frame and get its
+ * information, in a loop. After parsing all frames, call close() to close the
+ * file and free all resources.
+ */
 class VideoParser {
 public:
   VideoParser(const std::string &filename);
