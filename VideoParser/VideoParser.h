@@ -38,11 +38,23 @@ struct SequenceInfo {
   int video_height = 0;         /**< Height of the video stream in pixels */
   int video_codec_profile = 0;  /**< Profile of the video codec */
   int video_codec_level = 0;    /**< Level of the video codec */
+  int video_bit_depth = 0;      /**< Bit depth of the video stream */
   std::string video_pix_fmt;    /**< Pixel format of the video stream */
+};
+
+enum FrameType {
+  UNKNOWN,
+  I,
+  P,
+  B,
 };
 
 struct FrameInfo {
   int32_t frame_idx = 0; /**< Frame number */
+  double dts;            /**< Decoding timestamp in seconds */
+  double pts;            /**< Presentation timestamp in seconds */
+  FrameType frame_type;  /**< Frame type */
+  bool is_idr;           /**< Is IDR frame */
 };
 
 void set_verbose(bool verbose);

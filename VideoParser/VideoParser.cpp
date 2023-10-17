@@ -87,6 +87,8 @@ VideoParser::VideoParser(const std::string &filename) {
   }
 
   sequence_info.video_pix_fmt = av_get_pix_fmt_name(codec_context->pix_fmt);
+  sequence_info.video_bit_depth =
+      av_pix_fmt_desc_get(codec_context->pix_fmt)->comp[0].depth;
 
   if (avcodec_open2(codec_context, codec, nullptr) < 0) {
     throw std::runtime_error("Error opening codec");
@@ -138,19 +140,41 @@ bool VideoParser::parse_frame(FrameInfo &frame_info) {
     if (packet->stream_index == video_stream_idx) {
       if (avcodec_send_packet(codec_context, packet) == 0) {
         while (avcodec_receive_frame(codec_context, frame) == 0) {
-          // Set the frame_info values here
-          frame_info.frame_idx = frame_idx;
-
-          // count general statistics
-          packet_size_sum += packet->size;
-          if (frame_idx == 0) {
-            first_pts =
-                frame->pts *
-                av_q2d(format_context->streams[video_stream_idx]->time_base);
-          }
-          last_pts =
+          // collect frame timing information
+          double pts =
               frame->pts *
               av_q2d(format_context->streams[video_stream_idx]->time_base);
+          double dts =
+              frame->pkt_dts *
+              av_q2d(format_context->streams[video_stream_idx]->time_base);
+
+          // set the frame type
+          FrameType frame_type = UNKNOWN;
+          if (frame->pict_type == AV_PICTURE_TYPE_I) {
+            frame_type = I;
+          } else if (frame->pict_type == AV_PICTURE_TYPE_P) {
+            frame_type = P;
+          } else if (frame->pict_type == AV_PICTURE_TYPE_B) {
+            frame_type = B;
+          }
+
+          // --------------------------------------------------------------------------------------------------------
+          // Set the frame_info values here
+          frame_info.frame_idx = frame_idx;
+          frame_info.pts = pts;
+          frame_info.dts = dts;
+          frame_info.frame_type = frame_type;
+          frame_info.is_idr = frame->flags & AV_FRAME_FLAG_KEY;
+
+          // --------------------------------------------------------------------------------------------------------
+          // count general size statistics
+          packet_size_sum += packet->size;
+
+          // set first and last pts to calculate video duration at the end
+          if (frame_idx == 0) {
+            first_pts = pts;
+          }
+          last_pts = pts;
 
           // free up and return next frame
           av_packet_unref(packet);
