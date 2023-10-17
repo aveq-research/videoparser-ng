@@ -1,3 +1,10 @@
+/**
+ * @file main.cpp
+ * @author Werner Robitza
+ * @copyright Copyright (c) 2023, AVEQ GmbH. Copyright (c) 2023, videoparser-ng
+ * contributors.
+ */
+
 #include "VideoParser.h"
 #include "json.hpp"
 
@@ -7,9 +14,13 @@ void print_usage(const char *program_name) {
   std::cerr << "Usage: " << program_name << " [options] <filename>"
             << std::endl;
   std::cerr << std::endl;
-  std::cerr << "Options:" << std::endl;
-  std::cerr << "  -v, --verbose     Show verbose output" << std::endl;
-  std::cerr << "  -h, --help        Show this help message" << std::endl;
+  std::cerr << "Parsing Options:" << std::endl;
+  std::cerr << "  -n, --num-frames      Parse only the first n frames"
+            << std::endl;
+  std::cerr << std::endl;
+  std::cerr << "General Options:" << std::endl;
+  std::cerr << "  -v, --verbose         Show verbose output" << std::endl;
+  std::cerr << "  -h, --help            Show this help message" << std::endl;
   std::cerr << std::endl;
   std::cerr << "Copyright 2023 AVEQ GmbH" << std::endl;
 }

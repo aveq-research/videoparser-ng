@@ -1,3 +1,10 @@
+/**
+ * @file VideoParser.h
+ * @author Werner Robitza
+ * @copyright Copyright (c) 2023, AVEQ GmbH. Copyright (c) 2023, videoparser-ng
+ * contributors.
+ */
+
 #ifndef VIDEOPARSER_H
 #define VIDEOPARSER_H
 
@@ -10,6 +17,7 @@
 #include <optional>
 #include <string>
 extern "C" {
+#include "include/shared.h"
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 #include <libavutil/frame.h>

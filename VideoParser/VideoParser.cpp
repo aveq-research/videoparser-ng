@@ -1,3 +1,10 @@
+/**
+ * @file VideoParser.cpp
+ * @author Werner Robitza
+ * @copyright Copyright (c) 2023, AVEQ GmbH. Copyright (c) 2023, videoparser-ng
+ * contributors.
+ */
+
 #include "VideoParser.h"
 
 namespace videoparser {
@@ -149,6 +156,8 @@ void VideoParser::set_frame_info(FrameInfo &frame_info) {
     throw std::runtime_error(
         "Error setting frame info, did you call parse_frame() before?");
   }
+
+  // TODO: read from frame->shared_frame_info
 
   // collect frame timing information
   double pts = (frame->pts != AV_NOPTS_VALUE ? frame->pts
