@@ -12,6 +12,7 @@
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
+#include <libavutil/frame.h>
 #include <libavutil/pixdesc.h>
 #include <unistd.h>
 }
@@ -53,6 +54,7 @@ struct FrameInfo {
   int32_t frame_idx = 0; /**< Frame number */
   double dts;            /**< Decoding timestamp in seconds */
   double pts;            /**< Presentation timestamp in seconds */
+  int size;              /**< Frame size in bytes */
   FrameType frame_type;  /**< Frame type */
   bool is_idr;           /**< Is IDR frame */
 };
@@ -67,19 +69,20 @@ public:
   void close();
 
 private:
-  // Private members declarations
-  AVFormatContext *format_context;
-  int video_stream_idx;
+  AVFormatContext *format_context = nullptr;
+  int video_stream_idx = -1;
   SequenceInfo sequence_info;
-  AVCodecContext *codec_context;
-  AVPacket *packet;
-  AVFrame *frame;
-  uint32_t frame_idx;
+  AVCodecContext *codec_context = nullptr;
+  AVPacket *current_packet = nullptr;
+  AVFrame *frame = nullptr;
+  uint32_t frame_idx = 0;
   std::function<void()> close_input;
-  double first_pts;
-  double last_pts;
-  uint64_t packet_size_sum; // accumulated packet size sum, if not available
-                            // from format context
+  double first_pts = 0;
+  double last_pts = 0;
+  uint64_t packet_size_sum = 0; // accumulated packet size sum, if not available
+                                // from format context
+
+  void set_frame_info(FrameInfo &frame_info);
 };
 } // namespace videoparser
 

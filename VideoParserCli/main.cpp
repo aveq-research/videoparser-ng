@@ -48,6 +48,7 @@ void print_frame_info(const videoparser::FrameInfo &info) {
   std::cerr << "Frame index: " << info.frame_idx << std::endl;
   std::cerr << "DTS: " << info.dts << " s" << std::endl;
   std::cerr << "PTS: " << info.pts << " s" << std::endl;
+  std::cerr << "Size: " << info.size << std::endl;
   std::cerr << "Frame type: " << info.frame_type << std::endl;
   std::cerr << "Is IDR: " << info.is_idr << std::endl;
 }
@@ -58,6 +59,7 @@ void print_frame_info_json(const videoparser::FrameInfo &info) {
   j["frame_idx"] = info.frame_idx;
   j["dts"] = info.dts;
   j["pts"] = info.pts;
+  j["size"] = info.size;
   j["frame_type"] = info.frame_type;
   j["is_idr"] = info.is_idr;
   std::cout << j.dump() << std::endl;
