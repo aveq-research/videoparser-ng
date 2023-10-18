@@ -57,24 +57,32 @@ void print_sequence_info_json(const videoparser::SequenceInfo &info) {
   std::cout << j.dump() << std::endl;
 }
 
-void print_frame_info(const videoparser::FrameInfo &info) {
-  std::cerr << "Frame index: " << info.frame_idx << std::endl;
-  std::cerr << "DTS: " << info.dts << " s" << std::endl;
-  std::cerr << "PTS: " << info.pts << " s" << std::endl;
-  std::cerr << "Size: " << info.size << std::endl;
-  std::cerr << "Frame type: " << info.frame_type << std::endl;
-  std::cerr << "Is IDR: " << info.is_idr << std::endl;
+// Note: This is not everything, see the JSON below
+void print_general_frame_info(const videoparser::FrameInfo &frame_info) {
+  std::cerr << "Frame index: " << frame_info.frame_idx << std::endl;
+  std::cerr << "DTS: " << frame_info.dts << " s" << std::endl;
+  std::cerr << "PTS: " << frame_info.pts << " s" << std::endl;
+  std::cerr << "Size: " << frame_info.size << std::endl;
+  std::cerr << "Frame type: " << frame_info.frame_type << std::endl;
+  std::cerr << "Is IDR: " << frame_info.is_idr << std::endl;
 }
 
-void print_frame_info_json(const videoparser::FrameInfo &info) {
+void print_frame_info_json(const videoparser::FrameInfo &frame_info) {
   json j;
   j["type"] = "frame_info";
-  j["frame_idx"] = info.frame_idx;
-  j["dts"] = info.dts;
-  j["pts"] = info.pts;
-  j["size"] = info.size;
-  j["frame_type"] = info.frame_type;
-  j["is_idr"] = info.is_idr;
+  j["frame_idx"] = frame_info.frame_idx;
+  j["dts"] = frame_info.dts;
+  j["pts"] = frame_info.pts;
+  j["size"] = frame_info.size;
+  j["frame_type"] = frame_info.frame_type;
+  j["is_idr"] = frame_info.is_idr;
+  j["qp_min"] = frame_info.qp_min;
+  j["qp_max"] = frame_info.qp_max;
+  j["qp_init"] = frame_info.qp_init;
+  j["qp_avg"] = frame_info.qp_avg;
+  j["qp_stdev"] = frame_info.qp_stdev;
+  j["qp_bb_avg"] = frame_info.qp_bb_avg;
+  j["qp_bb_stdev"] = frame_info.qp_bb_stdev;
   std::cout << j.dump() << std::endl;
 }
 
@@ -136,7 +144,7 @@ int main(int argc, char *argv[]) {
     while (parser.parse_frame(frame_info) &&
            frame_info.frame_idx != num_frames) {
       if (verbose)
-        print_frame_info(frame_info);
+        print_general_frame_info(frame_info);
       print_frame_info_json(frame_info);
     }
 

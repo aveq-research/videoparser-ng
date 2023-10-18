@@ -72,6 +72,16 @@ struct FrameInfo {
   int size;              /**< Frame size in bytes */
   FrameType frame_type;  /**< Frame type (0 = unknown, 1 = I, 2 = P, 3 = B) */
   bool is_idr;           /**< Whether the frame is an IDR frame */
+
+  // from SharedFrameInfo
+  uint32_t qp_min;  /**< Minimum QP value encountered in this frame */
+  uint32_t qp_max;  /**< Maximum QP value encountered in this frame */
+  uint32_t qp_init; /**< QP Value the frame is starting with (to be found in the
+                       slice- or frame-header) */
+  double qp_avg;    /**< Average QP of the whole frame */
+  double qp_stdev;  /**< Standard deviation of Av_QP */
+  double qp_bb_avg; /**< Average QP without the black border */
+  double qp_bb_stdev; /**< Standard deviation of the average QP */
 };
 
 void set_verbose(bool verbose);

@@ -188,6 +188,8 @@ void VideoParser::set_frame_info(FrameInfo &frame_info) {
 
   // --------------------------------------------------------------------------------------------------------
   // Set the frame_info values here
+
+  // things we can get from ffmpeg's API directly
   frame_info.frame_idx = frame_idx;
   frame_info.pts = pts;
   frame_info.dts = dts;
@@ -195,8 +197,16 @@ void VideoParser::set_frame_info(FrameInfo &frame_info) {
   frame_info.frame_type = frame_type;
   frame_info.is_idr = frame->flags & AV_FRAME_FLAG_KEY;
 
+  // from the SharedFrameInfo
   if (verbose)
     print_shared_frame_info(frame->shared_frame_info);
+  frame_info.qp_min = frame->shared_frame_info.qp_min;
+  frame_info.qp_max = frame->shared_frame_info.qp_max;
+  frame_info.qp_init = frame->shared_frame_info.qp_init;
+  frame_info.qp_avg = frame->shared_frame_info.qp_avg;
+  frame_info.qp_stdev = frame->shared_frame_info.qp_stdev;
+  frame_info.qp_bb_avg = frame->shared_frame_info.qp_bb_avg;
+  frame_info.qp_bb_stdev = frame->shared_frame_info.qp_bb_stdev;
 
   // codec-specific handling
   if (codec_context->codec_id == AV_CODEC_ID_H264) {
@@ -215,6 +225,9 @@ void VideoParser::set_frame_info(FrameInfo &frame_info) {
 }
 
 void VideoParser::print_shared_frame_info(SharedFrameInfo &shared_frame_info) {
+  std::cerr << "================ SHARED FRAME INFO ================"
+            << std::endl;
+  std::cerr << "frame_idx      = " << shared_frame_info.frame_idx << std::endl;
   std::cerr << "qp_sum         = " << shared_frame_info.qp_sum << std::endl;
   std::cerr << "qp_sum_sqr     = " << shared_frame_info.qp_sum_sqr << std::endl;
   std::cerr << "qp_cnt         = " << shared_frame_info.qp_cnt << std::endl;
@@ -222,6 +235,8 @@ void VideoParser::print_shared_frame_info(SharedFrameInfo &shared_frame_info) {
   std::cerr << "qp_sum_sqr_bb  = " << shared_frame_info.qp_sum_sqr_bb
             << std::endl;
   std::cerr << "qp_cnt_bb      = " << shared_frame_info.qp_cnt_bb << std::endl;
+  std::cerr << "----------------------------------------------------"
+            << std::endl;
   std::cerr << "qp_min         = " << shared_frame_info.qp_min << std::endl;
   std::cerr << "qp_max         = " << shared_frame_info.qp_max << std::endl;
   std::cerr << "qp_init        = " << shared_frame_info.qp_init << std::endl;
@@ -229,6 +244,8 @@ void VideoParser::print_shared_frame_info(SharedFrameInfo &shared_frame_info) {
   std::cerr << "qp_stdev       = " << shared_frame_info.qp_stdev << std::endl;
   std::cerr << "qp_bb_avg      = " << shared_frame_info.qp_bb_avg << std::endl;
   std::cerr << "qp_bb_stdev    = " << shared_frame_info.qp_bb_stdev
+            << std::endl;
+  std::cerr << "----------------------------------------------------"
             << std::endl;
 }
 
