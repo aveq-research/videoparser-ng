@@ -94,20 +94,24 @@ public:
   void close();
 
 private:
-  AVFormatContext *format_context = nullptr;
   int video_stream_idx = -1;
-  SequenceInfo sequence_info;
+  AVFormatContext *format_context = nullptr;
   AVCodecContext *codec_context = nullptr;
   AVPacket *current_packet = nullptr;
   AVFrame *frame = nullptr;
   uint32_t frame_idx = 0;
-  std::function<void()> close_input;
+  SequenceInfo sequence_info;
   double first_pts = 0;
   double last_pts = 0;
   uint64_t packet_size_sum = 0; // accumulated packet size sum, if not available
                                 // from format context
+  std::function<void()> close_input;
 
+  void print_shared_frame_info(SharedFrameInfo &shared_frame_info);
   void set_frame_info(FrameInfo &frame_info);
+  void set_frame_info_h264(FrameInfo &frame_info);
+  void set_frame_info_h265(FrameInfo &frame_info);
+  void set_frame_info_vp9(FrameInfo &frame_info);
 };
 } // namespace videoparser
 

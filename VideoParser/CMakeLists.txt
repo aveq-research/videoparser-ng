@@ -2,6 +2,9 @@ project(VideoParser)
 
 add_library(videoparser STATIC VideoParser.cpp VideoParser.h)
 
+# fix for ffmpeg's use of register keyword
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-register")
+
 # Link VideoParser against FFmpeg statically
 target_include_directories(videoparser PRIVATE ${CMAKE_SOURCE_DIR}/external/ffmpeg)
 target_link_libraries(videoparser PRIVATE ${CMAKE_SOURCE_DIR}/external/ffmpeg/libavcodec/libavcodec.a)

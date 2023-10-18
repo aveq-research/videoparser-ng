@@ -133,8 +133,10 @@ SequenceInfo VideoParser::get_sequence_info() {
     }
 
     if (sequence_info.video_frame_count == 0) {
-      std::cerr << "Warning: video frame count not set initially, setting to "
-                << frame_idx << std::endl;
+      // no warning needed, default behavior for some containers
+      // std::cerr << "Warning: video frame count not set initially, setting to
+      // "
+      //           << frame_idx << std::endl;
       sequence_info.video_frame_count = frame_idx;
     }
 
@@ -156,8 +158,6 @@ void VideoParser::set_frame_info(FrameInfo &frame_info) {
     throw std::runtime_error(
         "Error setting frame info, did you call parse_frame() before?");
   }
-
-  // TODO: read from frame->shared_frame_info
 
   // collect frame timing information
   double pts = (frame->pts != AV_NOPTS_VALUE ? frame->pts
@@ -195,8 +195,46 @@ void VideoParser::set_frame_info(FrameInfo &frame_info) {
   frame_info.frame_type = frame_type;
   frame_info.is_idr = frame->flags & AV_FRAME_FLAG_KEY;
 
+  if (verbose)
+    print_shared_frame_info(frame->shared_frame_info);
+
+  // codec-specific handling
+  if (codec_context->codec_id == AV_CODEC_ID_H264) {
+    set_frame_info_h264(frame_info);
+  } else if (codec_context->codec_id == AV_CODEC_ID_H265) {
+    set_frame_info_h265(frame_info);
+  } else if (codec_context->codec_id == AV_CODEC_ID_VP9) {
+    set_frame_info_vp9(frame_info);
+  } else {
+    std::cerr << "Warning: unsupported codec "
+              << avcodec_get_name(codec_context->codec_id)
+              << ", no extra information will be available." << std::endl;
+  }
+
   frame_idx++;
 }
+
+void VideoParser::print_shared_frame_info(SharedFrameInfo &shared_frame_info) {
+  std::cerr << "qp_sum         = " << shared_frame_info.qp_sum << std::endl;
+  std::cerr << "qp_sum_sqr     = " << shared_frame_info.qp_sum_sqr << std::endl;
+  std::cerr << "qp_cnt         = " << shared_frame_info.qp_cnt << std::endl;
+  std::cerr << "qp_sum_bb      = " << shared_frame_info.qp_sum_bb << std::endl;
+  std::cerr << "qp_sum_sqr_bb  = " << shared_frame_info.qp_sum_sqr_bb
+            << std::endl;
+  std::cerr << "qp_cnt_bb      = " << shared_frame_info.qp_cnt_bb << std::endl;
+  std::cerr << "qp_min         = " << shared_frame_info.qp_min << std::endl;
+  std::cerr << "qp_max         = " << shared_frame_info.qp_max << std::endl;
+  std::cerr << "qp_init        = " << shared_frame_info.qp_init << std::endl;
+  std::cerr << "qp_avg         = " << shared_frame_info.qp_avg << std::endl;
+  std::cerr << "qp_stdev       = " << shared_frame_info.qp_stdev << std::endl;
+  std::cerr << "qp_bb_avg      = " << shared_frame_info.qp_bb_avg << std::endl;
+  std::cerr << "qp_bb_stdev    = " << shared_frame_info.qp_bb_stdev
+            << std::endl;
+}
+
+void VideoParser::set_frame_info_h264(FrameInfo &frame_info) {}
+void VideoParser::set_frame_info_h265(FrameInfo &frame_info) {}
+void VideoParser::set_frame_info_vp9(FrameInfo &frame_info) {}
 
 /**
  * @brief Parse a single frame and set the frame_info struct
@@ -210,7 +248,12 @@ bool VideoParser::parse_frame(FrameInfo &frame_info) {
     if (current_packet->stream_index == video_stream_idx) {
       if (avcodec_send_packet(codec_context, current_packet) == 0) {
         while (avcodec_receive_frame(codec_context, frame) == 0) {
-          set_frame_info(frame_info);
+          try {
+            set_frame_info(frame_info);
+          } catch (const std::exception &e) {
+            std::cerr << "Error setting frame info for frame index "
+                      << frame_idx << ": " << e.what() << std::endl;
+          }
 
           // free up and return next frame
           av_packet_unref(current_packet);
