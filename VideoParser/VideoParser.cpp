@@ -197,16 +197,17 @@ void VideoParser::set_frame_info(FrameInfo &frame_info) {
   frame_info.frame_type = frame_type;
   frame_info.is_idr = frame->flags & AV_FRAME_FLAG_KEY;
 
-  // from the SharedFrameInfo
+  // from the SharedFrameInfo, copy only the public values
+  SharedFrameInfo *shared_frame_info = av_frame_get_shared_frame_info(frame);
   if (verbose)
-    print_shared_frame_info(frame->shared_frame_info);
-  frame_info.qp_min = frame->shared_frame_info.qp_min;
-  frame_info.qp_max = frame->shared_frame_info.qp_max;
-  frame_info.qp_init = frame->shared_frame_info.qp_init;
-  frame_info.qp_avg = frame->shared_frame_info.qp_avg;
-  frame_info.qp_stdev = frame->shared_frame_info.qp_stdev;
-  frame_info.qp_bb_avg = frame->shared_frame_info.qp_bb_avg;
-  frame_info.qp_bb_stdev = frame->shared_frame_info.qp_bb_stdev;
+    print_shared_frame_info(*shared_frame_info);
+  frame_info.qp_min = shared_frame_info->qp_min;
+  frame_info.qp_max = shared_frame_info->qp_max;
+  frame_info.qp_init = shared_frame_info->qp_init;
+  frame_info.qp_avg = shared_frame_info->qp_avg;
+  frame_info.qp_stdev = shared_frame_info->qp_stdev;
+  frame_info.qp_bb_avg = shared_frame_info->qp_bb_avg;
+  frame_info.qp_bb_stdev = shared_frame_info->qp_bb_stdev;
 
   // codec-specific handling
   if (codec_context->codec_id == AV_CODEC_ID_H264) {

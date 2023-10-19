@@ -7,6 +7,7 @@
 
 #include "VideoParser.h"
 #include "json.hpp"
+#include "termcolor.hpp"
 
 using json = nlohmann::json;
 
@@ -26,18 +27,26 @@ void print_usage(const char *program_name) {
 }
 
 void print_sequence_info(const videoparser::SequenceInfo &info) {
-  std::cerr << "Video duration: " << info.video_duration << " s" << std::endl;
-  std::cerr << "Video codec: " << info.video_codec << std::endl;
-  std::cerr << "Video bitrate: " << info.video_bitrate << " kbps" << std::endl;
-  std::cerr << "Video framerate: " << info.video_framerate << " fps"
+  std::cerr << termcolor::yellow
+            << "=================== SEQUENCE INFO ==================="
+            << termcolor::reset << std::endl;
+  std::cerr << "Video duration      = " << info.video_duration << " s"
             << std::endl;
-  std::cerr << "Video width: " << info.video_width << " px" << std::endl;
-  std::cerr << "Video height: " << info.video_height << " px" << std::endl;
-  std::cerr << "Video codec profile: " << info.video_codec_profile << std::endl;
-  std::cerr << "Video codec level: " << info.video_codec_level << std::endl;
-  std::cerr << "Video bit depth: " << info.video_bit_depth << std::endl;
-  std::cerr << "Video pixel format: " << info.video_pix_fmt << std::endl;
-  std::cerr << "Video frame count: " << info.video_frame_count << std::endl;
+  std::cerr << "Video codec         = " << info.video_codec << std::endl;
+  std::cerr << "Video bitrate       = " << info.video_bitrate << " kbps"
+            << std::endl;
+  std::cerr << "Video framerate     = " << info.video_framerate << " fps"
+            << std::endl;
+  std::cerr << "Video width         = " << info.video_width << " px"
+            << std::endl;
+  std::cerr << "Video height        = " << info.video_height << " px"
+            << std::endl;
+  std::cerr << "Video codec profile = " << info.video_codec_profile
+            << std::endl;
+  std::cerr << "Video codec level   = " << info.video_codec_level << std::endl;
+  std::cerr << "Video bit depth     = " << info.video_bit_depth << std::endl;
+  std::cerr << "Video pixel format  = " << info.video_pix_fmt << std::endl;
+  std::cerr << "Video frame count   = " << info.video_frame_count << std::endl;
 }
 
 void print_sequence_info_json(const videoparser::SequenceInfo &info) {
@@ -59,12 +68,15 @@ void print_sequence_info_json(const videoparser::SequenceInfo &info) {
 
 // Note: This is not everything, see the JSON below
 void print_general_frame_info(const videoparser::FrameInfo &frame_info) {
-  std::cerr << "Frame index: " << frame_info.frame_idx << std::endl;
-  std::cerr << "DTS: " << frame_info.dts << " s" << std::endl;
-  std::cerr << "PTS: " << frame_info.pts << " s" << std::endl;
-  std::cerr << "Size: " << frame_info.size << std::endl;
-  std::cerr << "Frame type: " << frame_info.frame_type << std::endl;
-  std::cerr << "Is IDR: " << frame_info.is_idr << std::endl;
+  std::cerr << termcolor::yellow
+            << "=================== FRAME INFO ==================="
+            << termcolor::reset << std::endl;
+  std::cerr << "Frame index = " << frame_info.frame_idx << std::endl;
+  std::cerr << "DTS         = " << frame_info.dts << " s" << std::endl;
+  std::cerr << "PTS         = " << frame_info.pts << " s" << std::endl;
+  std::cerr << "Size        = " << frame_info.size << " bytes" << std::endl;
+  std::cerr << "Frame type  = " << frame_info.frame_type << std::endl;
+  std::cerr << "Is IDR      = " << frame_info.is_idr << std::endl;
 }
 
 void print_frame_info_json(const videoparser::FrameInfo &frame_info) {
@@ -149,10 +161,8 @@ int main(int argc, char *argv[]) {
     }
 
     sequence_info = parser.get_sequence_info();
-    if (verbose) {
-      std::cerr << "Sequence info:" << std::endl;
+    if (verbose)
       print_sequence_info(sequence_info);
-    }
     print_sequence_info_json(sequence_info);
 
     parser.close();
