@@ -4,9 +4,11 @@
 
 This program patches ffmpeg to add support for extracting additional bitstream properties, or codec-related information, from the bitstream. The program is structured as follows:
 
-- VideoParser is an API that provides a simple interface for extracting bitstream properties from a video file. It is implemented in `VideoParser.cpp` and `VideoParser.h`, using ffmpeg
-- VideoParserCli is a command-line interface for VideoParser. It is implemented in `main.cpp`.
-- ffmpeg is patched in a separate branch, and it uses the `SharedFrameInfo` struct to store the bitstream properties. This is part of the `AVFrame` struct.
+- `VideoParser` is an API that provides a simple interface for extracting bitstream properties from a video file. It is implemented as a basic frame-by-frame reader that itself is using ffmpeg standard API calls to read the video.
+- VideoParserCli is a command-line interface for VideoParser. It is implemented by using VideoParser API calls to extract the bitstream properties, and then printing them to the console in JSON format.
+- ffmpeg is cloned and has a separate branch checked out.
+
+To pass extra information from the ffmpeg part to the VideoParser part, we use the `SharedFrameInfo` struct to store the bitstream properties like QP values, motion vectors, etc. The definition is in `VideoParser/include/shared.h`, and it is included in ffmpeg as well. The shared info is part of the `AVFrame` struct, and is extracted from there using a helper function `av_frame_get_shared_frame_info`.
 
 ## Modifications Made
 
