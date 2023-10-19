@@ -2,6 +2,8 @@
 #
 # Rebase the modified ffmpeg version to a new upstream version.
 
+set -e
+
 FFMPEG_UPSTREAM_URL=https://github.com/FFmpeg/FFmpeg.git
 FFMPEG_UPSTREAM_BRANCH=master
 
@@ -11,18 +13,23 @@ LOCAL_BRANCH=videoparser
 cd "$(dirname "$0")/.." || exit 1
 
 restore() {
-    git switch "$LOCAL_BRANCH"
+    git switch "$LOCAL_BRANCH" || true
 }
 
-trap restore EXIT INT TERM
+trap restore EXIT TERM
 
-# check if git submodule has any uncommitted changes
-if ! git diff --quiet --exit-code --cached external/ffmpeg; then
-    echo "There are uncommitted changes in ffmpeg submodule. Please commit or stash them first."
+cd external/ffmpeg || exit 1
+
+# check if the local branch exists and if there are no uncommitted changes
+if ! git show-ref --verify --quiet "refs/heads/$LOCAL_BRANCH"; then
+    echo "Local branch $LOCAL_BRANCH does not exist!"
     exit 1
 fi
 
-cd external/ffmpeg || exit 1
+if ! git diff-index --quiet HEAD --; then
+    echo "There are uncommitted changes!"
+    exit 1
+fi
 
 if ! git remote | grep -q '^upstream$'; then
     echp "Addomg remote $FFMPEG_UPSTREAM_URL ..."
