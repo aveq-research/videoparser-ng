@@ -87,30 +87,37 @@ FEATURE_KEY_MAPPING = {
     # "StdDev_MotionDif": "motion_diff_stdev",
     # "Av_Coefs": "coefs_avg",
     # "StdDev_Coefs": "coefs_stdev",
-    # "HF_LF_ratio": "coef_hf_lf_ratio",
+    # "HF_LF_ratio": "coefs_hf_lf_ratio",
     # "MbTypes": "mb_types",
     # "BlkShapes": "mb_shapes",
     # "TrShapes": "tr_shapes",
     # "FarFWDRef": "mb_far_fwd_ref",
-    # "PredFrm_Intra": "pref_frame_intra_area",
+    # "PredFrm_Intra": "pred_frame_intra_area",
     # "FrameSize": "size",
     # "FrameType": "frame_type",
-    # "IsIDR": "is_idr",
-    # "FrameIdx": "frame_idx",
+    "IsIDR": "is_idr",
+    "FrameIdx": "frame_idx",
     # "FirstFrame": "is_first_frame",
     # "NumFrames": None,
     # "BlackBorder": "black_border_lines",
-    # "DTS": "dts",
-    # "PTS": "pts",
+    "DTS": "dts",
+    "PTS": "pts",
     # "CurrPOC": "current_poc",
     # "POC_DIF": "poc_diff",
-    # "FrameCnt": None,
-    # "SpatialComplexety": None,
-    # "TemporalComplexety": None,
-    # "TI_Mot": None,
-    # "TI_910": None,
-    # "SI_910": None,
-    # "Blockiness": None,
+    "BitCntMotion": "motion_bit_count",
+    "BitCntCoefs": "coefs_bit_count",
+    "NumBlksSkip": "mb_skip_count",
+    "NumBlksMv": "mb_mv_count",
+    "NumBlksMerge": "mb_merge_count",
+    "NumBlksIntra": "mb_intra_count",
+    "CodedMv": "mv_coded_count",
+}
+
+# how to map from old keys to new keys if the meaning changed
+TRANSFORMATION_FUNCTIONS = {
+    # we start with 0 based frame indices, but the old parser uses 1 based indices
+    "FrameIdx": lambda x: int(x)
+    - 1,
 }
 
 
@@ -158,6 +165,7 @@ class TestVideoParser:
         missing_keys = []
         # one entry per frame
         value_errors: list[dict] = []
+        keys_without_errors = set()
 
         # Compare the parsed data with the original data using the FEATURE_KEY_MAPPING,
         # ignoring the S keys for now
@@ -173,6 +181,10 @@ class TestVideoParser:
                 original_value = original_data[frame_index][key]
                 parsed_value = parsed_data[frame_index][mapped_key]
 
+                # apply transformation function if needed
+                if key in TRANSFORMATION_FUNCTIONS:
+                    original_value = TRANSFORMATION_FUNCTIONS[key](original_value)
+
                 if parsed_value != original_value:
                     value_errors.append(
                         {
@@ -183,11 +195,15 @@ class TestVideoParser:
                             "actual": parsed_value,
                         }
                     )
+                else:
+                    keys_without_errors.add(mapped_key)
 
         assert len(missing_keys) == 0, f"Missing keys in parsed output: {missing_keys}"
 
-        keys_with_errors = set([error["mapped_key"] for error in value_errors])
+        print("Keys without errors:")
+        print(keys_without_errors)
 
+        keys_with_errors = set([error["mapped_key"] for error in value_errors])
         assert (
             len(value_errors) == 0
         ), f"Value error with keys {keys_with_errors}!\n\n{json.dumps(value_errors, indent=2)}"
