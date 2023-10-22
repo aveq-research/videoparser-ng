@@ -41,3 +41,4 @@ build
 # Test fixtures
 test/*.ldjson
 test/*.mkv
+test/__pycache__
