@@ -9,8 +9,6 @@ A command-line and API-based video bitstream parser, using ffmpeg and other thir
 - [Build](#build)
 - [Usage](#usage)
 - [Developers](#developers)
-  - [Testing](#testing)
-  - [Maintenance](#maintenance)
 - [License](#license)
 
 ## Overview
@@ -120,29 +118,7 @@ The tool will also print various logs to STDERR.
 
 ## Developers
 
-### Testing
-
-Generate the test videos:
-
-```bash
-util/generate-test-videos.sh
-```
-
-Then, **TODO**
-
-### Maintenance
-
-#### Fetching new FFmpeg commits
-
-Occasionally you want to rebase your local FFmpeg commits on top of the latest upstream FFmpeg commits. This is done by running the dedicated script.
-
-Run the script:
-
-```bash
-util/rebase-ffmpeg.sh
-```
-
-The rebase may not be clean, so check the output of the script and resolve any conflicts.
+See [DEVELOPERS.md](DEVELOPERS.md).
 
 ## License
 

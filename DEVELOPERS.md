@@ -1,5 +1,14 @@
 # Developer Guide
 
+Contents:
+
+- [General Structure](#general-structure)
+- [Modifications Made](#modifications-made)
+  - [QP Information](#qp-information)
+- [Testing](#testing)
+- [Maintenance](#maintenance)
+  - [Fetching new FFmpeg commits](#fetching-new-ffmpeg-commits)
+
 ## General Structure
 
 This program patches ffmpeg to add support for extracting additional bitstream properties, or codec-related information, from the bitstream. The program is structured as follows:
@@ -19,3 +28,33 @@ This explains the high level changes made to ffmpeg to support the extraction of
 To obtain the QP information, we modify:
 
 - H.264: `h264_mb.c`, to extract the QP information from the `H264SliceContext` struct, in the function `ff_h264_hl_decode_mb`
+
+## Testing
+
+Generate the test videos:
+
+```bash
+util/generate-test-videos.sh
+```
+
+Then, obtain the test features in ldjson format. (TODO: explain from where)
+
+Now you can run the Python-based tests:
+
+```bash
+python3 -m pytest test/test.py
+```
+
+## Maintenance
+
+### Fetching new FFmpeg commits
+
+Occasionally you want to rebase your local FFmpeg commits on top of the latest upstream FFmpeg commits. This is done by running the dedicated script.
+
+Run the script:
+
+```bash
+util/rebase-ffmpeg.sh
+```
+
+The rebase may not be clean, so check the output of the script and resolve any conflicts.
