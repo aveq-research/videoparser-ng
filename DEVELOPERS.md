@@ -28,6 +28,8 @@ This explains the high level changes made to ffmpeg to support the extraction of
 To obtain the QP information, we modify:
 
 - H.264: `h264_mb.c`, to extract the QP information from the `H264SliceContext` struct, in the function `ff_h264_hl_decode_mb`
+- HEVC: `hevcdec.c`, to extract the QP information from the `HEVCLocalContext` struct, in the function `hls_coding_unit`
+
 
 ## Testing
 
