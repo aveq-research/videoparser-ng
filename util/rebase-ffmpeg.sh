@@ -32,12 +32,12 @@ if ! git diff-index --quiet HEAD --; then
 fi
 
 if ! git remote | grep -q '^upstream$'; then
-    echp "Addomg remote $FFMPEG_UPSTREAM_URL ..."
+    echp "Adding remote $FFMPEG_UPSTREAM_URL ..."
     git remote add upstream "$FFMPEG_UPSTREAM_URL"
 fi
 
 if ! git remote | grep -q '^local$'; then
-    echp "Addomg remote $LOCAL_URL ..."
+    echp "Adding remote $LOCAL_URL ..."
     git remote add local "$LOCAL_URL"
 fi
 
