@@ -12,3 +12,7 @@ cmake ..
 cmake --build .
 
 popd
+
+echo "Done. You can find the binary at: "
+echo
+echo "  build/VideoParserCli/video-parser"

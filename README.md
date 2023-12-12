@@ -7,7 +7,9 @@ A command-line and API-based video bitstream parser, using ffmpeg and other thir
   - [Installation under macOS](#installation-under-macos)
   - [Installation under Ubuntu](#installation-under-ubuntu)
 - [Build](#build)
+  - [Rebuilding ffmpeg](#rebuilding-ffmpeg)
 - [Usage](#usage)
+- [Available Metrics](#available-metrics)
 - [Developers](#developers)
 - [License](#license)
 
@@ -97,6 +99,22 @@ You can also run the CLI:
 build/VideoParserCli/video-parser
 ```
 
+### Rebuilding ffmpeg
+
+If you get a warning like:
+
+```
+WARNING: libavcodec/allcodecs.c newer than config_components.h, rerun configure
+```
+
+Then run:
+
+```bash
+util/build-ffmpeg.sh --reconfigure
+```
+
+This will rebuild ffmpeg after which you can run the build script for the project again.
+
 ## Usage
 
 To run the CLI, run:
@@ -115,6 +133,32 @@ The tool will print a set of line-delimited JSON records to STDOUT, either for p
 ```
 
 The tool will also print various logs to STDERR.
+
+## Available Metrics
+
+The following metadata/metrics are available:
+
+- Per-sequence (type: `sequence_info`):
+  - Video codec
+  - Video codec profile
+  - Video codec level
+  - Video width
+  - Video height
+  - Video pixel format
+  - Video bit depth
+  - Video frame rate
+  - Video duration
+  - Video frame count
+  - Video bitrate
+- Per-frame data (type: `frame_info`):
+  - Frame type
+  - Frame size
+  - Frame PTS
+  - Frame DTS
+  - Frame index
+  - Frame is IDR
+
+Specific per-frame metrics are being implemented at the moment.
 
 ## Developers
 

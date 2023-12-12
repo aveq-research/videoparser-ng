@@ -5,6 +5,7 @@ Contents:
 - [General Structure](#general-structure)
 - [Modifications Made](#modifications-made)
   - [QP Information](#qp-information)
+  - [TODO](#todo)
 - [Testing](#testing)
 - [Maintenance](#maintenance)
   - [Fetching new FFmpeg commits](#fetching-new-ffmpeg-commits)
@@ -30,6 +31,9 @@ To obtain the QP information, we modify:
 - H.264: `h264_mb.c`, to extract the QP information from the `H264SliceContext` struct, in the function `ff_h264_hl_decode_mb`
 - HEVC: `hevcdec.c`, to extract the QP information from the `HEVCLocalContext` struct, in the function `hls_coding_unit`
 
+### TODO
+
+*Add other modifications here.*
 
 ## Testing
 
