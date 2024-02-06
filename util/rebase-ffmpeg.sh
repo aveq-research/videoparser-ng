@@ -51,6 +51,9 @@ git merge upstream/"$FFMPEG_UPSTREAM_BRANCH" --ff-only || (
     git rebase upstream/"$FFMPEG_UPSTREAM_BRANCH"
 )
 
+# update the commit message, set a new date
+git commit --amend --no-edit --date "$(date -R)"
+
 git switch "$FFMPEG_UPSTREAM_BRANCH"
 echo "Attempting fast-forward merge of $FFMPEG_UPSTREAM_BRANCH ..."
 git merge upstream/"$FFMPEG_UPSTREAM_BRANCH" --ff-only || (
@@ -59,10 +62,15 @@ git merge upstream/"$FFMPEG_UPSTREAM_BRANCH" --ff-only || (
 )
 
 # push the changes to the local remote
-git push local "$LOCAL_BRANCH"
+git push --force local "$LOCAL_BRANCH"
 
 # also push the master branch to the local remote
 git push local "$FFMPEG_UPSTREAM_BRANCH"
 
 # restore the original branch
 git switch "$LOCAL_BRANCH"
+
+# update the submodule
+cd "$(dirname "$0")/.." || exit 1
+git add external/ffmpeg
+git commit -m "Update ffmpeg to latest version"
