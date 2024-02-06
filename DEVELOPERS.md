@@ -43,7 +43,12 @@ Generate the test videos:
 util/generate-test-videos.sh
 ```
 
-Then, obtain the test features in ldjson format. (TODO: explain from where)
+Then, obtain the test features in ldjson format:
+
+```bash
+wget https://storage.googleapis.com/aveq-storage/data/videoparser-ng/test/test.zip -O test/test.zip
+unzip test/test.zip -d test
+```
 
 Now you can run the Python-based tests:
 
