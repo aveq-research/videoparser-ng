@@ -42,3 +42,6 @@ build
 test/*.ldjson
 test/*.mkv
 test/__pycache__
+
+.mypy_cache
+.pytest_cache
