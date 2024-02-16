@@ -50,6 +50,7 @@ if [[ ! -f config.h ]] || [[ "$reconfigure" = true ]]; then
     --disable-videotoolbox
     --disable-securetransport
     --disable-iconv
+    --disable-libdrm
     # no output needed, no filters
     --disable-encoders
     --disable-muxers
@@ -59,15 +60,17 @@ if [[ ! -f config.h ]] || [[ "$reconfigure" = true ]]; then
     --disable-indevs
     --disable-protocols
     --enable-protocol=file
+    # FIXME: below is not working, leading to linking errors down the line
     # only specific decoders
-    --disable-decoders
-    --enable-decoder=h264
-    --enable-decoder=hevc
-    --enable-decoder=vp9
-    --disable-parsers
-    --enable-parser=h264
-    --enable-parser=hevc
-    --enable-parser=vp9
+    # --disable-decoders
+    # --enable-decoder=h264
+    # --enable-decoder=hevc
+    # --enable-decoder=vp9
+    # --enable-decoder=aac
+    # --disable-parsers
+    # --enable-parser=h264
+    # --enable-parser=hevc
+    # --enable-parser=vp9
     # only specific demuxers
     --disable-demuxers
     --enable-demuxer=h264
