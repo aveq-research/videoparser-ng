@@ -10,7 +10,7 @@ target_include_directories(videoparser PRIVATE ${CMAKE_SOURCE_DIR}/external/ffmp
 target_link_libraries(videoparser PRIVATE ${CMAKE_SOURCE_DIR}/external/ffmpeg/libavcodec/libavcodec.a)
 target_link_libraries(videoparser PRIVATE ${CMAKE_SOURCE_DIR}/external/ffmpeg/libavformat/libavformat.a)
 target_link_libraries(videoparser PRIVATE ${CMAKE_SOURCE_DIR}/external/ffmpeg/libavutil/libavutil.a)
-target_link_libraries(videoparser PRIVATE bz2 z iconv)
+target_link_libraries(videoparser PRIVATE bz2 z)
 
 # Build FFmpeg if it doesn't exist, or if any of its source files have changed
 add_custom_command(

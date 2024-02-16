@@ -49,6 +49,7 @@ if [[ ! -f config.h ]] || [[ "$reconfigure" = true ]]; then
     --disable-audiotoolbox
     --disable-videotoolbox
     --disable-securetransport
+    --disable-iconv
     # no output needed, no filters
     --disable-encoders
     --disable-muxers
