@@ -68,7 +68,8 @@ sudo apt install \
   texinfo \
   wget \
   yasm \
-  zlib1g-dev
+  zlib1g-dev \
+  libbz2-dev
 ```
 
 ## Build
