@@ -43,11 +43,17 @@ if [[ ! -f config.h ]] || [[ "$reconfigure" = true ]]; then
     --enable-static
     --enable-pthreads
     --enable-debug=2
+    # disable filters and scaling
     --disable-avfilter
     --disable-swscale
     --disable-swresample
+    # hardware acceleration
     --disable-audiotoolbox
     --disable-videotoolbox
+    --disable-vaapi
+    --disable-vdpau
+    --disable-vulkan
+    # other third-party libs
     --disable-securetransport
     --disable-iconv
     --disable-libdrm
