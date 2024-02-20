@@ -24,8 +24,9 @@ Internally, ffmpeg is used, and statically linked into the project. This means t
 
 ## Requirements
 
+- Ubuntu 22.04 or higher, or macOS 12.0 or higher
 - CMake 3.15 or higher
-- C++17 compiler
+- A C++17 compiler (GCC 9.3 or higher, Clang 10.0 or higher)
 
 You also need:
 

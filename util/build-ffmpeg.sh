@@ -8,17 +8,22 @@ cd "$(dirname "$0")/../external/ffmpeg" || (echo "ffmpeg directory not found!" &
 
 usage() {
   echo "Usage: $0 [options]"
-  echo "  --reconfigure:      reconfigure ffmpeg"
-  echo "  --help:             print this message"
+  echo "  --reconfigure       reconfigure ffmpeg"
+  echo "  --clean             clean ffmpeg build (implies reconfigure)"
+  echo "  --help              print this message"
   exit 1
 }
 
 reconfigure=false
+clean=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --reconfigure)
       reconfigure=true
+      ;;
+    --clean)
+      clean=true
       ;;
     --help)
       usage
@@ -32,6 +37,13 @@ while [[ $# -gt 0 ]]; do
 done
 
 startTime=$(date +%s)
+
+if [[ "$clean" = true ]]; then
+  echo "Cleaning ffmpeg build..."
+
+  make clean
+  rm -f config.h
+fi
 
 if [[ ! -f config.h ]] || [[ "$reconfigure" = true ]]; then
   echo "Configuring ffmpeg..."
@@ -73,10 +85,12 @@ if [[ ! -f config.h ]] || [[ "$reconfigure" = true ]]; then
     # --enable-decoder=hevc
     # --enable-decoder=vp9
     # --enable-decoder=aac
-    # --disable-parsers
-    # --enable-parser=h264
-    # --enable-parser=hevc
-    # --enable-parser=vp9
+    --disable-parsers
+    --enable-parser=h264
+    --enable-parser=hevc
+    --enable-parser=vp9
+    --enable-parser=av1
+    --enable-parser=vorbis
     # needs lzma, we don't need it
     --disable-decoder=tiff
     # only specific demuxers
