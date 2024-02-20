@@ -77,6 +77,8 @@ if [[ ! -f config.h ]] || [[ "$reconfigure" = true ]]; then
     # --enable-parser=h264
     # --enable-parser=hevc
     # --enable-parser=vp9
+    # needs lzma, we don't need it
+    --disable-decoder=tiff
     # only specific demuxers
     --disable-demuxers
     --enable-demuxer=h264
