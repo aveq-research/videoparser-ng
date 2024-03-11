@@ -209,6 +209,25 @@ void VideoParser::set_frame_info(FrameInfo &frame_info) {
   frame_info.qp_bb_avg = shared_frame_info->qp_bb_avg;
   frame_info.qp_bb_stdev = shared_frame_info->qp_bb_stdev;
 
+  frame_info.motion_avg = shared_frame_info->motion_avg;
+  frame_info.motion_stdev = shared_frame_info->motion_stdev;
+  frame_info.motion_x_avg = shared_frame_info->motion_x_avg;
+  frame_info.motion_y_avg = shared_frame_info->motion_y_avg;
+  frame_info.motion_x_stdev = shared_frame_info->motion_x_stdev;
+  frame_info.motion_y_stdev = shared_frame_info->motion_y_stdev;
+  frame_info.motion_diff_avg = shared_frame_info->motion_diff_avg;
+  frame_info.motion_diff_stdev = shared_frame_info->motion_diff_stdev;
+  frame_info.current_poc = shared_frame_info->current_poc;
+  frame_info.poc_diff = shared_frame_info->poc_diff;
+  frame_info.mb_mv_count = shared_frame_info->mb_mv_count;
+  // Adding these to make debugging easier
+  frame_info.mv_length = shared_frame_info->mv_length;
+  frame_info.mv_sum_sqr = shared_frame_info->mv_sum_sqr;
+  frame_info.mv_x_length = shared_frame_info->mv_x_length;
+  frame_info.mv_y_length = shared_frame_info->mv_y_length;
+  frame_info.mv_x_sum_sqr = shared_frame_info->mv_x_sum_sqr;
+  frame_info.mv_y_sum_sqr = shared_frame_info->mv_y_sum_sqr;
+
   // codec-specific handling
   if (codec_context->codec_id == AV_CODEC_ID_H264) {
     set_frame_info_h264(frame_info);
@@ -228,23 +247,69 @@ void VideoParser::set_frame_info(FrameInfo &frame_info) {
 void VideoParser::print_shared_frame_info(SharedFrameInfo &shared_frame_info) {
   std::cerr << "================ SHARED FRAME INFO ================"
             << std::endl;
-  std::cerr << "frame_idx      = " << shared_frame_info.frame_idx << std::endl;
-  std::cerr << "qp_sum         = " << shared_frame_info.qp_sum << std::endl;
-  std::cerr << "qp_sum_sqr     = " << shared_frame_info.qp_sum_sqr << std::endl;
-  std::cerr << "qp_cnt         = " << shared_frame_info.qp_cnt << std::endl;
-  std::cerr << "qp_sum_bb      = " << shared_frame_info.qp_sum_bb << std::endl;
-  std::cerr << "qp_sum_sqr_bb  = " << shared_frame_info.qp_sum_sqr_bb
+  std::cerr << "frame_idx         = " << shared_frame_info.frame_idx
             << std::endl;
-  std::cerr << "qp_cnt_bb      = " << shared_frame_info.qp_cnt_bb << std::endl;
+  std::cerr << "qp_sum            = " << shared_frame_info.qp_sum << std::endl;
+  std::cerr << "qp_sum_sqr        = " << shared_frame_info.qp_sum_sqr
+            << std::endl;
+  std::cerr << "qp_cnt            = " << shared_frame_info.qp_cnt << std::endl;
+  std::cerr << "qp_sum_bb         = " << shared_frame_info.qp_sum_bb
+            << std::endl;
+  std::cerr << "qp_sum_sqr_bb     = " << shared_frame_info.qp_sum_sqr_bb
+            << std::endl;
+  std::cerr << "qp_cnt_bb         = " << shared_frame_info.qp_cnt_bb
+            << std::endl;
+  std::cerr << "mv_length         = " << shared_frame_info.mv_length
+            << std::endl;
+  std::cerr << "mv_sum_sqr        = " << shared_frame_info.mv_sum_sqr
+            << std::endl;
+  std::cerr << "mv_x_length       = " << shared_frame_info.mv_x_length
+            << std::endl;
+  std::cerr << "mv_y_length       = " << shared_frame_info.mv_y_length
+            << std::endl;
+  std::cerr << "mv_x_sum_sqr      = " << shared_frame_info.mv_x_sum_sqr
+            << std::endl;
+  std::cerr << "mv_y_sum_sqr      = " << shared_frame_info.mv_y_sum_sqr
+            << std::endl;
   std::cerr << "----------------------------------------------------"
             << std::endl;
-  std::cerr << "qp_min         = " << shared_frame_info.qp_min << std::endl;
-  std::cerr << "qp_max         = " << shared_frame_info.qp_max << std::endl;
-  std::cerr << "qp_init        = " << shared_frame_info.qp_init << std::endl;
-  std::cerr << "qp_avg         = " << shared_frame_info.qp_avg << std::endl;
-  std::cerr << "qp_stdev       = " << shared_frame_info.qp_stdev << std::endl;
-  std::cerr << "qp_bb_avg      = " << shared_frame_info.qp_bb_avg << std::endl;
-  std::cerr << "qp_bb_stdev    = " << shared_frame_info.qp_bb_stdev
+  std::cerr << "qp_min            = " << shared_frame_info.qp_min << std::endl;
+  std::cerr << "qp_max            = " << shared_frame_info.qp_max << std::endl;
+  std::cerr << "qp_init           = " << shared_frame_info.qp_init << std::endl;
+  std::cerr << "qp_avg            = " << shared_frame_info.qp_avg << std::endl;
+  std::cerr << "qp_stdev          = " << shared_frame_info.qp_stdev
+            << std::endl;
+  std::cerr << "qp_bb_avg         = " << shared_frame_info.qp_bb_avg
+            << std::endl;
+  std::cerr << "qp_bb_stdev       = " << shared_frame_info.qp_bb_stdev
+            << std::endl;
+  std::cerr << "motion_avg        = " << shared_frame_info.motion_avg
+            << std::endl;
+  std::cerr << "motion_stdev      = " << shared_frame_info.motion_stdev
+            << std::endl;
+  std::cerr << "motion_x_avg      = " << shared_frame_info.motion_x_avg
+            << std::endl;
+  std::cerr << "motion_y_avg      = " << shared_frame_info.motion_y_avg
+            << std::endl;
+  std::cerr << "motion_x_stdev    = " << shared_frame_info.motion_x_stdev
+            << std::endl;
+  std::cerr << "motion_y_stdev    = " << shared_frame_info.motion_y_stdev
+            << std::endl;
+  std::cerr << "motion_diff_avg   = " << shared_frame_info.motion_diff_avg
+            << std::endl;
+  std::cerr << "motion_diff_stdev = " << shared_frame_info.motion_diff_stdev
+            << std::endl;
+  std::cerr << "current_poc       = " << shared_frame_info.current_poc
+            << std::endl;
+  std::cerr << "poc_diff          = " << shared_frame_info.poc_diff
+            << std::endl;
+  std::cerr << "motion_bit_count  = " << shared_frame_info.motion_bit_count
+            << std::endl;
+  std::cerr << "coefs_bit_count   = " << shared_frame_info.coefs_bit_count
+            << std::endl;
+  std::cerr << "mb_mv_count       = " << shared_frame_info.mb_mv_count
+            << std::endl;
+  std::cerr << "mv_coded_count    = " << shared_frame_info.mv_coded_count
             << std::endl;
   std::cerr << "----------------------------------------------------"
             << std::endl;

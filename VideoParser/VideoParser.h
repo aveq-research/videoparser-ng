@@ -77,11 +77,35 @@ struct FrameInfo {
   uint32_t qp_min;  /**< Minimum QP value encountered in this frame */
   uint32_t qp_max;  /**< Maximum QP value encountered in this frame */
   uint32_t qp_init; /**< QP Value the frame is starting with (to be found in the
-                       slice- or frame-header) */
+                        slice- or frame-header) */
   double qp_avg;    /**< Average QP of the whole frame */
   double qp_stdev;  /**< Standard deviation of Av_QP */
   double qp_bb_avg; /**< Average QP without the black border */
-  double qp_bb_stdev; /**< Standard deviation of the average QP */
+  double qp_bb_stdev;  /**< Standard deviation of the average QP */
+  double motion_avg;   /**< Average length (sqrt(xx + yy)) of the vectors in the
+                           motion field */
+  double motion_stdev; /**< Standard Deviation of Av_Motion */
+  double motion_x_avg; /**< Average of abs(MotX) */
+  double motion_y_avg; /**< Average of abs(MotY) */
+  double motion_x_stdev;    /**< Standard deviation of Av_MotionX */
+  double motion_y_stdev;    /**< Standard deviation of Av_MotionY */
+  double motion_diff_avg;   /**< Difference of the motion with its prediction */
+  double motion_diff_stdev; /**< Standard deviation of Av_MotionDif */
+  int current_poc;
+  int poc_diff;
+  double motion_bit_count; /**< The number of bits used for coding motion */
+  double coefs_bit_count /**< The number of bits used for coding coeffs */;
+  int mb_mv_count;    /**< Number of macroblocks with MVs */
+  int mv_coded_count; /**< Number of coded MVs */
+
+  // Adding these to make debugging easier (so that they can be printed in the
+  // JSON)
+  double mv_length;    /**< Motion Vector (MV) length, overall */
+  double mv_sum_sqr;   /**< Sum of squared MV lengths */
+  double mv_x_length;  /**< MV length in the X direction */
+  double mv_y_length;  /**< MV length in the Y direction */
+  double mv_x_sum_sqr; /**< Sum of squared MV lengths in the X direction */
+  double mv_y_sum_sqr; /**< Sum of squared MV lengths in the Y direction */
 };
 
 void set_verbose(bool verbose);

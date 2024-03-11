@@ -26,6 +26,13 @@ typedef struct SharedFrameInfo {
   uint32_t qp_sum_bb;     /**< Sum of QP values without black border */
   uint32_t qp_sum_sqr_bb; /**< Sum of squared QP values without black border */
   uint32_t qp_cnt_bb;     /**< Count of QP values without black border */
+  // Temporary MV values
+  double mv_length;    /**< Motion Vector (MV) length, overall */
+  double mv_sum_sqr;   /**< Sum of squared MV lengths */
+  double mv_x_length;  /**< MV length in the X direction */
+  double mv_y_length;  /**< MV length in the Y direction */
+  double mv_x_sum_sqr; /**< Sum of squared MV lengths in the X direction */
+  double mv_y_sum_sqr; /**< Sum of squared MV lengths in the Y direction */
 
   // EXTERNAL -- shared with videoparser
   // derived QP values
@@ -37,6 +44,22 @@ typedef struct SharedFrameInfo {
   double qp_stdev;  /**< Standard deviation of Av_QP */
   double qp_bb_avg; /**< Average QP without the black border */
   double qp_bb_stdev; /**< Standard deviation of the average QP */
+  // Derived MV values
+  double motion_avg;   /**< Average length (sqrt(xx + yy)) of the vectors in the
+                         motion field */
+  double motion_stdev; /**< Standard Deviation of Av_Motion */
+  double motion_x_avg; /**< Average of abs(MotX) */
+  double motion_y_avg; /**< Average of abs(MotY) */
+  double motion_x_stdev;    /**< Standard deviation of Av_MotionX */
+  double motion_y_stdev;    /**< Standard deviation of Av_MotionY */
+  double motion_diff_avg;   /**< Difference of the motion with its prediction */
+  double motion_diff_stdev; /**< Standard deviation of Av_MotionDif */
+  int current_poc;
+  int poc_diff;
+  double motion_bit_count; /**< The number of bits used for coding motion */
+  double coefs_bit_count /**< The number of bits used for coding coeffs */;
+  int mb_mv_count;    /**< Number of macroblocks with MVs */
+  int mv_coded_count; /**< Number of coded MVs */
 } SharedFrameInfo;
 
 #endif
