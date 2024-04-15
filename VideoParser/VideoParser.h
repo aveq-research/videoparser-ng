@@ -100,12 +100,14 @@ struct FrameInfo {
 
   // Adding these to make debugging easier (so that they can be printed in the
   // JSON)
-  double mv_length;    /**< Motion Vector (MV) length, overall */
-  double mv_sum_sqr;   /**< Sum of squared MV lengths */
-  double mv_x_length;  /**< MV length in the X direction */
-  double mv_y_length;  /**< MV length in the Y direction */
-  double mv_x_sum_sqr; /**< Sum of squared MV lengths in the X direction */
-  double mv_y_sum_sqr; /**< Sum of squared MV lengths in the Y direction */
+  double mv_length;       /**< Motion Vector (MV) length, overall */
+  double mv_sum_sqr;      /**< Sum of squared MV lengths */
+  double mv_x_length;     /**< MV length in the X direction */
+  double mv_y_length;     /**< MV length in the Y direction */
+  double mv_x_sum_sqr;    /**< Sum of squared MV lengths in the X direction */
+  double mv_y_sum_sqr;    /**< Sum of squared MV lengths in the Y direction */
+  double mv_length_diff;  /** < Difference in MV length */
+  double mv_diff_sum_sqr; /**< Sum of squared MV differences */
 };
 
 void set_verbose(bool verbose);

@@ -27,12 +27,14 @@ typedef struct SharedFrameInfo {
   uint32_t qp_sum_sqr_bb; /**< Sum of squared QP values without black border */
   uint32_t qp_cnt_bb;     /**< Count of QP values without black border */
   // Temporary MV values
-  double mv_length;    /**< Motion Vector (MV) length, overall */
-  double mv_sum_sqr;   /**< Sum of squared MV lengths */
-  double mv_x_length;  /**< MV length in the X direction */
-  double mv_y_length;  /**< MV length in the Y direction */
-  double mv_x_sum_sqr; /**< Sum of squared MV lengths in the X direction */
-  double mv_y_sum_sqr; /**< Sum of squared MV lengths in the Y direction */
+  double mv_length;       /**< Motion Vector (MV) length, overall */
+  double mv_sum_sqr;      /**< Sum of squared MV lengths */
+  double mv_x_length;     /**< MV length in the X direction */
+  double mv_y_length;     /**< MV length in the Y direction */
+  double mv_x_sum_sqr;    /**< Sum of squared MV lengths in the X direction */
+  double mv_y_sum_sqr;    /**< Sum of squared MV lengths in the Y direction */
+  double mv_length_diff;  /** < Difference in MV length */
+  double mv_diff_sum_sqr; /**< Sum of squared MV differences */
 
   // EXTERNAL -- shared with videoparser
   // derived QP values

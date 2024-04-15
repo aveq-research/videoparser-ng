@@ -116,6 +116,8 @@ void print_frame_info_json(const videoparser::FrameInfo &frame_info) {
   j["mv_y_length"] = frame_info.mv_y_length;
   j["mv_x_sum_sqr"] = frame_info.mv_x_sum_sqr;
   j["mv_y_sum_sqr"] = frame_info.mv_y_sum_sqr;
+  j["mv_length_diff"] = frame_info.mv_length_diff;
+  j["mv_diff_sum_sqr"] = frame_info.mv_diff_sum_sqr;
   std::cout << j.dump() << std::endl;
 }
 

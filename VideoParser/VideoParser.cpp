@@ -271,6 +271,10 @@ void VideoParser::print_shared_frame_info(SharedFrameInfo &shared_frame_info) {
             << std::endl;
   std::cerr << "mv_y_sum_sqr      = " << shared_frame_info.mv_y_sum_sqr
             << std::endl;
+  std::cerr << "mv_length_diff    = " << shared_frame_info.mv_length_diff
+            << std::endl;
+  std::cerr << "mv_diff_sum_sqr   = " << shared_frame_info.mv_diff_sum_sqr
+            << std::endl;
   std::cerr << "----------------------------------------------------"
             << std::endl;
   std::cerr << "qp_min            = " << shared_frame_info.qp_min << std::endl;
