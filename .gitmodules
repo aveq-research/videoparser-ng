@@ -1,3 +1,4 @@
 [submodule "external/ffmpeg"]
 	path = external/ffmpeg
 	url = git@github.com:aveq-research/ffmpeg.git
+	branch = videoparser-motion-vectors
