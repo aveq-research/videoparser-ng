@@ -172,8 +172,8 @@ See [DEVELOPERS.md](DEVELOPERS.md).
 
 ## License
 
-Copyright (c) 2023 AVEQ GmbH.
-Copyright (c) 2023 videoparser-ng contributors.
+Copyright (c) AVEQ GmbH.
+Copyright (c) videoparser-ng contributors.
 
 This project is licensed under the GNU GNU LESSER GENERAL PUBLIC License v2.1 - see the LICENSE.md file for details.
 

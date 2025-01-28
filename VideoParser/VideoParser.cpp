@@ -74,6 +74,12 @@ VideoParser::VideoParser(const std::string &filename) {
 
   sequence_info.video_duration = format_context->duration / AV_TIME_BASE;
   sequence_info.video_codec = codec->name;
+
+  // fix: we replace libaom-av1 with "av1"
+  if (strcmp(codec->name, "libaom-av1") == 0) {
+    sequence_info.video_codec = "av1";
+  }
+
   // Note: the below may be zero if not indicated in the file
   sequence_info.video_bitrate = codec_parameters->bit_rate / 1000;
   sequence_info.video_framerate =
@@ -216,6 +222,8 @@ void VideoParser::set_frame_info(FrameInfo &frame_info) {
     set_frame_info_h265(frame_info);
   } else if (codec_context->codec_id == AV_CODEC_ID_VP9) {
     set_frame_info_vp9(frame_info);
+  } else if (codec_context->codec_id == AV_CODEC_ID_AV1) {
+    set_frame_info_av1(frame_info);
   } else {
     std::cerr << "Warning: unsupported codec "
               << avcodec_get_name(codec_context->codec_id)
@@ -253,6 +261,7 @@ void VideoParser::print_shared_frame_info(SharedFrameInfo &shared_frame_info) {
 void VideoParser::set_frame_info_h264(FrameInfo &frame_info) {}
 void VideoParser::set_frame_info_h265(FrameInfo &frame_info) {}
 void VideoParser::set_frame_info_vp9(FrameInfo &frame_info) {}
+void VideoParser::set_frame_info_av1(FrameInfo &frame_info) {}
 
 /**
  * @brief Parse a single frame and set the frame_info struct

@@ -122,6 +122,7 @@ private:
   void set_frame_info_h264(FrameInfo &frame_info);
   void set_frame_info_h265(FrameInfo &frame_info);
   void set_frame_info_vp9(FrameInfo &frame_info);
+  void set_frame_info_av1(FrameInfo &frame_info);
 };
 } // namespace videoparser
 

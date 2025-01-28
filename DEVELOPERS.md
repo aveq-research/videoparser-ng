@@ -5,7 +5,7 @@ Contents:
 - [General Structure](#general-structure)
 - [Modifications Made](#modifications-made)
   - [QP Information](#qp-information)
-  - [TODO](#todo)
+  - [Open Bugs and TODO](#open-bugs-and-todo)
 - [Testing](#testing)
 - [Maintenance](#maintenance)
   - [Fetching new FFmpeg commits](#fetching-new-ffmpeg-commits)
@@ -33,9 +33,10 @@ To obtain the QP information, we modify:
 - VP9: `vp9.c`, to extract the QP information from the `VP9SharedContext` struct, in the function `vp9_decode_frame`
 - AV1: `libaomdec.c`, to extract the QP information from the `AV1DecodeContext` struct, in the function `aom_decode`
 
-### TODO
+### Open Bugs and TODO
 
-*Add other modifications here.*
+- [ ] Fix the QP information for H.265: sometimes they are missing completely
+- [ ] Add other modifications here!
 
 ## Testing
 
@@ -56,6 +57,12 @@ Now you can run the Python-based tests:
 
 ```bash
 python3 -m pytest test/test.py
+```
+
+Also you can run the CLI tests:
+
+```bash
+python3 -m pytest test/test-cli.py
 ```
 
 ## Maintenance

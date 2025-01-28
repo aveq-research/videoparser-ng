@@ -109,16 +109,6 @@ if [[ ! -f config.h ]] || [[ "$reconfigure" = true ]]; then
     --extra-ldflags="-L${PWD}/aom/lib"
   )
 
-  # Build AOM first
-  if [ ! -d "aom" ]; then
-    git clone https://aomedia.googlesource.com/aom
-    mkdir -p aom/build
-    cd aom/build
-    cmake .. -DENABLE_TESTS=0 -DENABLE_TOOLS=0 -DENABLE_DOCS=0 -DENABLE_EXAMPLES=0
-    make -j$(nproc)
-    cd ../..
-  fi
-
   ./configure "${configureFlags[@]}"
 fi
 
