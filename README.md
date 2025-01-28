@@ -50,7 +50,8 @@ Then, using [Homebrew](https://brew.sh), install the required packages:
 ```bash
 brew install \
   cmake ninja pkg-config \
-  automake git libtool sdl shtool texi2html wget nasm
+  automake git libtool sdl shtool texi2html wget nasm \
+  aom
 ```
 
 ### Installation under Ubuntu
@@ -72,7 +73,8 @@ sudo apt install \
   wget \
   yasm \
   zlib1g-dev \
-  libbz2-dev
+  libbz2-dev \
+  libaom-dev
 ```
 
 ## Build

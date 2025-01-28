@@ -4,8 +4,8 @@ set -e
 
 cd "$(dirname "$0")/../test" || exit 1
 
-# Generate test videos for H.264, H.265, and VP9
-for encoder in libx264 libx265 libvpx-vp9; do
+# Generate test videos for H.264, H.265, VP9, and AV1
+for encoder in libx264 libx265 libvpx-vp9 libaom-av1; do
   echo "Generating test video for $encoder"
   ffmpeg \
     -y \

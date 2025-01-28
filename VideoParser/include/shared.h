@@ -8,6 +8,8 @@
 #ifndef VIDEOPARSER_SHARED_H
 #define VIDEOPARSER_SHARED_H
 
+#include <math.h>
+
 /**
  * @brief Shared frame information to extract from ffmpeg into the parser.
  * This is a struct that is shared between the parser and the ffmpeg library.
@@ -37,6 +39,19 @@ typedef struct SharedFrameInfo {
   double qp_stdev;  /**< Standard deviation of Av_QP */
   double qp_bb_avg; /**< Average QP without the black border */
   double qp_bb_stdev; /**< Standard deviation of the average QP */
+
+  /**
+   * @brief Initialize the SharedFrameInfo struct with default values
+   * @param sf Pointer to SharedFrameInfo struct
+   */
+  void (*init)(struct SharedFrameInfo *sf);
+
+  /**
+   * @brief Update QP statistics with a new QP value
+   * @param sf Pointer to SharedFrameInfo struct
+   * @param qp New QP value to add
+   */
+  void (*update_qp)(struct SharedFrameInfo *sf, uint32_t qp);
 } SharedFrameInfo;
 
 #endif
