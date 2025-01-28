@@ -22,6 +22,8 @@ This project supplies two main components:
 
 Internally, ffmpeg is used, and statically linked into the project. This means that the project is self-contained and does not require any external dependencies once built. This way, it can be easily distributed.
 
+Currently, the project is built with ffmpeg `959b799c8d7` based on the `master` branch.
+
 ## Requirements
 
 - Ubuntu 22.04 or higher, or macOS 12.0 or higher
