@@ -40,6 +40,8 @@ To obtain the QP information, we modify:
 
 ## Testing
 
+For testing you need `pytest`. For easy installation, just use `uv` (https://docs.astral.sh/uv/), which is a faster package manager for Python.
+
 Generate the test videos:
 
 ```bash
@@ -56,13 +58,13 @@ unzip test/test.zip -d test
 Now you can run the Python-based tests:
 
 ```bash
-python3 -m pytest test/test.py
+uvx pytest test/test.py
 ```
 
 Also you can run the CLI tests:
 
 ```bash
-python3 -m pytest test/test-cli.py
+uvx pytest test/test-cli.py
 ```
 
 ## Maintenance
