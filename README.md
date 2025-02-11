@@ -8,7 +8,9 @@ A command-line and API-based video bitstream parser, using ffmpeg and other thir
   - [Installation under Ubuntu](#installation-under-ubuntu)
 - [Build](#build)
   - [Rebuilding ffmpeg](#rebuilding-ffmpeg)
-- [Building with Docker](#building-with-docker)
+- [Docker](#docker)
+  - [Pre-built Docker image](#pre-built-docker-image)
+  - [Building the Docker image yourself](#building-the-docker-image-yourself)
 - [Usage](#usage)
 - [Output](#output)
 - [Available Metrics](#available-metrics)
@@ -40,6 +42,8 @@ You also need:
 
 - `pkg-config`
 - `ninja-build`
+
+Note that you can skip the build step by just using the pre-built Docker image.
 
 ### Installation under macOS
 
@@ -127,7 +131,26 @@ util/build-ffmpeg.sh --reconfigure
 
 This will rebuild ffmpeg after which you can run the build script for the project again.
 
-## Building with Docker
+## Docker
+
+### Pre-built Docker image
+
+We provide a pre-built Docker image on GitHub Container Registry. You can use it without building it yourself.
+
+To pull the image, you need to have a valid GitHub token with access to the repository. If you don't have a token, [create one here](https://github.com/settings/tokens), and make sure it has `read:packages` scope enabled.
+
+```bash
+docker login ghcr.io
+```
+
+You will be prompted to enter your GitHub username, and as password, enter your personal access token. Once you have a token, you can pull the image, and rename it to `videoparser-ng` for easier use.
+
+```bash
+docker pull ghcr.io/aveq-research/videoparser-ng:master
+docker image tag ghcr.io/aveq-research/videoparser-ng:master videoparser-ng
+```
+
+### Building the Docker image yourself
 
 To build the project with Docker, run:
 
