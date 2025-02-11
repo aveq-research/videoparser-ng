@@ -5,8 +5,8 @@ Contents:
 - [General Structure](#general-structure)
 - [Modifications Made](#modifications-made)
   - [QP Information](#qp-information)
-  - [Open Bugs and TODO](#open-bugs-and-todo)
 - [Testing](#testing)
+- [Debugging](#debugging)
 - [Maintenance](#maintenance)
   - [Fetching new FFmpeg commits](#fetching-new-ffmpeg-commits)
 
@@ -32,13 +32,6 @@ To obtain the QP information, we modify:
 - HEVC: `hevcdec.c`, to extract the QP information from the `HEVCLocalContext` struct, in the function `hls_coding_unit`
 - VP9: `vp9.c`, to extract the QP information from the `VP9SharedContext` struct, in the function `vp9_decode_frame`
 - AV1: `libaomdec.c`, to extract the QP information from the `AV1DecodeContext` struct, in the function `aom_decode`
-
-### Open Bugs and TODO
-
-- [ ] Fix the QP information for H.265: sometimes they are missing completely
-- [ ] Add a release script
-- [ ] Add a Docker build (see `docker-build` branch)
-- [ ] Add other modifications here!
 
 ## Testing
 
@@ -68,6 +61,43 @@ Also you can run the CLI tests:
 ```bash
 uvx pytest test/test-cli.py
 ```
+
+## Debugging
+
+We have successfully used the following VS Code `launch.json` configuration to debug the CLI – it requires the `CMake Tools` extension:
+
+```json
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "(lldb) Launch",
+      "type": "cppdbg",
+      "request": "launch",
+      // Resolved by CMake Tools:
+      "program": "${command:cmake.launchTargetPath}",
+      "args": [
+        // "${workspaceFolder}/test/test_video_h264.mkv",
+        "${workspaceFolder}/test/test_video_h265.mkv",
+      ],
+      // comment out the below if you want to set your own breakpoints!
+      "stopAtEntry": true,
+      "cwd": "${workspaceFolder}/build",
+      "environment": [
+        {
+          // add the directory where our target was built to the PATHs
+          // it gets resolved by CMake Tools:
+          "name": "PATH",
+          "value": "${env:PATH}:${command:cmake.getLaunchTargetDirectory}"
+        }
+      ],
+      "MIMode": "lldb"
+    }
+  ]
+}
+```
+
+Replace the `"${workspaceFolder}/test/test_video_h265.mkv"` with the path to the video you want to debug.
 
 ## Maintenance
 
