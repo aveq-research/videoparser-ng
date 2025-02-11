@@ -36,6 +36,8 @@ To obtain the QP information, we modify:
 ### Open Bugs and TODO
 
 - [ ] Fix the QP information for H.265: sometimes they are missing completely
+- [ ] Add a release script
+- [ ] Add a Docker build (see `docker-build` branch)
 - [ ] Add other modifications here!
 
 ## Testing
