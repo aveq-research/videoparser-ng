@@ -8,9 +8,13 @@ A command-line and API-based video bitstream parser, using ffmpeg and other thir
   - [Installation under Ubuntu](#installation-under-ubuntu)
 - [Build](#build)
   - [Rebuilding ffmpeg](#rebuilding-ffmpeg)
+- [Building with Docker](#building-with-docker)
 - [Usage](#usage)
+- [Output](#output)
 - [Available Metrics](#available-metrics)
-- [Developers](#developers)
+- [Developer Guide](#developer-guide)
+- [Acknowledgements](#acknowledgements)
+- [Contributing](#contributing)
 - [License](#license)
 
 ## Overview
@@ -20,9 +24,11 @@ This project supplies two main components:
 - A command-line tool for parsing video bitstreams (`video-parser`)
 - A C++ API for parsing video bitstreams, `libvideoparser`, which is used by the CLI program
 
-Internally, ffmpeg is used, and statically linked into the project. This means that the project is self-contained and does not require any external dependencies once built. This way, it can be easily distributed.
+The project is aimed at providing input for bitstream-based video (quality) assessment.
 
-Currently, the project is built with ffmpeg `959b799c8d7` based on the `master` branch.
+Internally, ffmpeg is used, and linked into the project. Currently, the project is built with ffmpeg `959b799c8d7` (January 2025) based on the `master` branch. We strive to keep the project up to date with the latest ffmpeg version.
+
+There are some design docs about this project [available here](https://docs.google.com/document/d/1pnQGDWRjSfff4TyTNWcdeUmCMdCz8crsGo6Ws3rR6W0/edit?tab=t.0). It explains the rationale for the creation of the project, and what we would like to add as features.
 
 ## Requirements
 
@@ -121,6 +127,16 @@ util/build-ffmpeg.sh --reconfigure
 
 This will rebuild ffmpeg after which you can run the build script for the project again.
 
+## Building with Docker
+
+To build the project with Docker, run:
+
+```bash
+docker build -t videoparser-ng .
+```
+
+This will build the project and create a Docker image named `videoparser-ng`.
+
 ## Usage
 
 To run the CLI, run:
@@ -129,7 +145,15 @@ To run the CLI, run:
 build/VideoParserCli/video-parser <path-to-video-file>
 ```
 
+Or, for Docker, you must mount the video file into the container, e.g. to run it on `test/test_video_h264.mkv`, do:
+
+```bash
+docker run --rm -it -v $(pwd)/test/test_video_h264.mkv:/video.mkv videoparser-ng /video.mkv
+```
+
 Add the option `-h` for detailed usage.
+
+## Output
 
 The tool will print a set of line-delimited JSON records to STDOUT, either for per-sequence statistics, or per-frame statistics. These are denoted with the `type` field:
 
@@ -163,12 +187,19 @@ The following metadata/metrics are available:
   - Frame DTS
   - Frame index
   - Frame is IDR
+  - Other, specific per-frame metrics are being implemented at the moment.
 
-Specific per-frame metrics are being implemented at the moment.
+## Developer Guide
 
-## Developers
+We have a more detailed guide for testing and the specific features implemented. See [DEVELOPERS.md](DEVELOPERS.md).
 
-See [DEVELOPERS.md](DEVELOPERS.md).
+## Acknowledgements
+
+If you use this project in your research, please reference this repository.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
