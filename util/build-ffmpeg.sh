@@ -104,9 +104,6 @@ if [[ ! -f config.h ]] || [[ "$reconfigure" = true ]]; then
     --enable-demuxer=mpegts
     # for AOM
     --enable-libaom
-    # specify libaom path
-    --extra-cflags="-I${PWD}/aom/include"
-    --extra-ldflags="-L${PWD}/aom/lib"
   )
 
   ./configure "${configureFlags[@]}"
