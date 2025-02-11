@@ -6,6 +6,9 @@ set -e
 
 cd "$(dirname "$0")/../external/ffmpeg" || (echo "ffmpeg directory not found!" && exit 1)
 
+# Explicitly set SRC_PATH to current directory
+export SRC_PATH="$(pwd)"
+
 usage() {
   echo "Usage: $0 [options]"
   echo "  --reconfigure       reconfigure ffmpeg"
@@ -41,7 +44,11 @@ startTime=$(date +%s)
 if [[ "$clean" = true ]]; then
   echo "Cleaning ffmpeg build..."
 
-  make clean
+  # Only run make clean if config.mak exists! (In a Docker environment, this is not the case, and the makefile fails because
+  # it expects SRC_PATH to be set.)
+  if [[ -f ffbuild/config.mak ]]; then
+    make clean
+  fi
   rm -f config.h
 fi
 
