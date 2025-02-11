@@ -175,6 +175,6 @@ See [DEVELOPERS.md](DEVELOPERS.md).
 Copyright (c) AVEQ GmbH.
 Copyright (c) videoparser-ng contributors.
 
-This project is licensed under the GNU GNU LESSER GENERAL PUBLIC License v2.1 - see the LICENSE.md file for details.
+This project is licensed under the GNU GNU LESSER GENERAL PUBLIC License v2.1 - see the LICENSE.txt file for details.
 
-Also, see the LICENSE.md file for details on third-party licenses.
+Also, see the LICENSE.txt file for details on third-party licenses.
