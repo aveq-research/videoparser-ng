@@ -17,7 +17,8 @@
  * parser.
  */
 typedef struct SharedFrameInfo {
-  int frame_idx; /**< Index of the frame in the video stream, just a dummy value
+  int frame_idx; /**< Index of the frame in the video stream, just a dummy
+                  * value, unused
                   */
 
   // INTERNAL -- stays in the struct
@@ -39,13 +40,6 @@ typedef struct SharedFrameInfo {
   double qp_stdev;  /**< Standard deviation of Av_QP */
   double qp_bb_avg; /**< Average QP without the black border */
   double qp_bb_stdev; /**< Standard deviation of the average QP */
-
-  /**
-   * @brief Update QP statistics with a new QP value
-   * @param sf Pointer to SharedFrameInfo struct
-   * @param qp New QP value to add
-   */
-  void (*update_qp)(struct SharedFrameInfo *sf, uint32_t qp);
 } SharedFrameInfo;
 
 #endif

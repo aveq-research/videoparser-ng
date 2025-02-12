@@ -165,6 +165,12 @@ void VideoParser::set_frame_info(FrameInfo &frame_info) {
         "Error setting frame info, did you call parse_frame() before?");
   }
 
+  // get the SharedFrameInfo, sometimes it's empty, so we skip this iteration
+  SharedFrameInfo *shared_frame_info = videoparser_get_shared_frame_info(frame);
+  if (!shared_frame_info) {
+    throw std::runtime_error("No shared frame info found");
+  }
+
   // collect frame timing information
   double pts = (frame->pts != AV_NOPTS_VALUE ? frame->pts
                                              : frame->best_effort_timestamp) *
@@ -203,8 +209,6 @@ void VideoParser::set_frame_info(FrameInfo &frame_info) {
   frame_info.frame_type = frame_type;
   frame_info.is_idr = frame->flags & AV_FRAME_FLAG_KEY;
 
-  // from the SharedFrameInfo, copy only the public values
-  SharedFrameInfo *shared_frame_info = videoparser_get_shared_frame_info(frame);
   if (verbose)
     print_shared_frame_info(*shared_frame_info);
   frame_info.qp_min = shared_frame_info->qp_min;
@@ -277,15 +281,17 @@ bool VideoParser::parse_frame(FrameInfo &frame_info) {
         while (avcodec_receive_frame(codec_context, frame) == 0) {
           try {
             set_frame_info(frame_info);
+            // only unref and return true if we successfully set frame info
+            av_packet_unref(current_packet);
+            return true;
           } catch (const std::exception &e) {
-            std::cerr << "Error setting frame info for frame index "
-                      << frame_idx << ": " << e.what() << std::endl;
+            if (verbose) {
+              std::cerr << "Warning: Could not set frame info for frame index "
+                        << frame_idx << ": " << e.what() << std::endl;
+            }
+            // continue to next frame if we couldn't set frame info
+            continue;
           }
-
-          // free up and return next frame
-          av_packet_unref(current_packet);
-
-          return true;
         }
       }
     }

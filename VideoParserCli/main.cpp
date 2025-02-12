@@ -147,17 +147,25 @@ int main(int argc, char *argv[]) {
   try {
     videoparser::VideoParser parser(filename);
     videoparser::SequenceInfo sequence_info;
-
     videoparser::FrameInfo frame_info;
 
     if (verbose)
       std::cerr << "Parsing frames ..." << std::endl;
 
-    while (parser.parse_frame(frame_info) &&
-           frame_info.frame_idx != num_frames) {
+    // track actual frames processed
+    int frames_processed = 0;
+
+    while (parser.parse_frame(frame_info)) {
+      // only check num_frames against actual processed frames
+      if (num_frames >= 0 && frames_processed >= num_frames) {
+        break;
+      }
+
       if (verbose)
         print_general_frame_info(frame_info);
       print_frame_info_json(frame_info);
+
+      frames_processed++;
     }
 
     sequence_info = parser.get_sequence_info();
