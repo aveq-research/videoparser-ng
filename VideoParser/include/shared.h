@@ -41,12 +41,6 @@ typedef struct SharedFrameInfo {
   double qp_bb_stdev; /**< Standard deviation of the average QP */
 
   /**
-   * @brief Initialize the SharedFrameInfo struct with default values
-   * @param sf Pointer to SharedFrameInfo struct
-   */
-  void (*init)(struct SharedFrameInfo *sf);
-
-  /**
    * @brief Update QP statistics with a new QP value
    * @param sf Pointer to SharedFrameInfo struct
    * @param qp New QP value to add

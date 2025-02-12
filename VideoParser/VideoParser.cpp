@@ -204,7 +204,7 @@ void VideoParser::set_frame_info(FrameInfo &frame_info) {
   frame_info.is_idr = frame->flags & AV_FRAME_FLAG_KEY;
 
   // from the SharedFrameInfo, copy only the public values
-  SharedFrameInfo *shared_frame_info = av_frame_get_shared_frame_info(frame);
+  SharedFrameInfo *shared_frame_info = videoparser_get_shared_frame_info(frame);
   if (verbose)
     print_shared_frame_info(*shared_frame_info);
   frame_info.qp_min = shared_frame_info->qp_min;
