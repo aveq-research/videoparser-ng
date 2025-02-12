@@ -82,6 +82,7 @@ sudo apt install \
   texinfo \
   wget \
   yasm \
+  nasm \
   zlib1g-dev \
   libbz2-dev \
   libaom-dev

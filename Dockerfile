@@ -19,6 +19,7 @@ RUN apt-get update -qq && apt-get install -y \
     texinfo \
     wget \
     yasm \
+    nasm \
     zlib1g-dev \
     libbz2-dev \
     libaom-dev \
