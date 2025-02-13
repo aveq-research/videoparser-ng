@@ -149,6 +149,11 @@ int main(int argc, char *argv[]) {
     videoparser::SequenceInfo sequence_info;
     videoparser::FrameInfo frame_info;
 
+    sequence_info = parser.get_sequence_info();
+    if (verbose)
+      print_sequence_info(sequence_info);
+    print_sequence_info_json(sequence_info);
+
     if (verbose)
       std::cerr << "Parsing frames ..." << std::endl;
 
@@ -167,11 +172,6 @@ int main(int argc, char *argv[]) {
 
       frames_processed++;
     }
-
-    sequence_info = parser.get_sequence_info();
-    if (verbose)
-      print_sequence_info(sequence_info);
-    print_sequence_info_json(sequence_info);
 
     parser.close();
   } catch (const std::exception &e) {
