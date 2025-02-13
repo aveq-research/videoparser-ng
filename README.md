@@ -29,6 +29,7 @@ This project supplies two main components:
 The project is aimed at providing input for bitstream-based video (quality) assessment.
 
 Internally, ffmpeg is used, and linked into the project. Currently, the project is built with ffmpeg `959b799c8d7` (January 2025) based on the `master` branch. We strive to keep the project up to date with the latest ffmpeg version.
+The actual ffmpeg changes are published in [this `ffmpeg` fork](https://github.com/aveq-research/ffmpeg/tree/videoparser) in the `videoparser` branch.
 
 There are some design docs about this project [available here](https://docs.google.com/document/d/1pnQGDWRjSfff4TyTNWcdeUmCMdCz8crsGo6Ws3rR6W0/edit?tab=t.0). It explains the rationale for the creation of the project, and what we would like to add as features.
 
