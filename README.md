@@ -3,6 +3,7 @@
 A command-line and API-based video bitstream parser, using ffmpeg and other third party libraries.
 
 - [Overview](#overview)
+- [History and Goals](#history-and-goals)
 - [Requirements](#requirements)
   - [Installation under macOS](#installation-under-macos)
   - [Installation under Ubuntu](#installation-under-ubuntu)
@@ -31,7 +32,13 @@ The project is aimed at providing input for bitstream-based video (quality) asse
 Internally, ffmpeg is used, and linked into the project. Currently, the project is built with ffmpeg `959b799c8d7` (January 2025) based on the `master` branch. We strive to keep the project up to date with the latest ffmpeg version.
 The actual ffmpeg changes are published in [this `ffmpeg` fork](https://github.com/aveq-research/ffmpeg/tree/videoparser) in the `videoparser` branch.
 
-There are some design docs about this project [available here](https://docs.google.com/document/d/1pnQGDWRjSfff4TyTNWcdeUmCMdCz8crsGo6Ws3rR6W0/edit?tab=t.0). It explains the rationale for the creation of the project, and what we would like to add as features.
+## History and Goals
+
+The project is using previous work from the [`bitstream_mode3_videoparser`](https://github.com/Telecommunication-Telemedia-Assessment/bitstream_mode3_videoparser) project, but written from the ground up to be faster.
+
+The overall goal is to provide bitstream statistics to be later used for calculating video quality metrics such as ITU-T Rec. P.1204.3, which has a [reference implementation available](https://github.com/Telecommunication-Telemedia-Assessment/bitstream_mode3_p1204_3).
+
+There are some design docs about this project [available here](https://docs.google.com/document/d/1pnQGDWRjSfff4TyTNWcdeUmCMdCz8crsGo6Ws3rR6W0/edit?tab=t.0). It explains the rationale for the creation of the project, the detailed statistics available in the `bitstream_mode3_videoparser` project we'd like to port over, and what we would like to add as features on top of that.
 
 ## Requirements
 
