@@ -187,14 +187,50 @@ Add the option `-h` for detailed usage.
 
 ## Output
 
-The tool will print a set of line-delimited JSON records to STDOUT, either for per-sequence statistics, or per-frame statistics. These are denoted with the `type` field:
+The tool will print a set of line-delimited JSON records to STDOUT, either for per-sequence statistics, or per-frame statistics. These are denoted with the `type` field.
 
-```json
-{"dts":0.0,"frame_idx":0,"frame_type":1,"is_idr":true,"pts":0.0,"size":19261,"type":"frame_info"}
-{"type":"sequence_info","video_bit_depth":8,"video_bitrate":26.4,"video_codec":"h264","video_codec_level":52,"video_codec_profile":100,"video_duration":10.0,"video_frame_count":2,"video_framerate":60.0,"video_height":2160,"video_pix_fmt":"yuv420p","video_width":3840}
+Example, but formatted with `jq` to make it more readable:
+
+```bash
+build/VideoParserCli/video-parser test/test_video_h264.mkv -n 1 | jq
 ```
 
-The tool will also print various logs to STDERR.
+This would print:
+
+```json
+{
+  "type": "sequence_info",
+  "video_bit_depth": 8,
+  "video_bitrate": 0.0,
+  "video_codec": "h264",
+  "video_codec_level": 52,
+  "video_codec_profile": 100,
+  "video_duration": 10.0,
+  "video_frame_count": 0,
+  "video_framerate": 60.0,
+  "video_height": 2160,
+  "video_pix_fmt": "yuv420p",
+  "video_width": 3840
+}
+{
+  "dts": 0.0,
+  "frame_idx": 0,
+  "frame_type": 1,
+  "is_idr": true,
+  "pts": 0.0,
+  "qp_avg": 25.0,
+  "qp_bb_avg": 25.0,
+  "qp_bb_stdev": 7.54983443527075,
+  "qp_init": 19,
+  "qp_max": 42,
+  "qp_min": 15,
+  "qp_stdev": 7.54983443527075,
+  "size": 19261,
+  "type": "frame_info"
+}
+```
+
+The tool will also print various logs to STDERR which you can redirect to a file if you want to save them, or ignore with `2>/dev/null`.
 
 ## Available Metrics
 
@@ -219,7 +255,7 @@ The following metadata/metrics are available:
   - Frame DTS
   - Frame index
   - Frame is IDR
-  - Other, specific per-frame metrics are being implemented at the moment.
+  - Other, specific per-frame metrics are being implemented at the moment, see [DEVELOPERS.md](DEVELOPERS.md) for more details.
 
 ## Developer Guide
 
