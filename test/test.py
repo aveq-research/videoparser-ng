@@ -26,7 +26,7 @@ FIXTURES = [
 
 # original feature keys in the ldjson file, with mapping to the new keys
 #
-FEATURE_KEY_MAPPING = {
+FEATURE_KEY_MAPPING: dict[str, str | dict[str, str | None]] = {
     # Per-Frame Sums, not really needed
     "S": {
         # "QpSum": "qp_sum",
@@ -77,14 +77,14 @@ FEATURE_KEY_MAPPING = {
     "max_QP": "qp_max",
     "InitialQP": "qp_init",
     # "MbQPs": "qp_avg_per_mb",
-    # "Av_Motion": "motion_avg",
-    # "StdDev_Motion": "motion_stdev",
-    # "Av_MotionX": "motion_x_avg",
-    # "Av_MotionY": "motion_y_avg",
-    # "StdDev_MotionX": "motion_x_stdev",
-    # "StdDev_MotionY": "motion_y_stdev",
-    # "Av_MotionDif": "motion_diff_avg",
-    # "StdDev_MotionDif": "motion_diff_stdev",
+    "Av_Motion": "motion_avg",
+    "StdDev_Motion": "motion_stdev",
+    "Av_MotionX": "motion_x_avg",
+    "Av_MotionY": "motion_y_avg",
+    "StdDev_MotionX": "motion_x_stdev",
+    "StdDev_MotionY": "motion_y_stdev",
+    "Av_MotionDif": "motion_diff_avg",
+    "StdDev_MotionDif": "motion_diff_stdev",
     # "Av_Coefs": "coefs_avg",
     # "StdDev_Coefs": "coefs_stdev",
     # "HF_LF_ratio": "coefs_hf_lf_ratio",
@@ -102,26 +102,28 @@ FEATURE_KEY_MAPPING = {
     # "BlackBorder": "black_border_lines",
     "DTS": "dts",
     "PTS": "pts",
-    # "CurrPOC": "current_poc",
-    # "POC_DIF": "poc_diff",
+    "CurrPOC": "current_poc",
+    "POC_DIF": "poc_diff",
     "BitCntMotion": "motion_bit_count",
     "BitCntCoefs": "coefs_bit_count",
-    "NumBlksSkip": "mb_skip_count",
-    "NumBlksMv": "mb_mv_count",
-    "NumBlksMerge": "mb_merge_count",
-    "NumBlksIntra": "mb_intra_count",
+    # "NumBlksSkip": "mb_skip_count",
+    # "NumBlksMv": "mb_mv_count",
+    # "NumBlksMerge": "mb_merge_count",
+    # "NumBlksIntra": "mb_intra_count",
     "CodedMv": "mv_coded_count",
 }
 
 # how to map from old keys to new keys if the meaning changed
 TRANSFORMATION_FUNCTIONS = {
     # we start with 0 based frame indices, but the old parser uses 1 based indices
-    "FrameIdx": lambda x: int(x)
-    - 1,
+    "FrameIdx": lambda x: int(x) - 1,
+    # PTS was always given in steps like 17, 36, etc., but it is actually 0.017, 0.036, etc.
+    "PTS": lambda x: float(x) * 0.001,
+    "DTS": lambda x: float(x) * 0.001,
 }
 
 
-def call_parser(video_file, num_frames: int = 1) -> list[dict]:
+def call_parser(video_file, num_frames: int = 5) -> list[dict]:
     """Call the video parser on the given video file and return the parsed data."""
 
     # get stdout only
@@ -148,7 +150,7 @@ def call_parser(video_file, num_frames: int = 1) -> list[dict]:
 
 class TestVideoParser:
     @pytest.mark.parametrize("fixture", FIXTURES)
-    def test_parser_output(self, fixture):
+    def test_parser_output(self, fixture: dict[str, str]):
         # Call the parser and get the parsed data
         parsed_data: list[dict] = call_parser(os.path.join(HERE, fixture["video"]))
 
@@ -204,6 +206,6 @@ class TestVideoParser:
         print(keys_without_errors)
 
         keys_with_errors = set([error["mapped_key"] for error in value_errors])
-        assert (
-            len(value_errors) == 0
-        ), f"Value error with keys {keys_with_errors}!\n\n{json.dumps(value_errors, indent=2)}"
+        assert len(value_errors) == 0, (
+            f"Value error with keys {keys_with_errors}!\n\n{json.dumps(value_errors, indent=2)}"
+        )

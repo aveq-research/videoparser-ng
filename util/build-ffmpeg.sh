@@ -111,6 +111,8 @@ if [[ ! -f config.h ]] || [[ "$reconfigure" = true ]]; then
     --enable-demuxer=mpegts
     # for AOM
     --enable-libaom
+    # to make bit count work for CABAC
+    --disable-inline-asm
   )
 
   ./configure "${configureFlags[@]}"

@@ -20,7 +20,7 @@ This program patches ffmpeg to add support for extracting additional bitstream p
 
 To pass extra information from the ffmpeg part to the VideoParser part, we use the `SharedFrameInfo` struct to store the bitstream properties like QP values, motion vectors, etc. The definition is in `VideoParser/include/shared.h`, and it is included in ffmpeg as well, via an extra side data type `AV_FRAME_DATA_VIDEOPARSER_INFO`.
 
-It is extracted from there using a helper function `videoparser_get_shared_frame_info`. This is implemented in `ffmpeg/libavutil/frame.c` as an additional method. It performs some extra calculations on the data, like average QP, standard deviation, etc.
+It is extracted from there using a helper function `videoparser_get_final_shared_frame_info`. This is implemented in `ffmpeg/libavutil/frame.c` as an additional method. It performs some extra calculations on the data, like average QP, standard deviation, etc.
 
 To update the data, we have helper functions like `videoparser_shared_frame_info_update_qp`.
 

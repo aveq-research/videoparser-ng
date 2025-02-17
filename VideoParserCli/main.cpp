@@ -88,6 +88,8 @@ void print_frame_info_json(const videoparser::FrameInfo &frame_info) {
   j["size"] = frame_info.size;
   j["frame_type"] = frame_info.frame_type;
   j["is_idr"] = frame_info.is_idr;
+
+  // QP values
   j["qp_min"] = frame_info.qp_min;
   j["qp_max"] = frame_info.qp_max;
   j["qp_init"] = frame_info.qp_init;
@@ -95,6 +97,31 @@ void print_frame_info_json(const videoparser::FrameInfo &frame_info) {
   j["qp_stdev"] = frame_info.qp_stdev;
   j["qp_bb_avg"] = frame_info.qp_bb_avg;
   j["qp_bb_stdev"] = frame_info.qp_bb_stdev;
+
+  // Motion estimation
+  j["motion_avg"] = frame_info.motion_avg;
+  j["motion_stdev"] = frame_info.motion_stdev;
+  j["motion_x_avg"] = frame_info.motion_x_avg;
+  j["motion_y_avg"] = frame_info.motion_y_avg;
+  j["motion_x_stdev"] = frame_info.motion_x_stdev;
+  j["motion_y_stdev"] = frame_info.motion_y_stdev;
+  j["motion_diff_avg"] = frame_info.motion_diff_avg;
+  j["motion_diff_stdev"] = frame_info.motion_diff_stdev;
+  j["current_poc"] = frame_info.current_poc;
+  j["poc_diff"] = frame_info.poc_diff;
+  j["motion_bit_count"] = frame_info.motion_bit_count;
+  j["coefs_bit_count"] = frame_info.coefs_bit_count;
+  j["mb_mv_count"] = frame_info.mb_mv_count;
+  j["mv_coded_count"] = frame_info.mv_coded_count;
+
+  // Temporary MV values
+  // j["mv_length"] = frame_info.mv_length;
+  // j["mv_sum_sqr"] = frame_info.mv_sum_sqr;
+  // j["mv_x_length"] = frame_info.mv_x_length;
+  // j["mv_y_length"] = frame_info.mv_y_length;
+  // j["mv_x_sum_sqr"] = frame_info.mv_x_sum_sqr;
+  // j["mv_y_sum_sqr"] = frame_info.mv_y_sum_sqr;
+  // j["mv_length_diff"] = frame_info.mv_length_diff;
   std::cout << j.dump() << std::endl;
 }
 

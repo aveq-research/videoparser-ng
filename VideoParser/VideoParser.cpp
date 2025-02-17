@@ -106,9 +106,17 @@ VideoParser::VideoParser(const std::string &filename) {
   sequence_info.video_bit_depth =
       av_pix_fmt_desc_get(codec_context->pix_fmt)->comp[0].depth;
 
-  if (avcodec_open2(codec_context, codec, nullptr) < 0) {
+  AVDictionary *opts = nullptr;
+  // TODO: this is how we can get the motion vectors from ffmpeg, but only for
+  // H.264
+  // // https://ffmpeg.org/doxygen/trunk/extract_mvs_8c-example.html
+  // av_dict_set(&opts, "flags2", "+export_mvs", 0);
+
+  if (avcodec_open2(codec_context, codec, &opts) < 0) {
     throw std::runtime_error("Error opening codec");
   }
+
+  av_dict_free(&opts);
 
   // Allocate packet and frame
   current_packet = av_packet_alloc();
@@ -166,7 +174,8 @@ void VideoParser::set_frame_info(FrameInfo &frame_info) {
   }
 
   // get the SharedFrameInfo, sometimes it's empty, so we skip this iteration
-  SharedFrameInfo *shared_frame_info = videoparser_get_shared_frame_info(frame);
+  SharedFrameInfo *shared_frame_info =
+      videoparser_get_final_shared_frame_info(frame);
   if (!shared_frame_info) {
     throw std::runtime_error("No shared frame info found");
   }
@@ -219,6 +228,27 @@ void VideoParser::set_frame_info(FrameInfo &frame_info) {
   frame_info.qp_bb_avg = shared_frame_info->qp_bb_avg;
   frame_info.qp_bb_stdev = shared_frame_info->qp_bb_stdev;
 
+  // motion estimation
+  frame_info.motion_avg = shared_frame_info->motion_avg;
+  frame_info.motion_stdev = shared_frame_info->motion_stdev;
+  frame_info.motion_x_avg = shared_frame_info->motion_x_avg;
+  frame_info.motion_y_avg = shared_frame_info->motion_y_avg;
+  frame_info.motion_x_stdev = shared_frame_info->motion_x_stdev;
+  frame_info.motion_y_stdev = shared_frame_info->motion_y_stdev;
+  frame_info.motion_diff_avg = shared_frame_info->motion_diff_avg;
+  frame_info.motion_diff_stdev = shared_frame_info->motion_diff_stdev;
+  frame_info.current_poc = shared_frame_info->current_poc;
+  frame_info.poc_diff = shared_frame_info->poc_diff;
+  frame_info.mb_mv_count = shared_frame_info->mb_mv_count;
+
+  // Adding these to make debugging easier
+  // frame_info.mv_length = shared_frame_info->mv_length;
+  // frame_info.mv_sum_sqr = shared_frame_info->mv_sum_sqr;
+  // frame_info.mv_x_length = shared_frame_info->mv_x_length;
+  // frame_info.mv_y_length = shared_frame_info->mv_y_length;
+  // frame_info.mv_x_sum_sqr = shared_frame_info->mv_x_sum_sqr;
+  // frame_info.mv_y_sum_sqr = shared_frame_info->mv_y_sum_sqr;
+
   // codec-specific handling
   if (codec_context->codec_id == AV_CODEC_ID_H264) {
     set_frame_info_h264(frame_info);
@@ -260,6 +290,46 @@ void VideoParser::print_shared_frame_info(SharedFrameInfo &shared_frame_info) {
             << std::endl;
   std::cerr << "----------------------------------------------------"
             << std::endl;
+  std::cerr << "motion_avg        = " << shared_frame_info.motion_avg
+            << std::endl;
+  std::cerr << "motion_stdev      = " << shared_frame_info.motion_stdev
+            << std::endl;
+  std::cerr << "motion_x_avg      = " << shared_frame_info.motion_x_avg
+            << std::endl;
+  std::cerr << "motion_y_avg      = " << shared_frame_info.motion_y_avg
+            << std::endl;
+  std::cerr << "motion_x_stdev    = " << shared_frame_info.motion_x_stdev
+            << std::endl;
+  std::cerr << "motion_y_stdev    = " << shared_frame_info.motion_y_stdev
+            << std::endl;
+  std::cerr << "motion_diff_avg   = " << shared_frame_info.motion_diff_avg
+            << std::endl;
+  std::cerr << "motion_diff_stdev = " << shared_frame_info.motion_diff_stdev
+            << std::endl;
+  std::cerr << "current_poc       = " << shared_frame_info.current_poc
+            << std::endl;
+  std::cerr << "poc_diff          = " << shared_frame_info.poc_diff
+            << std::endl;
+  std::cerr << "motion_bit_count  = " << shared_frame_info.motion_bit_count
+            << std::endl;
+  std::cerr << "coefs_bit_count   = " << shared_frame_info.coefs_bit_count
+            << std::endl;
+  std::cerr << "mb_mv_count       = " << shared_frame_info.mb_mv_count
+            << std::endl;
+  std::cerr << "mv_coded_count    = " << shared_frame_info.mv_coded_count
+            << std::endl;
+
+  // adding these to make debugging easier
+  // std::cerr << "mv_length         = " << shared_frame_info.mv_length <<
+  // std::endl; std::cerr << "mv_sum_sqr        = " <<
+  // shared_frame_info.mv_sum_sqr << std::endl; std::cerr << "mv_x_length = " <<
+  // shared_frame_info.mv_x_length << std::endl; std::cerr << "mv_y_length = "
+  // << shared_frame_info.mv_y_length << std::endl; std::cerr << "mv_x_sum_sqr
+  // = " << shared_frame_info.mv_x_sum_sqr << std::endl; std::cerr <<
+  // "mv_y_sum_sqr      = " << shared_frame_info.mv_y_sum_sqr << std::endl;
+  // std::cerr << "mv_length_diff    = " << shared_frame_info.mv_length_diff <<
+  // std::endl; std::cerr << "mv_diff_sum_sqr   = " <<
+  // shared_frame_info.mv_diff_sum_sqr << std::endl;
 }
 
 void VideoParser::set_frame_info_h264(FrameInfo &frame_info) {}

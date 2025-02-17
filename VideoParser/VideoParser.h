@@ -21,6 +21,7 @@ extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 #include <libavutil/frame.h>
+#include <libavutil/motion_vector.h>
 #include <libavutil/pixdesc.h>
 #include <unistd.h>
 }
@@ -82,6 +83,33 @@ struct FrameInfo {
   double qp_stdev;  /**< Standard deviation of Av_QP */
   double qp_bb_avg; /**< Average QP without the black border */
   double qp_bb_stdev; /**< Standard deviation of the average QP */
+
+  // motion estimation
+  double motion_avg;        /**< Average of Av_Motion */
+  double motion_stdev;      /**< Standard Deviation of Av_Motion */
+  double motion_x_avg;      /**< Average of abs(MotX) */
+  double motion_y_avg;      /**< Average of abs(MotY) */
+  double motion_x_stdev;    /**< Standard deviation of Av_MotionX */
+  double motion_y_stdev;    /**< Standard deviation of Av_MotionY */
+  double motion_diff_avg;   /**< Difference of the motion with its prediction */
+  double motion_diff_stdev; /**< Standard deviation of Av_MotionDif */
+  int current_poc;
+  int poc_diff;
+  uint32_t motion_bit_count; /**< The number of bits used for coding motion */
+  uint32_t coefs_bit_count /**< The number of bits used for coding coeffs */;
+  int mb_mv_count;    /**< Number of macroblocks with MVs */
+  int mv_coded_count; /**< Number of coded MVs */
+
+  // Adding these to make debugging easier (so that they can be printed in the
+  // JSON)
+  // double mv_length;       /**< Motion Vector (MV) length, overall */
+  // double mv_sum_sqr;      /**< Sum of squared MV lengths */
+  // double mv_x_length;     /**< MV length in the X direction */
+  // double mv_y_length;     /**< MV length in the Y direction */
+  // double mv_x_sum_sqr;    /**< Sum of squared MV lengths in the X direction
+  // */ double mv_y_sum_sqr;    /**< Sum of squared MV lengths in the Y
+  // direction */ double mv_length_diff;  /** < Difference in MV length */
+  // double mv_diff_sum_sqr; /**< Sum of squared MV differences */
 };
 
 void set_verbose(bool verbose);
@@ -113,8 +141,8 @@ private:
   SequenceInfo sequence_info;
   double first_pts = 0;
   double last_pts = 0;
-  uint64_t packet_size_sum = 0; // accumulated packet size sum, if not available
-                                // from format context
+  uint64_t packet_size_sum = 0; // accumulated packet size sum, if not
+                                // available from format context
   std::function<void()> close_input;
 
   void print_shared_frame_info(SharedFrameInfo &shared_frame_info);
