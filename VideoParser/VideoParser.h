@@ -44,7 +44,7 @@ public:
  */
 struct SequenceInfo {
   double video_duration = 0.0;  /**< Duration of the file in seconds */
-  std::string video_codec;      /**< Codec used for video stream */
+  char video_codec[8];          /**< Codec used for video stream */
   double video_bitrate = 0.0;   /**< Bitrate of the video stream in kbps */
   double video_framerate = 0.0; /**< Framerate of the video stream */
   int video_width = 0;          /**< Width of the video stream in pixels */
@@ -52,7 +52,7 @@ struct SequenceInfo {
   int video_codec_profile = 0;  /**< Profile of the video codec */
   int video_codec_level = 0;    /**< Level of the video codec */
   int video_bit_depth = 0;      /**< Bit depth of the video stream */
-  std::string video_pix_fmt;    /**< Pixel format of the video stream */
+  char video_pix_fmt[32];       /**< Pixel format of the video stream */
   uint32_t video_frame_count;   /**< Number of frames in the video stream */
 };
 

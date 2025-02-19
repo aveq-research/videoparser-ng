@@ -73,11 +73,15 @@ VideoParser::VideoParser(const std::string &filename) {
   }
 
   sequence_info.video_duration = format_context->duration / AV_TIME_BASE;
-  sequence_info.video_codec = codec->name;
+  strncpy(sequence_info.video_codec, codec->name,
+          sizeof(sequence_info.video_codec) - 1);
+  sequence_info.video_codec[sizeof(sequence_info.video_codec) - 1] = '\0';
 
   // fix: we replace libaom-av1 with "av1"
   if (strcmp(codec->name, "libaom-av1") == 0) {
-    sequence_info.video_codec = "av1";
+    strncpy(sequence_info.video_codec, "av1",
+            sizeof(sequence_info.video_codec) - 1);
+    sequence_info.video_codec[sizeof(sequence_info.video_codec) - 1] = '\0';
   }
 
   // Note: the below may be zero if not indicated in the file
@@ -102,7 +106,10 @@ VideoParser::VideoParser(const std::string &filename) {
     throw std::runtime_error("Error setting codec parameters");
   }
 
-  sequence_info.video_pix_fmt = av_get_pix_fmt_name(codec_context->pix_fmt);
+  const char *pix_fmt_name = av_get_pix_fmt_name(codec_context->pix_fmt);
+  strncpy(sequence_info.video_pix_fmt, pix_fmt_name ? pix_fmt_name : "",
+          sizeof(sequence_info.video_pix_fmt) - 1);
+  sequence_info.video_pix_fmt[sizeof(sequence_info.video_pix_fmt) - 1] = '\0';
   sequence_info.video_bit_depth =
       av_pix_fmt_desc_get(codec_context->pix_fmt)->comp[0].depth;
 
