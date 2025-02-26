@@ -23,6 +23,12 @@ void print_usage(const char *program_name) {
   std::cerr << "  -v, --verbose         Show verbose output" << std::endl;
   std::cerr << "  -h, --help            Show this help message" << std::endl;
   std::cerr << std::endl;
+  std::cerr << "Input Options:" << std::endl;
+  std::cerr << "  --raw              Process raw bitstream input" << std::endl;
+  std::cerr
+      << "  --format <fmt>     Specify input format (h264, hevc, vp9, av1)"
+      << std::endl;
+  std::cerr << std::endl;
   std::cerr << "Copyright 2023 AVEQ GmbH" << std::endl;
 }
 
@@ -135,6 +141,8 @@ int main(int argc, char *argv[]) {
   bool verbose = false;
   std::string filename;
   int num_frames = -1;
+  bool raw_mode = false;
+  std::string format;
   for (int i = 1; i < argc; ++i) {
     std::string arg = argv[i];
     if (arg == "-v" || arg == "--verbose") {
@@ -158,49 +166,115 @@ int main(int argc, char *argv[]) {
                   << std::endl;
         return EXIT_FAILURE;
       }
+    } else if (arg == "--raw") {
+      raw_mode = true;
+    } else if (arg == "--format") {
+      if (i + 1 < argc) {
+        format = argv[i + 1];
+        ++i;
+      } else {
+        std::cerr << "Error: Missing argument for option '--format'"
+                  << std::endl;
+        return EXIT_FAILURE;
+      }
     } else {
       filename = argv[i];
-      // std::cerr << "Error: Unknown option '" << arg << "'" << std::endl;
-      // return EXIT_FAILURE;
     }
   }
 
-  // check if file exists
-  if (!std::filesystem::exists(filename)) {
+  // Validate raw mode arguments
+  if (raw_mode && format.empty()) {
+    std::cerr << "Error: --format must be specified with --raw" << std::endl;
+    return EXIT_FAILURE;
+  }
+
+  // check if file exists (only in file mode)
+  if (!raw_mode && !std::filesystem::exists(filename)) {
     std::cerr << "Error: File '" << filename << "' does not exist" << std::endl;
     return EXIT_FAILURE;
   }
 
   try {
-    videoparser::VideoParser parser(filename);
+    std::unique_ptr<videoparser::VideoParser> parser;
     videoparser::SequenceInfo sequence_info;
     videoparser::FrameInfo frame_info;
-
-    sequence_info = parser.get_sequence_info();
-    if (verbose)
-      print_sequence_info(sequence_info);
-    print_sequence_info_json(sequence_info);
-
-    if (verbose)
-      std::cerr << "Parsing frames ..." << std::endl;
-
-    // track actual frames processed
     int frames_processed = 0;
 
-    while (parser.parse_frame(frame_info)) {
-      // only check num_frames against actual processed frames
-      if (num_frames >= 0 && frames_processed >= num_frames) {
-        break;
+    if (raw_mode) {
+      parser = std::make_unique<videoparser::VideoParser>(
+          videoparser::VideoParser::create_raw_parser(format));
+
+      // print initial sequence info
+      // FIXME: this won't work for raw formats
+      // sequence_info = parser->get_sequence_info();
+      // if (verbose)
+      //   print_sequence_info(sequence_info);
+      // print_sequence_info_json(sequence_info);
+
+      // Read and process raw data from stdin in chunks
+      constexpr size_t BUFFER_SIZE = 4096;
+      std::vector<uint8_t> buffer(BUFFER_SIZE);
+
+      while (std::cin.good()) {
+        std::cin.read(reinterpret_cast<char *>(buffer.data()), BUFFER_SIZE);
+        size_t bytes_read = std::cin.gcount();
+        if (bytes_read > 0) {
+          parser->feed_data(buffer.data(), bytes_read);
+
+          // Process any available frames
+          while (parser->parse_frame(frame_info)) {
+            if (num_frames >= 0 && frames_processed >= num_frames) {
+              goto end_parsing; // Break out of both loops
+            }
+
+            if (verbose)
+              print_general_frame_info(frame_info);
+            print_frame_info_json(frame_info);
+
+            frames_processed++;
+          }
+        }
       }
 
-      if (verbose)
-        print_general_frame_info(frame_info);
-      print_frame_info_json(frame_info);
+      // Process any remaining frames in the buffer
+      while (parser->parse_frame(frame_info)) {
+        if (num_frames >= 0 && frames_processed >= num_frames) {
+          break;
+        }
 
-      frames_processed++;
+        if (verbose)
+          print_general_frame_info(frame_info);
+        print_frame_info_json(frame_info);
+
+        frames_processed++;
+      }
+    } else {
+      // Original file-based parsing code
+      parser = std::make_unique<videoparser::VideoParser>(filename);
+
+      sequence_info = parser->get_sequence_info();
+      if (verbose)
+        print_sequence_info(sequence_info);
+      print_sequence_info_json(sequence_info);
+
+      if (verbose)
+        std::cerr << "Parsing frames ..." << std::endl;
+
+      while (parser->parse_frame(frame_info)) {
+        if (num_frames >= 0 && frames_processed >= num_frames) {
+          break;
+        }
+
+        if (verbose)
+          print_general_frame_info(frame_info);
+        print_frame_info_json(frame_info);
+
+        frames_processed++;
+      }
     }
 
-    parser.close();
+  end_parsing:
+    parser->close();
   } catch (const std::exception &e) {
     std::cerr << "Error: " << e.what() << std::endl;
     return EXIT_FAILURE;

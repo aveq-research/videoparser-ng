@@ -16,6 +16,7 @@
 #include <iostream>
 #include <optional>
 #include <string>
+#include <vector>
 extern "C" {
 #include "include/shared.h"
 #include <libavcodec/avcodec.h>
@@ -127,6 +128,8 @@ void set_verbose(bool verbose);
 class VideoParser {
 public:
   VideoParser(const std::string &filename);
+  static VideoParser create_raw_parser(const std::string &format);
+  bool feed_data(const uint8_t *data, size_t size);
   SequenceInfo get_sequence_info();
   bool parse_frame(FrameInfo &frame_info);
   void close();
@@ -144,6 +147,12 @@ private:
   uint64_t packet_size_sum = 0; // accumulated packet size sum, if not
                                 // available from format context
   std::function<void()> close_input;
+
+  bool is_raw_mode = false;
+  AVCodecParserContext *parser_ctx = nullptr;
+  std::vector<uint8_t> parse_buffer;
+
+  void init_raw_parser(const std::string &format);
 
   void print_shared_frame_info(SharedFrameInfo &shared_frame_info);
   void set_frame_info(FrameInfo &frame_info);

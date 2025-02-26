@@ -6,9 +6,17 @@
  */
 
 #include "VideoParser.h"
+#include <map>
 
 namespace videoparser {
 static bool verbose = false;
+
+// format strings to codec IDs for raw mode
+static const std::map<std::string, AVCodecID> format_to_codec = {
+    {"h264", AV_CODEC_ID_H264},
+    {"hevc", AV_CODEC_ID_HEVC},
+    {"vp9", AV_CODEC_ID_VP9},
+    {"av1", AV_CODEC_ID_AV1}};
 
 void set_verbose(bool verbose) {
   videoparser::verbose = verbose;
@@ -22,6 +30,11 @@ void set_verbose(bool verbose) {
 VideoParser::VideoParser(const std::string &filename) {
   // Initialize FFmpeg networking
   avformat_network_init();
+
+  if (filename.empty()) {
+    // skip file opening for raw mode!
+    return;
+  }
 
   // Open the video file
   if (avformat_open_input(&format_context, filename.c_str(), nullptr,
@@ -137,6 +150,94 @@ VideoParser::VideoParser(const std::string &filename) {
   }
 }
 
+// constructor for raw mode
+VideoParser VideoParser::create_raw_parser(const std::string &format) {
+  VideoParser parser(""); // Create with empty filename
+  parser.is_raw_mode = true;
+  parser.init_raw_parser(format);
+  return parser;
+}
+
+void VideoParser::init_raw_parser(const std::string &format) {
+  // Look up codec ID from format string
+  auto it = format_to_codec.find(format);
+  if (it == format_to_codec.end()) {
+    throw std::runtime_error("Unsupported format: " + format);
+  }
+  AVCodecID codec_id = it->second;
+
+  // Find decoder
+  const AVCodec *codec = avcodec_find_decoder(codec_id);
+  if (!codec) {
+    throw std::runtime_error("Error finding decoder for format: " + format);
+  }
+
+  // Initialize parser
+  parser_ctx = av_parser_init(codec_id);
+  if (!parser_ctx) {
+    throw std::runtime_error("Error initializing parser for format: " + format);
+  }
+
+  // Set parser flags for H.264/HEVC
+  // TODO: what for other codecs?
+  if (codec_id == AV_CODEC_ID_H264 || codec_id == AV_CODEC_ID_HEVC) {
+    parser_ctx->flags |= PARSER_FLAG_COMPLETE_FRAMES;
+  }
+
+  // Initialize codec context
+  codec_context = avcodec_alloc_context3(codec);
+  if (!codec_context) {
+    throw std::runtime_error("Error allocating codec context");
+  }
+
+  // Set codec context flags
+  // TODO: what for other codecs?
+  if (codec_id == AV_CODEC_ID_H264) {
+    // Enable low delay for real-time parsing
+    codec_context->flags |= AV_CODEC_FLAG_LOW_DELAY;
+    // Tell decoder to handle truncated bitstreams
+    codec_context->flags2 |= AV_CODEC_FLAG2_CHUNKS;
+  }
+
+  if (avcodec_open2(codec_context, codec, nullptr) < 0) {
+    throw std::runtime_error("Error opening codec");
+  }
+
+  // Allocate packet and frame
+  current_packet = av_packet_alloc();
+  if (!current_packet) {
+    throw std::runtime_error("Error allocating packet");
+  }
+
+  frame = av_frame_alloc();
+  if (!frame) {
+    throw std::runtime_error("Error allocating frame");
+  }
+
+  // Initialize basic sequence info
+  // TODO: can we glean something from the codec context?
+  strncpy(sequence_info.video_codec, format.c_str(),
+          sizeof(sequence_info.video_codec) - 1);
+  sequence_info.video_codec[sizeof(sequence_info.video_codec) - 1] = '\0';
+}
+
+/**
+ * @brief Feed data to the parser
+ *
+ * @param data The data to feed to the parser
+ * @param size The size of the data to feed to the parser
+ * @return true If the data was fed successfully
+ */
+bool VideoParser::feed_data(const uint8_t *data, size_t size) {
+  if (!is_raw_mode) {
+    throw std::runtime_error("feed_data() only available in raw mode");
+  }
+
+  // Store data in parse buffer
+  parse_buffer.insert(parse_buffer.end(), data, data + size);
+  return true;
+}
+
 /**
  * @brief Get the sequence info. Call this after the frames are parsed, if the
  * video duration is not set yet.
@@ -144,6 +245,10 @@ VideoParser::VideoParser(const std::string &filename) {
  * @return SequenceInfo The sequence info struct.
  */
 SequenceInfo VideoParser::get_sequence_info() {
+  if (is_raw_mode) {
+    return sequence_info;
+  }
+
   // update the sequence info based on the accumulated video duration and packet
   // size sum, if frames were read at all
   if (frame_idx > 0) {
@@ -154,10 +259,6 @@ SequenceInfo VideoParser::get_sequence_info() {
     }
 
     if (sequence_info.video_frame_count == 0) {
-      // no warning needed, default behavior for some containers
-      // std::cerr << "Warning: video frame count not set initially, setting to
-      // "
-      //           << frame_idx << std::endl;
       sequence_info.video_frame_count = frame_idx;
     }
 
@@ -352,31 +453,103 @@ void VideoParser::set_frame_info_av1(FrameInfo &frame_info) {}
  * @return false If no frame was parsed (stop parsing)
  */
 bool VideoParser::parse_frame(FrameInfo &frame_info) {
-  while (av_read_frame(format_context, current_packet) == 0) {
-    if (current_packet->stream_index == video_stream_idx) {
+  // normal mode parsing
+  if (!is_raw_mode) {
+    while (av_read_frame(format_context, current_packet) == 0) {
+      if (current_packet->stream_index == video_stream_idx) {
+        if (avcodec_send_packet(codec_context, current_packet) == 0) {
+          while (avcodec_receive_frame(codec_context, frame) == 0) {
+            try {
+              set_frame_info(frame_info);
+              // only unref and return true if we successfully set frame info
+              av_packet_unref(current_packet);
+              return true;
+            } catch (const std::exception &e) {
+              if (verbose) {
+                std::cerr
+                    << "Warning: Could not set frame info for frame index "
+                    << frame_idx << ": " << e.what() << std::endl;
+              }
+              // continue to next frame if we couldn't set frame info
+              continue;
+            }
+          }
+        }
+      }
+      av_packet_unref(current_packet);
+    }
+
+    // Free the packet, no more frames
+    av_packet_free(&current_packet);
+    return false;
+  }
+
+  // Raw mode parsing
+  while (!parse_buffer.empty()) {
+    uint8_t *data = parse_buffer.data();
+    int data_size = parse_buffer.size();
+
+    uint8_t *parsed_data = nullptr;
+    int parsed_size = 0;
+
+    // For H.264, try to extract parameter sets first
+    if (codec_context->codec_id == AV_CODEC_ID_H264) {
+      // Look for NAL unit start codes
+      for (int i = 0; i < data_size - 4; i++) {
+        if (data[i] == 0 && data[i + 1] == 0 && data[i + 2] == 0 &&
+            data[i + 3] == 1) {
+          int nal_type = data[i + 4] & 0x1F;
+          if (nal_type == 7 || nal_type == 8) { // SPS or PPS
+            // Let the parser handle these first
+            int consumed = av_parser_parse2(
+                parser_ctx, codec_context, &parsed_data, &parsed_size, data + i,
+                data_size - i, AV_NOPTS_VALUE, AV_NOPTS_VALUE, 0);
+            if (consumed > 0) {
+              parse_buffer.erase(parse_buffer.begin() + i,
+                                 parse_buffer.begin() + i + consumed);
+              data_size = parse_buffer.size();
+              i--;
+              continue;
+            }
+          }
+        }
+      }
+    }
+
+    // Parse the next chunk of data
+    int consumed =
+        av_parser_parse2(parser_ctx, codec_context, &parsed_data, &parsed_size,
+                         data, data_size, AV_NOPTS_VALUE, AV_NOPTS_VALUE, 0);
+
+    if (consumed < 0) {
+      throw std::runtime_error("Error parsing data");
+    }
+
+    // Remove consumed data from buffer
+    parse_buffer.erase(parse_buffer.begin(), parse_buffer.begin() + consumed);
+
+    if (parsed_size > 0) {
+      // Send parsed data to decoder
+      current_packet->data = parsed_data;
+      current_packet->size = parsed_size;
+
       if (avcodec_send_packet(codec_context, current_packet) == 0) {
         while (avcodec_receive_frame(codec_context, frame) == 0) {
           try {
             set_frame_info(frame_info);
-            // only unref and return true if we successfully set frame info
-            av_packet_unref(current_packet);
             return true;
           } catch (const std::exception &e) {
             if (verbose) {
               std::cerr << "Warning: Could not set frame info for frame index "
                         << frame_idx << ": " << e.what() << std::endl;
             }
-            // continue to next frame if we couldn't set frame info
             continue;
           }
         }
       }
     }
-    av_packet_unref(current_packet);
   }
 
-  // Free the packet, no more frames
-  av_packet_free(&current_packet);
   return false;
 }
 
@@ -384,6 +557,11 @@ bool VideoParser::parse_frame(FrameInfo &frame_info) {
  * @brief Close the input and free memory
  */
 void VideoParser::close() {
+  if (is_raw_mode && parser_ctx) {
+    av_parser_close(parser_ctx);
+    parser_ctx = nullptr;
+  }
+
   av_packet_free(&current_packet);
   av_frame_free(&frame);
 }
