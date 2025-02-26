@@ -19,13 +19,12 @@ void set_verbose(bool verbose) {
   }
 }
 
-VideoParser::VideoParser(const std::string &filename) {
+VideoParser::VideoParser(const char *filename) {
   // Initialize FFmpeg networking
   avformat_network_init();
 
   // Open the video file
-  if (avformat_open_input(&format_context, filename.c_str(), nullptr,
-                          nullptr) != 0) {
+  if (avformat_open_input(&format_context, filename, nullptr, nullptr) != 0) {
     throw std::runtime_error("Error opening the file");
   }
 

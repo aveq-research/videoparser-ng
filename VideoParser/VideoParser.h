@@ -126,7 +126,7 @@ void set_verbose(bool verbose);
  */
 class VideoParser {
 public:
-  VideoParser(const std::string &filename);
+  VideoParser(const char *filename);
   SequenceInfo get_sequence_info();
   bool parse_frame(FrameInfo &frame_info);
   void close();

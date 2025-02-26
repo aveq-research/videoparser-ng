@@ -172,7 +172,7 @@ int main(int argc, char *argv[]) {
   }
 
   try {
-    videoparser::VideoParser parser(filename);
+    videoparser::VideoParser parser(filename.c_str());
     videoparser::SequenceInfo sequence_info;
     videoparser::FrameInfo frame_info;
 
