@@ -112,6 +112,14 @@ struct FrameInfo {
   // double mv_diff_sum_sqr; /**< Sum of squared MV differences */
 };
 
+/**
+ * @brief Set verbose mode for the parser
+ *
+ * When verbose mode is enabled, additional debug information will be printed
+ * to stderr during parsing.
+ *
+ * @param verbose True to enable verbose mode, false to disable (default)
+ */
 void set_verbose(bool verbose);
 
 /**
@@ -126,9 +134,49 @@ void set_verbose(bool verbose);
  */
 class VideoParser {
 public:
+  /**
+   * @brief Construct a new Video Parser object
+   *
+   * Opens the specified video file and initializes the parser. This constructor
+   * will throw exceptions if the file cannot be opened or if no video stream is
+   * found.
+   *
+   * @param filename C-style string path to the video file to parse
+   * @throws std::runtime_error If the file cannot be opened or no video stream
+   * is found
+   */
   VideoParser(const char *filename);
+
+  /**
+   * @brief Get information about the video sequence
+   *
+   * This method can be called either before or after parsing frames.
+   *
+   * @return SequenceInfo Struct containing general information about the video
+   * sequence
+   */
   SequenceInfo get_sequence_info();
+
+  /**
+   * @brief Parse the next frame in the video
+   *
+   * This method should be called in a loop to parse all frames in the video.
+   * It will fill the provided frame_info struct with information about the
+   * parsed frame.
+   *
+   * @param frame_info Reference to a FrameInfo struct to be filled with frame
+   * information
+   * @return true If a frame was successfully parsed
+   * @return false If no more frames are available or an error occurred
+   */
   bool parse_frame(FrameInfo &frame_info);
+
+  /**
+   * @brief Close the video file and free resources
+   *
+   * This method should be called after parsing is complete to properly close
+   * the video file and free all allocated resources.
+   */
   void close();
 
 private:
