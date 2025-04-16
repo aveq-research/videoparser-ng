@@ -22,6 +22,7 @@ void print_usage(const char *program_name) {
   std::cerr << "General Options:" << std::endl;
   std::cerr << "  -v, --verbose         Show verbose output" << std::endl;
   std::cerr << "  -h, --help            Show this help message" << std::endl;
+  std::cerr << "  --version             Show version information" << std::endl;
   std::cerr << std::endl;
   std::cerr << "Copyright 2023 AVEQ GmbH" << std::endl;
 }
@@ -142,6 +143,10 @@ int main(int argc, char *argv[]) {
       videoparser::set_verbose(true);
     } else if (arg == "-h" || arg == "--help") {
       print_usage(argv[0]);
+      return EXIT_SUCCESS;
+    } else if (arg == "--version") {
+      std::cout << VIDEOPARSER_VERSION_MAJOR << "." << VIDEOPARSER_VERSION_MINOR
+                << "." << VIDEOPARSER_VERSION_PATCH << std::endl;
       return EXIT_SUCCESS;
     } else if (arg == "-n" || arg == "--num-frames") {
       if (i + 1 < argc) {
