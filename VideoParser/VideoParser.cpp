@@ -246,6 +246,9 @@ void VideoParser::set_frame_info(FrameInfo &frame_info) {
   frame_info.current_poc = shared_frame_info->current_poc;
   frame_info.poc_diff = shared_frame_info->poc_diff;
   frame_info.mb_mv_count = shared_frame_info->mb_mv_count;
+  frame_info.motion_bit_count = shared_frame_info->motion_bit_count;
+  frame_info.coefs_bit_count = shared_frame_info->coefs_bit_count;
+  frame_info.mv_coded_count = shared_frame_info->mv_coded_count;
 
   // Adding these to make debugging easier
   // frame_info.mv_length = shared_frame_info->mv_length;
