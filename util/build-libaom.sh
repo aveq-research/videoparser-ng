@@ -66,7 +66,8 @@ if [[ ! -f "CMakeCache.txt" ]] || [[ "$reconfigure" = true ]] || [[ "$clean" = t
     -DENABLE_TOOLS=OFF \
     -DCONFIG_AV1_ENCODER=0 \
     -DCONFIG_MULTITHREAD=1 \
-    -DCONFIG_PIC=1
+    -DCONFIG_PIC=1 \
+    -DCONFIG_INSPECTION=1
 fi
 
 echo "Building libaom..."

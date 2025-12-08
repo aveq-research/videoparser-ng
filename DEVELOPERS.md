@@ -5,6 +5,8 @@ Contents:
 - [General Structure](#general-structure)
 - [Modifications Made](#modifications-made)
   - [QP Information](#qp-information)
+  - [Motion Vector Information](#motion-vector-information)
+  - [AV1 / libaom Specific Changes](#av1--libaom-specific-changes)
 - [Metrics](#metrics)
   - [QP Metrics](#qp-metrics)
   - [Motion Vector Metrics](#motion-vector-metrics)
@@ -15,6 +17,7 @@ Contents:
 - [Debugging](#debugging)
 - [Maintenance](#maintenance)
   - [Fetching new FFmpeg commits](#fetching-new-ffmpeg-commits)
+  - [Fetching new libaom commits](#fetching-new-libaom-commits)
 
 ## General Structure
 
@@ -44,6 +47,38 @@ To obtain the QP information, we modify:
 - HEVC: `hevcdec.c`, to extract the QP information from the `HEVCLocalContext` struct, in the function `hls_coding_unit`
 - VP9: `vp9.c`, to extract the QP information from the `VP9SharedContext` struct, in the function `vp9_decode_frame`
 - AV1: `libaomdec.c`, to extract the QP information from the `AV1DecodeContext` struct, in the function `aom_decode`
+
+### Motion Vector Information
+
+To obtain motion vector information, we modify:
+
+- H.264: `h264_mb.c`, via `mv_statistics_264` function
+- HEVC: `hevcdec.c`, via `mv_statistics_hevc` function
+- VP9: `vp9mvs.c`, via `mv_statistics_vp9` function
+- AV1: `libaomdec.c`, via `videoparser_av1_extract_mv_stats` function using libaom's inspection API
+
+### AV1 / libaom Specific Changes
+
+For AV1 support, we use a vendored copy of libaom built with `CONFIG_INSPECTION=1` to enable the inspection API. The inspection API provides access to internal decoder state including per-block mode info and motion vectors.
+
+Key modifications:
+
+- `util/build-libaom.sh`: Configured with `-DCONFIG_INSPECTION=1` to enable inspection API
+- `external/libaom/av1/av1_dx_iface.c`: Modified `decode_one()` to propagate the inspection callback to the decoder instance (the stock code only did this in `decoder_inspect()` which FFmpeg doesn't use)
+- `external/ffmpeg/libavcodec/libaomdec.c`: Added inspection callback setup and MV/MVD/bit count extraction function
+
+#### MVD and Bit Count Extraction
+
+To extract motion vector differences (MVD) and bit counts for AV1, additional modifications were made to libaom:
+
+- `external/libaom/av1/common/blockd.h`: Added `mvd[2]` field to `MB_MODE_INFO` struct under `CONFIG_INSPECTION` to store motion vector differences during decoding
+- `external/libaom/av1/decoder/decoder.h`: Added `motion_bits` and `coef_bits` accumulators to `AV1Decoder` and `ThreadData` structs
+- `external/libaom/av1/decoder/inspection.h`: Added `mvd[2]` to `insp_mi_data` and `motion_bits`/`coef_bits` to `insp_frame_data`
+- `external/libaom/av1/decoder/inspection.c`: Added copying of MVD and bit counts in `ifd_inspect()`
+- `external/libaom/av1/decoder/decodemv.c`: Store MVD in `mbmi->mvd[]` for all NEWMV modes in `assign_mv()`, and track motion bits using `aom_reader_tell_frac()` around MV decoding
+- `external/libaom/av1/decoder/decodeframe.c`: Track coefficient bits around intra/inter coefficient decoding using `aom_reader_tell_frac()`, reset counters at frame start in `av1_decode_frame_headers_and_setup()`
+
+All modifications are marked with `// videoparser:` comments for easy identification
 
 ## Metrics
 
@@ -117,7 +152,7 @@ Standard deviation of QP excluding black border regions. Unit: QP index (dimensi
 Motion vector metrics are in codec-native sub-pel units:
 
 - **H.264/HEVC**: Quarter-pel (1/4 pixel). Divide by 4 for full-pel values.
-- **VP9**: Eighth-pel (1/8 pixel). Divide by 8 for full-pel values.
+- **VP9/AV1**: Eighth-pel (1/8 pixel). Divide by 8 for full-pel values.
 
 #### motion_avg
 
@@ -126,6 +161,7 @@ Average motion vector length per frame, computed as the mean of `sqrt(mv_x² + m
 - **H.264**: Extracted in `h264_mb.c` via `mv_statistics_264`. Motion vectors are collected from both L0 (forward) and L1 (backward) reference lists. For bi-directional blocks, values from both directions are averaged. By default, raw motion vector values are used. A compile-time flag `VP_MV_POC_NORMALIZATION` can be set to `1` to enable POC-based normalization, which weighs motion vectors by temporal distance to their reference frames.
 - **HEVC**: Extracted in `hevcdec.c` via `mv_statistics_hevc`. Motion vectors are collected from L0 and L1 prediction lists. For bi-predictive blocks, values from both directions are averaged. Raw MV values without POC normalization.
 - **VP9**: Extracted in `vp9mvs.c` via `mv_statistics_vp9`. Motion vectors are collected after prediction in `ff_vp9_fill_mv`. For compound (bi-predictive) mode, values from both references are averaged. Raw MV values.
+- **AV1**: Extracted in `libaomdec.c` via `videoparser_av1_extract_mv_stats` using libaom's inspection API. Motion vectors are collected from all inter blocks (mode >= NEARESTMV). For compound prediction, values from L0 and L1 references are averaged. Raw MV values in 1/8 pel units.
 
 #### motion_stdev
 
@@ -134,6 +170,7 @@ Standard deviation of motion vector lengths within a frame.
 - **H.264**: Computed from `mv_sum_sqr` accumulated during motion vector extraction.
 - **HEVC**: Same method as H.264.
 - **VP9**: Same method as H.264.
+- **AV1**: Same method as H.264.
 
 #### motion_x_avg
 
@@ -142,6 +179,7 @@ Average of the absolute X (horizontal) components of motion vectors.
 - **H.264**: Accumulated separately from Y components using `fabs()` to ensure positive contributions.
 - **HEVC**: Same accumulation method as H.264.
 - **VP9**: Same accumulation method as H.264.
+- **AV1**: Same accumulation method as H.264.
 
 #### motion_y_avg
 
@@ -150,6 +188,7 @@ Average of the absolute Y (vertical) components of motion vectors.
 - **H.264**: Same accumulation method as `motion_x_avg`, but for vertical motion.
 - **HEVC**: Same accumulation method as H.264.
 - **VP9**: Same accumulation method as H.264.
+- **AV1**: Same accumulation method as H.264.
 
 #### motion_x_stdev
 
@@ -158,6 +197,7 @@ Standard deviation of the X components of motion vectors.
 - **H.264**: Computed from `mv_x_sum_sqr`.
 - **HEVC**: Same method as H.264.
 - **VP9**: Same method as H.264.
+- **AV1**: Same method as H.264.
 
 #### motion_y_stdev
 
@@ -166,6 +206,7 @@ Standard deviation of the Y components of motion vectors.
 - **H.264**: Computed from `mv_y_sum_sqr`.
 - **HEVC**: Same method as H.264.
 - **VP9**: Same method as H.264.
+- **AV1**: Same method as H.264.
 
 #### motion_diff_avg
 
@@ -174,6 +215,7 @@ Average motion vector prediction residual length. Represents the difference betw
 - **H.264**: Extracted from `motion_diff_L0` and `motion_diff_L1` arrays. Values stored as unsigned 8-bit integers; values > 127 are interpreted as negative (two's complement).
 - **HEVC**: Extracted from `MvField.mvd` which contains the coded motion vector difference.
 - **VP9**: Extracted from coded MVD components for NEWMV mode only. For NEARESTMV/NEARMV modes (which use predicted MVs without coded residuals), MVD is zero.
+- **AV1**: Extracted via modified libaom decoder. MVD is captured during `assign_mv()` in `decodemv.c` by computing the difference between final MV and reference MV for NEWMV modes. Stored in `mbmi->mvd[]` and exposed through the inspection API. For compound modes with one NEWMV reference, only that reference's MVD is non-zero.
 
 #### motion_diff_stdev
 
@@ -182,6 +224,7 @@ Standard deviation of motion vector prediction residuals.
 - **H.264**: Computed from `mv_diff_sum_sqr`.
 - **HEVC**: Same method as H.264.
 - **VP9**: Same method as H.264.
+- **AV1**: Same method as H.264. MVD values from the inspection API are accumulated in `libaomdec.c`.
 
 ### Bit Count Metrics
 
@@ -192,6 +235,7 @@ Number of bits used for coding motion information in the frame. Unit: bits.
 - **H.264**: Accumulated during CAVLC/CABAC decoding.
 - **HEVC**: Accumulated during CABAC decoding in `hevcdec.c`.
 - **VP9**: Accumulated during entropy decoding in `vp9mvs.c` for NEWMV mode blocks.
+- **AV1**: Accumulated in modified libaom decoder using `aom_reader_tell_frac()` before and after `assign_mv()` calls in `read_inter_block_mode_info()` (`decodemv.c`). Stored in `pbi->motion_bits` and exposed through `insp_frame_data.motion_bits`. Note: Bit counts are in fractional bits (1/8th precision) during accumulation and converted to whole bits in `ifd_inspect()`.
 
 #### coefs_bit_count
 
@@ -200,6 +244,7 @@ Number of bits used for coding transform coefficients in the frame. Unit: bits.
 - **H.264**: Accumulated during CAVLC/CABAC decoding.
 - **HEVC**: Accumulated during CABAC decoding.
 - **VP9**: Accumulated during frame decoding.
+- **AV1**: Accumulated in modified libaom decoder using `aom_reader_tell_frac()` before and after coefficient reading calls in `decode_reconstruct_tx()` and intra block decoding loops (`decodeframe.c`). Stored in `td->coef_bits` (per thread) and exposed through `insp_frame_data.coef_bits`. Note: Bit counts are in fractional bits (1/8th precision) during accumulation and converted to whole bits in `ifd_inspect()`.
 
 ### Block Count Metrics
 
@@ -210,6 +255,7 @@ Number of macroblocks/coding units/blocks with motion vectors. Unit: count.
 - **H.264**: Incremented for each macroblock partition that uses inter prediction.
 - **HEVC**: Incremented for each prediction unit (PU) with inter prediction.
 - **VP9**: Incremented for each block with non-zero motion (excludes ZEROMV mode). Note: VP9 uses variable block sizes (4x4 to 64x64), so count depends on encoder block size decisions.
+- **AV1**: Incremented for each MI (mode info) block with inter prediction (mode >= NEARESTMV). Note: AV1 uses variable block sizes (4x4 to 128x128), so count is at MI resolution (4x4 units).
 
 #### mv_coded_count
 
@@ -218,6 +264,7 @@ Number of explicitly coded motion vectors (excluding predicted/derived MVs). Uni
 - **H.264**: Counts MVs that are entropy-coded in the bitstream.
 - **HEVC**: Counts MVs that are entropy-coded in the bitstream.
 - **VP9**: Counts NEWMV mode blocks where motion delta is explicitly coded. NEARESTMV/NEARMV modes use predicted MVs and are not counted.
+- **AV1**: Counts NEWMV mode blocks (including compound variants: NEW_NEWMV, NEAREST_NEWMV, NEW_NEARESTMV, NEAR_NEWMV, NEW_NEARMV). NEARESTMV/NEARMV/GLOBALMV modes use predicted MVs and are not counted.
 
 ### Frame Metadata
 
@@ -262,7 +309,7 @@ Decoding timestamp. Unit: seconds.
 
 ## Testing
 
-For testing you need `pytest`. For easy installation, just use `uv` (https://docs.astral.sh/uv/), which is a faster package manager for Python.
+For testing you need `pytest`. For easy installation, just use `uv` (<https://docs.astral.sh/uv/>), which is a faster package manager for Python.
 
 Generate the test videos:
 
@@ -336,6 +383,18 @@ Run the script:
 
 ```bash
 util/rebase-ffmpeg.sh
+```
+
+The rebase may not be clean, so check the output of the script and resolve any conflicts.
+
+### Fetching new libaom commits
+
+Similarly, you can rebase your local libaom commits on top of the latest upstream libaom commits.
+
+Run the script:
+
+```bash
+util/rebase-libaom.sh
 ```
 
 The rebase may not be clean, so check the output of the script and resolve any conflicts.
