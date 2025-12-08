@@ -1,110 +1,117 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
-# Bump the version, run auto-changelog, and push to Git
-#
-# Based on:
-# - https://gist.github.com/pete-otaqui/4188238
-# - https://gist.github.com/mareksuscak/1f206fbc3bb9d97dec9c
+# Release the project and bump version number in the process.
 
 set -e
 
-GREEN="\033[0;32m"
-YELLOW="\033[1;33m"
-CYAN="\033[1;36m"
-WHITE="\033[1;37m"
-RESET="\033[0m"
+cd "$(dirname "$0")"
 
-LATEST_HASH=$(git log --pretty=format:'%h' -n 1)
-
-QUESTION_FLAG="${GREEN}?"
-NOTICE_FLAG="${CYAN}❯"
-
-PUSHING_MSG="${NOTICE_FLAG} Pushing new version to the ${WHITE}origin${RESET}..."
+FORCE=false
 
 usage() {
-  echo "Usage: $0 [-h] [-f]"
-  echo
-  echo "  -h  Show this help message"
-  echo "  -f  Force the version bump"
+    echo "Usage: $0 [options] VERSION"
+    echo
+    echo "VERSION:"
+    echo "  major: bump major version number"
+    echo "  minor: bump minor version number"
+    echo "  patch: bump patch version number"
+    echo
+    echo "Options:"
+    echo "  -f, --force:  force release"
+    echo "  -h, --help:   show this help message"
+    exit 1
 }
 
-FORCE=0
-
-while getopts "hf" opt; do
-  case $opt in
-    h)
-      usage
-      exit 0
-      ;;
-    f)
-      FORCE=1
-      ;;
-    \?)
-      usage
-      exit 1
-      ;;
-  esac
+# parse args
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+    -f | --force)
+        FORCE=true
+        shift
+        ;;
+    -h | --help)
+        usage
+        ;;
+    *)
+        break
+        ;;
+    esac
 done
 
-if command -v ggrep > /dev/null; then
-  GREP="ggrep"
-else
-  GREP="grep"
+# check if version is specified
+if [ "$#" -ne 1 ]; then
+    usage
 fi
 
-if ! command -v uvx > /dev/null; then
-  echo "uvx is not installed. Please install 'uv' first from https://docs.astral.sh/uv/getting-started/installation/."
-  exit 1
+if [ "$1" != "major" ] && [ "$1" != "minor" ] && [ "$1" != "patch" ]; then
+    usage
+fi
+
+# check if git is clean and force is not enabled
+if ! git diff-index --quiet HEAD -- && [ "$FORCE" = false ]; then
+    echo "Error: git is not clean. Please commit all changes first."
+    exit 1
+fi
+
+if ! command -v uv &> /dev/null; then
+    echo "Error: uv is not installed. Please install uv from https://docs.astral.sh/uv/"
+    exit 1
 fi
 
 VERSION_FILE="VERSION"
 VERSION_HEADER_FILE="VideoParser/VideoParser.h"
 
-if [[ -n "$(git status --porcelain)" ]] && [ $FORCE -eq 0 ]; then
-    echo "Working directory is dirty. Please commit all changes before running this script, or use -f to force the version bump."
+if [ ! -f "$VERSION_FILE" ]; then
+    echo "Error: VERSION file not found."
     exit 1
 fi
 
-CURRENT_VERSION=$(cat $VERSION_FILE)
+VERSION=$(cat "$VERSION_FILE")
 
-BASE_LIST=($(echo $CURRENT_VERSION | tr '.' ' '))
-V_MAJOR=${BASE_LIST[0]}
-V_MINOR=${BASE_LIST[1]}
-V_PATCH=${BASE_LIST[2]}
-echo -e "${NOTICE_FLAG} Current version: ${WHITE}$CURRENT_VERSION"
-echo -e "${NOTICE_FLAG} Latest commit hash: ${WHITE}$LATEST_HASH"
-V_PATCH=$((V_PATCH + 1))
-SUGGESTED_VERSION="$V_MAJOR.$V_MINOR.$V_PATCH"
-echo -ne "${QUESTION_FLAG} ${CYAN}Enter a version number [${WHITE}$SUGGESTED_VERSION${CYAN}]: "
-read INPUT_STRING
-if [ "$INPUT_STRING" = "" ]; then
-    INPUT_STRING=$SUGGESTED_VERSION
+new_version=$(uvx --from semver pysemver bump "$1" "$VERSION")
+
+echo "Would bump version:"
+echo "$VERSION -> $new_version"
+
+# prompt for confirmation
+if [ "$FORCE" = false ]; then
+    read -p "Do you want to release? [yY] " -n 1 -r
+    echo
+else
+    REPLY="y"
 fi
-echo -e "${NOTICE_FLAG} Will set new version to be ${WHITE}$INPUT_STRING"
+echo
 
-# update the version file
-echo "$INPUT_STRING" > $VERSION_FILE
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    # update the VERSION file
+    echo "$new_version" > "$VERSION_FILE"
 
-# update the version header file
-NEW_VERSION=($(echo $INPUT_STRING | tr '.' ' '))
-perl -pi -e "s/#define VIDEOPARSER_VERSION_MAJOR .*/#define VIDEOPARSER_VERSION_MAJOR ${NEW_VERSION[0]}/" $VERSION_HEADER_FILE
-perl -pi -e "s/#define VIDEOPARSER_VERSION_MINOR .*/#define VIDEOPARSER_VERSION_MINOR ${NEW_VERSION[1]}/" $VERSION_HEADER_FILE
-perl -pi -e "s/#define VIDEOPARSER_VERSION_PATCH .*/#define VIDEOPARSER_VERSION_PATCH ${NEW_VERSION[2]}/" $VERSION_HEADER_FILE
+    # update the C++ header file
+    BASE_LIST=($(echo $new_version | tr '.' ' '))
+    V_MAJOR=${BASE_LIST[0]}
+    V_MINOR=${BASE_LIST[1]}
+    V_PATCH=${BASE_LIST[2]}
 
-git add "$VERSION_FILE" "$VERSION_HEADER_FILE"
+    perl -pi -e "s/#define VIDEOPARSER_VERSION_MAJOR .*/#define VIDEOPARSER_VERSION_MAJOR $V_MAJOR/" "$VERSION_HEADER_FILE"
+    perl -pi -e "s/#define VIDEOPARSER_VERSION_MINOR .*/#define VIDEOPARSER_VERSION_MINOR $V_MINOR/" "$VERSION_HEADER_FILE"
+    perl -pi -e "s/#define VIDEOPARSER_VERSION_PATCH .*/#define VIDEOPARSER_VERSION_PATCH $V_PATCH/" "$VERSION_HEADER_FILE"
 
-# bump initially but to not push yet
-git commit --no-verify -m "Bump version to ${INPUT_STRING}."
-git tag -a -m "Tag version ${INPUT_STRING}." "v$INPUT_STRING"
+    # commit changes
+    git add "$VERSION_FILE" "$VERSION_HEADER_FILE"
+    git commit -m "bump version to $new_version"
+    git tag -a "v$new_version" -m "v$new_version"
 
-# generate the changelog
-uvx --with pystache gitchangelog > CHANGELOG.md
+    # generate changelog
+    uvx git+https://github.com/pawamoy/git-changelog@15bcad73cc328ef7572515f599826fcf9bb2f4ad --include-all --convention angular --sections :all: > CHANGELOG.md
 
-# add the changelog and docs, and amend them to the previous commit and tag
-git add CHANGELOG.md
-git commit --no-verify --amend --no-edit
-git tag -a -f -m "Tag version ${INPUT_STRING}." "v$INPUT_STRING"
+    git add CHANGELOG.md
+    git commit --no-verify --amend --no-edit
+    git tag -a -f -m "v$new_version" "v$new_version"
 
-# push to remote
-echo -e "$PUSHING_MSG"
-git push && git push --tags
+    # push changes
+    git push origin master
+    git push origin "v$new_version"
+else
+    echo "Aborted."
+    exit 1
+fi
