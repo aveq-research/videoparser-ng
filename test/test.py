@@ -9,19 +9,28 @@ import pytest
 HERE = os.path.dirname(os.path.realpath(__file__))
 
 FIXTURES = [
-    {
-        "original_features": "test_video_h264-features.ldjson",
-        "video": "test_video_h264.mkv",
-    },
+    pytest.param(
+        {
+            "original_features": "test_video_h264-features.ldjson",
+            "video": "test_video_h264.mkv",
+        },
+        id="h264",
+    ),
     # TODO uncomment once implemented
-    # {
-    #     "original_features": "test_video_h265-features.ldjson",
-    #     "video": "test_video_h265.mkv",
-    # },
-    # {
-    #     "original_features": "test_video_vp9-features.ldjson",
-    #     "video": "test_video_vp9.mkv",
-    # },
+    pytest.param(
+        {
+            "original_features": "test_video_h265-features.ldjson",
+            "video": "test_video_h265.mkv",
+        },
+        id="h265",
+    ),
+    # pytest.param(
+    #     {
+    #         "original_features": "test_video_vp9-features.ldjson",
+    #         "video": "test_video_vp9.mkv",
+    #     },
+    #     id="vp9",
+    # ),
 ]
 
 # original feature keys in the ldjson file, with mapping to the new keys
@@ -123,6 +132,51 @@ TRANSFORMATION_FUNCTIONS = {
 }
 
 
+def format_value_errors(
+    video_name: str, value_errors: list[dict], keys_with_errors: set[str]
+) -> str:
+    """Format value errors into a readable table grouped by key."""
+    lines = [
+        f"[{video_name}] Value mismatches for {len(keys_with_errors)} key(s): {sorted(keys_with_errors)}",
+        "",
+    ]
+
+    # Group errors by mapped_key for better readability
+    errors_by_key: dict[str, list[dict]] = {}
+    for error in value_errors:
+        key = error["mapped_key"]
+        if key not in errors_by_key:
+            errors_by_key[key] = []
+        errors_by_key[key].append(error)
+
+    for mapped_key in sorted(errors_by_key.keys()):
+        key_errors = errors_by_key[mapped_key]
+        original_key = key_errors[0]["key"]
+        lines.append(f"  {mapped_key} (from {original_key}):")
+        lines.append(f"    {'Frame':<8} {'Expected':<20} {'Actual':<20} {'Diff'}")
+        lines.append(f"    {'-' * 8} {'-' * 20} {'-' * 20} {'-' * 15}")
+
+        for err in key_errors:
+            expected = err["expected"]
+            actual = err["actual"]
+
+            # Calculate difference for numeric values
+            diff_str = ""
+            if isinstance(expected, (int, float)) and isinstance(actual, (int, float)):
+                diff = actual - expected
+                if isinstance(expected, float) or isinstance(actual, float):
+                    diff_str = f"{diff:+.6f}"
+                else:
+                    diff_str = f"{diff:+d}"
+
+            lines.append(
+                f"    {err['frame_index']:<8} {str(expected):<20} {str(actual):<20} {diff_str}"
+            )
+        lines.append("")
+
+    return "\n".join(lines)
+
+
 def call_parser(video_file, num_frames: int = 5) -> list[dict]:
     """Call the video parser on the given video file and return the parsed data."""
 
@@ -200,12 +254,15 @@ class TestVideoParser:
                 else:
                     keys_without_errors.add(mapped_key)
 
-        assert len(missing_keys) == 0, f"Missing keys in parsed output: {missing_keys}"
+        video_name = fixture["video"]
+        assert len(missing_keys) == 0, (
+            f"[{video_name}] Missing keys in parsed output: {missing_keys}"
+        )
 
-        print("Keys without errors:")
+        print(f"[{video_name}] Keys without errors:")
         print(keys_without_errors)
 
-        keys_with_errors = set([error["mapped_key"] for error in value_errors])
-        assert len(value_errors) == 0, (
-            f"Value error with keys {keys_with_errors}!\n\n{json.dumps(value_errors, indent=2)}"
-        )
+        if value_errors:
+            keys_with_errors = set([error["mapped_key"] for error in value_errors])
+            error_msg = format_value_errors(video_name, value_errors, keys_with_errors)
+            pytest.fail(error_msg)
