@@ -5,3 +5,20 @@
 test
 hooks
 build
+
+# Exclude all build artifacts from libaom
+external/libaom/aom_build
+
+# Exclude all build artifacts from ffmpeg (use ** for recursive matching)
+external/ffmpeg/ffbuild/config.*
+external/ffmpeg/ffbuild/.config
+external/ffmpeg/config.h
+external/ffmpeg/config.asm
+external/ffmpeg/config_components.h
+external/ffmpeg/**/*.a
+external/ffmpeg/**/*.o
+external/ffmpeg/**/*.d
+external/ffmpeg/**/*.ver
+external/ffmpeg/**/*.pc
+external/ffmpeg/libavutil/avconfig.h
+external/ffmpeg/libavutil/ffversion.h

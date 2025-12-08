@@ -36,6 +36,8 @@ Internally, ffmpeg is used, and linked into the project. Currently, the project 
 We strive to keep the project up to date with the latest ffmpeg version.
 The actual ffmpeg changes are published in [this `ffmpeg` fork](https://github.com/aveq-research/ffmpeg/tree/videoparser) in the `videoparser` branch.
 
+For AV1 support, libaom is also vendored as a submodule. The code is mirrored at [this `libaom` fork](https://github.com/aveq-research/libaom).
+
 ## History and Goals
 
 The project is using previous work from the [`bitstream_mode3_videoparser`](https://github.com/Telecommunication-Telemedia-Assessment/bitstream_mode3_videoparser) project, but written from the ground up to be faster.
@@ -72,8 +74,7 @@ Then, using [Homebrew](https://brew.sh), install the required packages:
 ```bash
 brew install \
   cmake ninja pkg-config \
-  automake git libtool sdl shtool texi2html wget nasm \
-  aom
+  automake git libtool sdl shtool texi2html wget nasm
 ```
 
 ### Installation under Ubuntu
@@ -96,8 +97,7 @@ sudo apt install \
   yasm \
   nasm \
   zlib1g-dev \
-  libbz2-dev \
-  libaom-dev
+  libbz2-dev
 ```
 
 ## Build

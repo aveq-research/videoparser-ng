@@ -4,10 +4,21 @@
 
 set -e
 
-cd "$(dirname "$0")/../external/ffmpeg" || (echo "ffmpeg directory not found!" && exit 1)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="${SCRIPT_DIR}/.."
+LIBAOM_BUILD="${PROJECT_ROOT}/external/libaom/aom_build"
+
+cd "${PROJECT_ROOT}/external/ffmpeg" || (echo "ffmpeg directory not found!" && exit 1)
 
 # Explicitly set SRC_PATH to current directory
-export SRC_PATH="$(pwd)"
+SRC_PATH="$(pwd)"
+export SRC_PATH
+
+# Build libaom if not already built
+if [[ ! -f "${LIBAOM_BUILD}/libaom.a" ]]; then
+  echo "Building libaom first..."
+  "${SCRIPT_DIR}/build-libaom.sh"
+fi
 
 usage() {
   echo "Usage: $0 [options]"
@@ -54,6 +65,12 @@ fi
 
 if [[ ! -f config.h ]] || [[ "$reconfigure" = true ]]; then
   echo "Configuring ffmpeg..."
+
+  # Paths for vendored libaom
+  LIBAOM_SRC="${PROJECT_ROOT}/external/libaom"
+
+  # Set PKG_CONFIG_PATH so ffmpeg's configure can find libaom via pkg-config
+  export PKG_CONFIG_PATH="${LIBAOM_BUILD}:${PKG_CONFIG_PATH:-}"
 
   configureFlags=(
     --disable-programs
@@ -109,8 +126,10 @@ if [[ ! -f config.h ]] || [[ "$reconfigure" = true ]]; then
     --enable-demuxer=mov
     --enable-demuxer=mpegvideo
     --enable-demuxer=mpegts
-    # for AOM
+    # for AOM (vendored)
     --enable-libaom
+    "--extra-cflags=-I${LIBAOM_SRC} -I${LIBAOM_BUILD}"
+    "--extra-ldflags=-L${LIBAOM_BUILD}"
     # to make bit count work for CABAC
     --disable-inline-asm
   )

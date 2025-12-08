@@ -1,51 +1,37 @@
 project(VideoParser)
 
-# Add Homebrew paths for Apple Silicon or Intel Mac
-if(APPLE)
-  if(CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
-    list(APPEND CMAKE_PREFIX_PATH "/opt/homebrew")
-    set(AOM_INCLUDE_DIR "/opt/homebrew/opt/aom/include")
-  else()
-    list(APPEND CMAKE_PREFIX_PATH "/usr/local")
-    set(AOM_INCLUDE_DIR "/usr/local/opt/aom/include")
-  endif()
-else()
-  # On Linux, headers are typically in /usr/include
-  set(AOM_INCLUDE_DIR "/usr/include")
-endif()
+# Option to skip ffmpeg build (useful for Docker multi-stage builds where ffmpeg is pre-built)
+option(SKIP_FFMPEG_BUILD "Skip automatic ffmpeg build" OFF)
 
-# Find libaom
-find_library(AOM_LIBRARY
-  NAMES aom
-  PATHS
-    /opt/homebrew/opt/aom/lib  # Apple Silicon
-    /usr/local/opt/aom/lib     # Intel Mac
-    /usr/lib                   # Linux
-    /usr/lib/x86_64-linux-gnu  # Debian/Ubuntu
-  REQUIRED
-)
+# Vendored libaom paths
+set(LIBAOM_SRC_DIR "${CMAKE_SOURCE_DIR}/external/libaom")
+set(LIBAOM_BUILD_DIR "${LIBAOM_SRC_DIR}/aom_build")
+set(LIBAOM_LIBRARY "${LIBAOM_BUILD_DIR}/libaom.a")
 
 add_library(videoparser STATIC VideoParser.cpp VideoParser.h)
 
 # fix for ffmpeg's use of register keyword
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-register")
 
-# Link VideoParser against FFmpeg statically
+# Link VideoParser against FFmpeg and libaom statically
 target_include_directories(videoparser
   PRIVATE
     ${CMAKE_SOURCE_DIR}/external/ffmpeg
-    ${AOM_INCLUDE_DIR}  # Use platform-specific include path
+    ${LIBAOM_SRC_DIR}       # libaom source headers (aom/aom_codec.h etc.)
+    ${LIBAOM_BUILD_DIR}     # libaom generated headers (config/aom_config.h etc.)
 )
 target_link_libraries(videoparser PRIVATE ${CMAKE_SOURCE_DIR}/external/ffmpeg/libavcodec/libavcodec.a)
 target_link_libraries(videoparser PRIVATE ${CMAKE_SOURCE_DIR}/external/ffmpeg/libavformat/libavformat.a)
 target_link_libraries(videoparser PRIVATE ${CMAKE_SOURCE_DIR}/external/ffmpeg/libavutil/libavutil.a)
-target_link_libraries(videoparser PRIVATE ${AOM_LIBRARY})
+target_link_libraries(videoparser PRIVATE ${LIBAOM_LIBRARY})
 target_link_libraries(videoparser PRIVATE bz2 z)
 
-# Build FFmpeg if it doesn't exist, or if any of its source files have changed
-add_custom_command(
-  TARGET videoparser
-  PRE_BUILD
-  COMMAND ${CMAKE_SOURCE_DIR}/util/build-ffmpeg.sh
-  COMMENT "Checking if FFmpeg needs to be rebuilt"
-)
+# Build FFmpeg (which also builds libaom) if it doesn't exist, or if any of its source files have changed
+if(NOT SKIP_FFMPEG_BUILD)
+  add_custom_command(
+    TARGET videoparser
+    PRE_BUILD
+    COMMAND ${CMAKE_SOURCE_DIR}/util/build-ffmpeg.sh
+    COMMENT "Checking if FFmpeg needs to be rebuilt"
+  )
+endif()
