@@ -282,7 +282,7 @@ We have a more detailed guide for testing and the specific features implemented.
 
 ## API Documentation
 
-API documentation is available in the `docs` folder. You can [view it at this location](https://htmlpreview.github.io/?https://github.com/aveq-research/videoparser-ng/blob/master/docs/html/index.html).
+API documentation is available in the `docs` folder. You can [view it at this location](https://raw.githack.com/aveq-research/videoparser-ng/master/docs/html/index.html).
 
 ## Acknowledgements
 
