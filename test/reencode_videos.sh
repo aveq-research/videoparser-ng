@@ -6,12 +6,6 @@
 INPUT_DIR="/Volumes/Data/Databases/a2_2k"
 OUTPUT_DIR="/Volumes/Data/Databases/a2_2k_reencoded"
 
-# Create output directories for each codec
-mkdir -p "$OUTPUT_DIR/av1"
-mkdir -p "$OUTPUT_DIR/hevc"
-mkdir -p "$OUTPUT_DIR/h264"
-mkdir -p "$OUTPUT_DIR/vp9"
-
 # Function to encode a single file with all codecs
 encode_file() {
     local input_file="$1"
@@ -21,16 +15,16 @@ encode_file() {
     echo "Processing: $basename"
 
     # AV1 (librav1e)
-    ffmpeg -y -i "$input_file" -c:v librav1e -c:a copy "$OUTPUT_DIR/av1/${basename}.mkv" 2>/dev/null &
+    ffmpeg -y -i "$input_file" -c:v librav1e -c:a copy "$OUTPUT_DIR/${basename}-av1.mkv" 2>/dev/null &
 
     # HEVC (hevc_videotoolbox - macOS hardware encoder)
-    ffmpeg -y -i "$input_file" -c:v hevc_videotoolbox -c:a copy "$OUTPUT_DIR/hevc/${basename}.mp4" 2>/dev/null &
+    ffmpeg -y -i "$input_file" -c:v hevc_videotoolbox -c:a copy "$OUTPUT_DIR/${basename}-hevc.mkv" 2>/dev/null &
 
     # H.264 (h264_videotoolbox - macOS hardware encoder)
-    ffmpeg -y -i "$input_file" -c:v h264_videotoolbox -c:a copy "$OUTPUT_DIR/h264/${basename}.mp4" 2>/dev/null &
+    ffmpeg -y -i "$input_file" -c:v h264_videotoolbox -c:a copy "$OUTPUT_DIR/${basename}-h264.mkv" 2>/dev/null &
 
     # VP9 (libvpx-vp9)
-    ffmpeg -y -i "$input_file" -c:v libvpx-vp9 -c:a copy "$OUTPUT_DIR/vp9/${basename}.webm" 2>/dev/null &
+    ffmpeg -y -i "$input_file" -c:v libvpx-vp9 -c:a copy "$OUTPUT_DIR/${basename}-vp9.mkv" 2>/dev/null &
 
     # Wait for all 4 encodings of this file to complete
     wait
