@@ -29,6 +29,9 @@ Contents:
 - [Maintenance](#maintenance)
   - [Fetching new FFmpeg commits](#fetching-new-ffmpeg-commits)
   - [Fetching new libaom commits](#fetching-new-libaom-commits)
+- [Black Border Implementation Notes](#black-border-implementation-notes)
+  - [Algorithm Details](#algorithm-details)
+  - [1. BlackLine Array Population (Per-Codec)](#1-blackline-array-population-per-codec)
 
 ## General Structure
 
@@ -516,3 +519,183 @@ util/rebase-libaom.sh
 ```
 
 The rebase may not be clean, so check the output of the script and resolve any conflicts.
+
+## Black Border Implementation Notes
+
+This section describes the black border detection algorithm and its possible integration into the QP statistics calculation.
+
+`Av_QPBB` is a computed statistic that represents the average Quantization Parameter (QP) of video content  excluding black letterbox/pillarbox borders. This is important for video quality assessment because black
+borders typically have uniform, easily-encodable content with artificially low or high QP values that would skew the "true" content QP measurement.
+
+The legacy code developer's key observation was that black border regions in widescreen/letterboxed videos contain mostly zero-coefficient INTRA blocks. Since pure black areas have no texture or motion, encoders typically:
+
+1. Use INTRA prediction (DC or planar modes)
+2. Generate nearly all-zero residual coefficients after transform
+
+By counting rows that have a high proportion of such "empty" blocks, the algorithm can estimate where borders
+exist.
+
+### Algorithm Details
+
+### 1. BlackLine Array Population (Per-Codec)
+
+During decoding, a BlackLine[] array is populated where each entry counts zero-coefficient blocks in that row.
+
+H.264 (VideoStat264.c:160-185)
+
+```c++
+// Only on I-frames
+for( j = 0, NonZeroCoefs=0 ; j<16 ; NonZeroCoefs += NZC_Table[sl->mb_xy][j++] ) ;
+
+if( (MbType & MB_TYPE_INTRA4x4) || (MbType & MB_TYPE_INTRA16x16) )
+{
+  if( !Cbp_Table[sl->mb_xy] && (NonZeroCoefs == 0) )
+    Ctx->BlackLine[sl->mb_y]++ ;  // Increment count for this row
+}
+```
+
+Uses non_zero_count and cbp_table from H.264 decoder to identify INTRA macroblocks with no coded coefficients.
+
+H.265/HEVC (VideoStatHEVC.c:345-364)
+
+```c++
+// Only on I-frames
+for( tuy = 0 ; tuy < sps->min_tb_height ; tuy++ )
+  for( tux = 0 ; tux < sps->min_tb_width ; tux++ )
+    if( cbf_luma[tuy*sps->min_tb_width + tux] == 0 )
+      BlackLine[tuy]++ ;
+```
+
+Uses the cbf_luma (Coded Block Flag for luma) array to identify transform units with no coded coefficients.
+
+VP9 (VideoStatVP9.c:376-381)
+
+```c++
+// Count 4x4 columns with zero-tx
+if (sum == 0)
+  for( j = y; j < y + step ; j++ )
+    s->BlackLine[2 * row + j] += step ;
+```
+
+Sums transform coefficients; if sum is zero, increments the BlackLine counter.
+
+#### 2. Black Border Detection (VideoStatCommon.c:12-31)
+
+```c++
+int BlackborderDetect( int* BlackLine, int rows, int threshold, int logBlkSize )
+{
+  int BlackLines = 0, i;
+
+  // Step 1: Symmetry enforcement - combine top and bottom
+  for( i = 0 ; i < rows>>1 ; i++ )
+    BlackLine[i] = BlackLine[rows-i-1] =
+      ((BlackLine[i] + BlackLine[rows-i-1]) >= (threshold << 1)) ? 1 : 0 ;
+
+  // Step 2: Count consecutive "black" rows from top
+  for( i = 0 ; i < rows ; i++ )
+  {
+    if( BlackLine[i] != 0 )
+      BlackLines++ ;
+    else
+      break ;
+  }
+
+  // Step 3: Sanity check - reject if > 50% of frame
+  if( BlackLines >= (rows >> 1) )
+    BlackLines = 0 ;
+
+  // Step 4: Convert block rows to pixels
+  return( BlackLines << logBlkSize ) ;
+}
+```
+
+Key Algorithm Steps:
+
+1. Symmetry Enforcement: Assumes letterboxing is symmetric (top = bottom). Combines counts from row i and row rows-i-1. If combined count exceeds 2 × threshold, marks row as "black" (1), else not black (0).
+2. Consecutive Count: Counts consecutive rows from the top that are marked as black. Stops at first non-black row.
+3. Sanity Check: If detected black lines exceed 50% of frame height, rejects detection (returns 0). This prevents false positives from mostly-dark content.
+4. Pixel Conversion: Multiplies block count by block size (1 << logBlkSize) to get pixel height.
+
+#### 3. Threshold Values (Codec-Specific)
+
+| Codec | Threshold           | Block Size                  | Rationale                                  |
+| ----- | ------------------- | --------------------------- | ------------------------------------------ |
+| H.264 | 0.8 × mb_width      | 16×16 (logBlkSize=4)        | 80% of macroblocks in row must be zero     |
+| H.265 | 0.72 × min_tb_width | Variable (log2_min_tb_size) | 72% of transform blocks must be zero       |
+| VP9   | 1.2 × cols          | 4×4 (logBlkSize=2)          | 120% accounts for 8×8 grid with sub-blocks |
+
+TODO: Why were these specific thresholds chosen? Possibly empirical tuning.
+
+#### 4. QP Statistics with Border Exclusion
+
+Determining if Block is in Border (VideoStat264.c:308)
+
+```c++
+NoBorder = ((sl->mb_y << 4) >= FrmStat->BlackBorder) &&
+            ((sl->mb_y << 4) < (h->height - FrmStat->BlackBorder));
+
+```
+
+Accumulating QP (VideoStatCommon.c:38-56)
+
+```c++
+void QPStatistics( VIDEO_STAT* FrmStat, int CurrQP, int CurrType, int NoBorder )
+{
+  // Always accumulate (with border)
+  S->QpSum += CurrQP ;
+  S->QpSumSQ += SQR( CurrQP ) ;
+  S->QpCnt++ ;
+
+  // Only accumulate for non-border blocks (BB = "Black Border" excluded)
+  if( NoBorder )
+  {
+    S->QpSumBB += CurrQP ;
+    S->QpSumSQBB += SQR( CurrQP ) ;
+    S->QpCntBB++ ;
+  }
+}
+```
+
+#### 5. Final Computation (VideoStatCommon.c:165-171)
+
+```c++
+FrmStat->Av_QPBB     = S->QpSumBB / (double)S->QpCntBB ;
+FrmStat->StdDev_QPBB = sqrt( S->QpSumSQBB / (double)S->QpCntBB -
+                              SQR( S->QpSumBB / (double)S->QpCntBB ) ) ;
+```
+
+Mathematical Formulas:
+
+- Av_QPBB = Σ(QP for blocks outside black border) / Count
+- StdDev_QPBB = √(Var) = √(E[QP²] - E[QP]²)
+
+#### FFmpeg Modifications
+
+Modified Files:
+
+| File                                 | Purpose                                        | Marker |
+| ------------------------------------ | ---------------------------------------------- | ------ |
+| ffmpeg/libavutil/internal.h:357      | Declares extern int CurrBlackBorder            | P.L.   |
+| ffmpeg/libavcodec/h264_slice.c:50-51 | Function declarations                          | P.L.   |
+| ffmpeg/libavcodec/h264_slice.c:2417  | Calls InitFrameStatistics264() at slice start  | P.L.   |
+| ffmpeg/libavcodec/h264_slice.c:2591  | Calls BlackborderDetect() at end of I-frame    | P.L.   |
+| ffmpeg/libavcodec/hevc.c:2385        | Calls BlackBorderEstimationHEVC() at frame end | P.L.   |
+| ffmpeg/libavcodec/hevc.h:1078        | Function declaration                           | P.L.   |
+
+Key Integration Points:
+
+1. H.264 (h264_slice.c:2590-2591): At the finish: label after slice decoding:
+2. HEVC (hevc.c:2385): After CTB (Coding Tree Block) processing:
+3. VP9 (VideoStatVP9.c:476): At frame statistics finalization:
+
+#### Design Decisions
+
+1. Only I-frames trigger recalculation: Black border detection only happens on I-frames (or keyframes for VP9). P/B frames inherit the previous CurrBlackBorder value. This is because:
+
+   - I-frames have complete INTRA prediction making zero-coefficient detection reliable
+   - Scene changes (where borders might change) typically occur at I-frames
+   - Reduces computational overhead
+
+2. Global CurrBlackBorder variable: Persists across frames to maintain border detection between I-frames.
+3. Symmetric assumption: The algorithm enforces symmetry between top and bottom borders, which is typical for letterboxed content but would fail for asymmetric borders (rare in practice).
+4. Spatial complexity usage (VideoStatCommon.c:175): `FrmStat->SpatialComplexety[0] = BpF *exp( 0.115524* FrmStat->Av_QPBB );`
