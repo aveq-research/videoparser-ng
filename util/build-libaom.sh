@@ -72,7 +72,9 @@ fi
 
 echo "Building libaom..."
 
-cmake --build . --parallel "$(nproc 2>/dev/null || sysctl -n hw.ncpu)"
+# Use MAKE_JOBS env var if set, otherwise auto-detect
+JOBS="${MAKE_JOBS:-$(nproc 2>/dev/null || sysctl -n hw.ncpu)}"
+cmake --build . --parallel "${JOBS}"
 
 endTime=$(date +%s)
 

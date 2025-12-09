@@ -139,7 +139,9 @@ fi
 
 echo "Building ffmpeg..."
 
-make "-j$(nproc)"
+# Use MAKE_JOBS env var if set, otherwise use nproc
+JOBS="${MAKE_JOBS:-$(nproc)}"
+make "-j${JOBS}"
 
 endTime=$(date +%s)
 

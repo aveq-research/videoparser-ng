@@ -66,6 +66,9 @@ jobs:
   # ============================================
   build-macos-intel:
     runs-on: macos-13
+    env:
+      # Limit parallelism to avoid resource exhaustion on GitHub runners
+      MAKE_JOBS: 4
 
     steps:
       - name: Checkout repository
@@ -87,7 +90,7 @@ jobs:
         run: |
           mkdir -p build && cd build
           cmake -DSKIP_FFMPEG_BUILD=ON ..
-          cmake --build . -- -j$(sysctl -n hw.ncpu)
+          cmake --build . -- -j${MAKE_JOBS}
 
       - name: Rename and verify binary
         run: |
@@ -107,6 +110,9 @@ jobs:
   # ============================================
   build-macos-arm:
     runs-on: macos-14
+    env:
+      # Limit parallelism to avoid resource exhaustion on GitHub runners
+      MAKE_JOBS: 4
 
     steps:
       - name: Checkout repository
@@ -128,7 +134,7 @@ jobs:
         run: |
           mkdir -p build && cd build
           cmake -DSKIP_FFMPEG_BUILD=ON ..
-          cmake --build . -- -j$(sysctl -n hw.ncpu)
+          cmake --build . -- -j${MAKE_JOBS}
 
       - name: Rename and verify binary
         run: |
