@@ -43,7 +43,7 @@ VideoParser::VideoParser(const char *filename) {
   }
 
   // Find the first video stream
-  for (uint i = 0; i < format_context->nb_streams; i++) {
+  for (unsigned int i = 0; i < format_context->nb_streams; i++) {
     if (format_context->streams[i]->codecpar->codec_type ==
         AVMEDIA_TYPE_VIDEO) {
       video_stream_idx = i;
