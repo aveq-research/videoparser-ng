@@ -44,7 +44,8 @@ RUN mkdir -p aom_build && cd aom_build && \
         -DENABLE_TOOLS=OFF \
         -DCONFIG_AV1_ENCODER=0 \
         -DCONFIG_MULTITHREAD=1 \
-        -DCONFIG_PIC=1 && \
+        -DCONFIG_PIC=1 \
+        -DCONFIG_INSPECTION=1 && \
     cmake --build . --parallel $(nproc)
 
 # =============================================================================

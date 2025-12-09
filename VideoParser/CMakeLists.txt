@@ -20,11 +20,11 @@ target_include_directories(videoparser
     ${LIBAOM_SRC_DIR}       # libaom source headers (aom/aom_codec.h etc.)
     ${LIBAOM_BUILD_DIR}     # libaom generated headers (config/aom_config.h etc.)
 )
-target_link_libraries(videoparser PRIVATE ${CMAKE_SOURCE_DIR}/external/ffmpeg/libavcodec/libavcodec.a)
-target_link_libraries(videoparser PRIVATE ${CMAKE_SOURCE_DIR}/external/ffmpeg/libavformat/libavformat.a)
-target_link_libraries(videoparser PRIVATE ${CMAKE_SOURCE_DIR}/external/ffmpeg/libavutil/libavutil.a)
-target_link_libraries(videoparser PRIVATE ${LIBAOM_LIBRARY})
-target_link_libraries(videoparser PRIVATE bz2 z)
+target_link_libraries(videoparser PUBLIC ${CMAKE_SOURCE_DIR}/external/ffmpeg/libavcodec/libavcodec.a)
+target_link_libraries(videoparser PUBLIC ${CMAKE_SOURCE_DIR}/external/ffmpeg/libavformat/libavformat.a)
+target_link_libraries(videoparser PUBLIC ${CMAKE_SOURCE_DIR}/external/ffmpeg/libavutil/libavutil.a)
+target_link_libraries(videoparser PUBLIC ${LIBAOM_LIBRARY})
+target_link_libraries(videoparser PUBLIC bz2 z)
 
 # Build FFmpeg (which also builds libaom) if it doesn't exist, or if any of its source files have changed
 if(NOT SKIP_FFMPEG_BUILD)
