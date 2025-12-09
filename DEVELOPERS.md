@@ -13,7 +13,16 @@ Contents:
   - [Bit Count Metrics](#bit-count-metrics)
   - [Block Count Metrics](#block-count-metrics)
   - [Frame Metadata](#frame-metadata)
+- [Differences with Legacy Implementation](#differences-with-legacy-implementation)
+  - [All Codecs: POC-based Motion Vector Normalization](#all-codecs-poc-based-motion-vector-normalization)
+  - [VP9: Motion Statistics for All Inter Modes](#vp9-motion-statistics-for-all-inter-modes)
+  - [VP9: Motion Bit Count](#vp9-motion-bit-count)
+  - [VP9: Removed Weighted Variance Accumulation](#vp9-removed-weighted-variance-accumulation)
+  - [All Codecs: Removed Arbitrary Scaling Factors](#all-codecs-removed-arbitrary-scaling-factors)
 - [Testing](#testing)
+  - [Feature Testing](#feature-testing)
+  - [Legacy Testing](#legacy-testing)
+  - [CLI Testing](#cli-testing)
 - [Debugging](#debugging)
 - [Maintenance](#maintenance)
   - [Fetching new FFmpeg commits](#fetching-new-ffmpeg-commits)
@@ -26,6 +35,7 @@ This program patches ffmpeg to add support for extracting additional bitstream p
 - `VideoParser` is an API that provides a simple interface for extracting bitstream properties from a video file. It is implemented as a basic frame-by-frame reader that itself is using ffmpeg standard API calls to read the video.
 - VideoParserCli is a command-line interface for VideoParser. It is implemented by using VideoParser API calls to extract the bitstream properties, and then printing them to the console in JSON format.
 - ffmpeg is cloned and has a separate branch checked out.
+- `libaom` is also cloned and has a separate branch checked out, with modifications to support the extraction of bitstream properties.
 
 To pass extra information from the ffmpeg part to the VideoParser part, we use the `SharedFrameInfo` struct to store the bitstream properties like QP values, motion vectors, etc. The definition is in `VideoParser/include/shared.h`, and it is included in ffmpeg as well, via an extra side data type `AV_FRAME_DATA_VIDEOPARSER_INFO`.
 
@@ -36,6 +46,8 @@ To update the data, we have helper functions like `videoparser_shared_frame_info
 ## Modifications Made
 
 This explains the high level changes made to ffmpeg to support the extraction of bitstream properties.
+
+All modifications are marked with `// videoparser:` comments for easy identification.
 
 We have modified `decode.c` to extract the frame index (method `ff_decode_receive_frame`).
 
@@ -77,8 +89,6 @@ To extract motion vector differences (MVD) and bit counts for AV1, additional mo
 - `external/libaom/av1/decoder/inspection.c`: Added copying of MVD and bit counts in `ifd_inspect()`
 - `external/libaom/av1/decoder/decodemv.c`: Store MVD in `mbmi->mvd[]` for all NEWMV modes in `assign_mv()`, and track motion bits using `aom_reader_tell_frac()` around MV decoding
 - `external/libaom/av1/decoder/decodeframe.c`: Track coefficient bits around intra/inter coefficient decoding using `aom_reader_tell_frac()`, reset counters at frame start in `av1_decode_frame_headers_and_setup()`
-
-All modifications are marked with `// videoparser:` comments for easy identification
 
 ## Metrics
 
@@ -137,15 +147,13 @@ Initial QP value from slice or frame header. Unit: QP index (dimensionless).
 
 Average QP excluding black border regions (letterbox areas). Unit: QP index (dimensionless).
 
-- **H.264**: Work in progress.
-- **HEVC**: Work in progress.
+**Work in progress for all codecs.**
 
 #### qp_bb_stdev
 
 Standard deviation of QP excluding black border regions. Unit: QP index (dimensionless).
 
-- **H.264**: Work in progress.
-- **HEVC**: Work in progress.
+**Work in progress for all codecs.**
 
 ### Motion Vector Metrics
 
@@ -167,46 +175,31 @@ Average motion vector length per frame, computed as the mean of `sqrt(mv_x² + m
 
 Standard deviation of motion vector lengths within a frame.
 
-- **H.264**: Computed from `mv_sum_sqr` accumulated during motion vector extraction.
-- **HEVC**: Same method as H.264.
-- **VP9**: Same method as H.264.
-- **AV1**: Same method as H.264.
+This is computed from `mv_sum_sqr` accumulated during motion vector extraction.
 
 #### motion_x_avg
 
 Average of the absolute X (horizontal) components of motion vectors.
 
-- **H.264**: Accumulated separately from Y components using `fabs()` to ensure positive contributions.
-- **HEVC**: Same accumulation method as H.264.
-- **VP9**: Same accumulation method as H.264.
-- **AV1**: Same accumulation method as H.264.
+This is accumulated separately from Y components using `fabs()` to ensure positive contributions.
 
 #### motion_y_avg
 
 Average of the absolute Y (vertical) components of motion vectors.
 
-- **H.264**: Same accumulation method as `motion_x_avg`, but for vertical motion.
-- **HEVC**: Same accumulation method as H.264.
-- **VP9**: Same accumulation method as H.264.
-- **AV1**: Same accumulation method as H.264.
+Same accumulation method as `motion_x_avg`, but for vertical motion.
 
 #### motion_x_stdev
 
 Standard deviation of the X components of motion vectors.
 
-- **H.264**: Computed from `mv_x_sum_sqr`.
-- **HEVC**: Same method as H.264.
-- **VP9**: Same method as H.264.
-- **AV1**: Same method as H.264.
+Computed from `mv_x_sum_sqr`.
 
 #### motion_y_stdev
 
 Standard deviation of the Y components of motion vectors.
 
-- **H.264**: Computed from `mv_y_sum_sqr`.
-- **HEVC**: Same method as H.264.
-- **VP9**: Same method as H.264.
-- **AV1**: Same method as H.264.
+Computed from `mv_y_sum_sqr`.
 
 #### motion_diff_avg
 
@@ -221,10 +214,9 @@ Average motion vector prediction residual length. Represents the difference betw
 
 Standard deviation of motion vector prediction residuals.
 
-- **H.264**: Computed from `mv_diff_sum_sqr`.
-- **HEVC**: Same method as H.264.
-- **VP9**: Same method as H.264.
-- **AV1**: Same method as H.264. MVD values from the inspection API are accumulated in `libaomdec.c`.
+Computed from `mv_diff_sum_sqr`.
+
+- **AV1**: Note: MVD values from the inspection API are accumulated in `libaomdec.c`.
 
 ### Bit Count Metrics
 
@@ -293,7 +285,7 @@ Whether the frame is an IDR (Instantaneous Decoder Refresh) frame. Unit: boolean
 
 Frame size. Unit: bytes.
 
-- **All codecs**: Extracted from packet size.
+- **All codecs**: Extracted from packet size directly in ffmpeg.
 
 #### pts
 
@@ -307,33 +299,133 @@ Decoding timestamp. Unit: seconds.
 
 - **All codecs**: Converted from ffmpeg's `dts` using stream time base.
 
+## Differences with Legacy Implementation
+
+This section documents intentional differences between videoparser-ng and the legacy [`bitstream_mode3_videoparser`](https://github.com/Telecommunication-Telemedia-Assessment/bitstream_mode3_videoparser) implementation. These changes were made to improve correctness, cross-codec consistency, and simplicity.
+
+### All Codecs: POC-based Motion Vector Normalization
+
+The legacy implementation normalized motion vectors by temporal distance (POC difference) to reference frames:
+
+```c
+// Legacy: MV values divided by temporal distance
+mvX /= (8 * FrmDist);
+NormFwd = 1.0 / (2.0 * fabs((CurrPOC - RefPOC) / POC_DIF));
+```
+
+videoparser-ng uses raw motion vector values without normalization. This provides:
+
+- Simpler, more predictable output
+- Values that directly correspond to what's in the bitstream
+- Independence from GOP structure and reference frame selection
+
+If temporal normalization is needed, it can be applied as a post-processing step.
+
+### VP9: Motion Statistics for All Inter Modes
+
+The legacy VP9 implementation only accumulated motion vector statistics for `NEWMV` mode blocks (explicitly coded motion deltas):
+
+```c
+// Legacy VP9: Only NEWMV counted
+if (b->mode[idx] == NEWMV) {
+    S->MV_Length += MV_LengthXY * count;
+    // ...
+}
+```
+
+This was inconsistent with H.264/HEVC, which counted **all** inter blocks regardless of prediction mode.
+
+videoparser-ng counts all inter modes (`NEARESTMV`, `NEARMV`, `NEWMV`) except `ZEROMV`, making VP9 behavior consistent with other codecs:
+
+| Codec | Legacy MV Stats  | videoparser-ng MV Stats            |
+| ----- | ---------------- | ---------------------------------- |
+| H.264 | All inter blocks | All inter blocks                   |
+| HEVC  | All inter blocks | All inter blocks                   |
+| VP9   | `NEWMV` only     | All inter blocks (except `ZEROMV`) |
+
+### VP9: Motion Bit Count
+
+The legacy implementation did not track `motion_bit_count` for VP9 (always returned 0).
+
+videoparser-ng correctly tracks motion bits during VP9 entropy decoding.
+
+### VP9: Removed Weighted Variance Accumulation
+
+The legacy VP9 implementation used `scount = count * count` when accumulating squared values for variance:
+
+```c
+// Legacy: Inflated variance calculation
+scount = count * count;
+S->MV_SumSQR += SQR(MV_LengthXY) * scount;
+```
+
+videoparser-ng uses standard variance accumulation without the extra count multiplier, providing mathematically correct standard deviation values.
+
+### All Codecs: Removed Arbitrary Scaling Factors
+
+The legacy implementation applied various scaling factors (e.g., `4.0 *` multiplier on MV lengths) that were likely historical artifacts.
+
+videoparser-ng outputs unscaled values in native codec units (1/4 pel for H.264/HEVC, 1/8 pel for VP9/AV1).
+
 ## Testing
 
-For testing you need `pytest`. For easy installation, just use `uv` (<https://docs.astral.sh/uv/>), which is a faster package manager for Python.
+The test scripts use [uv](https://docs.astral.sh/uv/) inline script metadata (PEP 723) for dependency management. This means you can run them directly without installing dependencies manually – `uv` will handle it automatically.
 
-Generate the test videos:
+### Feature Testing
+
+The main test suite validates parser output against reference `.ldjson` files for all supported codecs (H.264, H.265, VP9, AV1):
 
 ```bash
-util/generate-test-videos.sh
+# Run with uv
+uv run test/test.py
+
+# Or make executable and run directly
+chmod +x test/test.py
+./test/test.py
+
+# Run specific codec test
+uv run test/test.py -k "libx264"
 ```
 
-Then, obtain the test features in ldjson format:
+The test compares all frames in each test video against the expected output in the corresponding `.ldjson` file. Any differences are reported with a readable table showing expected vs actual values.
+
+### Regenerating Test Reference Files
+
+If you intentionally change parser output (e.g., fixing a bug or adding a feature), regenerate the reference files:
 
 ```bash
-wget https://storage.googleapis.com/aveq-storage/data/videoparser-ng/test/test.zip -O test/test.zip
-unzip test/test.zip -d test
+# Generate reference output for all test videos
+for video in test/test-lib*.mp4; do
+    base=$(basename "$video" .mp4)
+    build/VideoParserCli/video-parser "$video" > "test/${base}.ldjson"
+done
 ```
 
-Now you can run the Python-based tests:
+### Legacy Testing
+
+The legacy test suite compares against output from the original [`bitstream_mode3_videoparser`](https://github.com/Telecommunication-Telemedia-Assessment/bitstream_mode3_videoparser). This is useful for verifying backwards compatibility or understanding intentional differences.
+
+First, obtain the legacy test data:
 
 ```bash
-uvx pytest test/test.py
+wget https://storage.googleapis.com/aveq-storage/data/videoparser-ng/test/test.zip -O test/legacy/test.zip
+unzip test/legacy/test.zip -d test/legacy
 ```
 
-Also you can run the CLI tests:
+Then run the legacy tests:
 
 ```bash
-uvx pytest test/test-cli.py
+uv run test/legacy/test.py
+```
+
+Note: Some tests may fail due to intentional differences documented in [Differences with Legacy Implementation](#differences-with-legacy-implementation).
+
+### CLI Testing
+
+CLI tests validate command-line interface behavior:
+
+```bash
+uv run test/test-cli.py
 ```
 
 ## Debugging

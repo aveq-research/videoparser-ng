@@ -39,9 +39,9 @@ ffbuild
 build
 
 # Test fixtures
-test/*.ldjson
-test/*.mkv
-test/__pycache__
+test/**/*.ldjson
+test/**/*.mkv
+test/**/__pycache__
 
 .mypy_cache
 .pytest_cache
