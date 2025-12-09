@@ -1,0 +1,143 @@
+# =============================================================================
+# Alpine-based multi-stage Dockerfile for fully static binary builds
+# Used for GitHub Releases - produces portable Linux binaries
+# =============================================================================
+
+# =============================================================================
+# Stage 1: Base builder image with Alpine and build tools
+# =============================================================================
+FROM alpine:3.20 AS builder-base
+
+RUN apk add --no-cache \
+    build-base \
+    cmake \
+    ninja \
+    git \
+    perl \
+    nasm \
+    yasm \
+    linux-headers \
+    zlib-dev \
+    zlib-static \
+    bzip2-dev \
+    bzip2-static
+
+# =============================================================================
+# Stage 2: Build libaom
+# =============================================================================
+FROM builder-base AS libaom-builder
+
+WORKDIR /build/libaom
+
+COPY external/libaom /build/libaom
+
+RUN mkdir -p aom_build && cd aom_build && \
+    cmake .. \
+        -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DBUILD_SHARED_LIBS=OFF \
+        -DENABLE_DOCS=OFF \
+        -DENABLE_EXAMPLES=OFF \
+        -DENABLE_TESTS=OFF \
+        -DENABLE_TOOLS=OFF \
+        -DCONFIG_AV1_ENCODER=0 \
+        -DCONFIG_MULTITHREAD=1 \
+        -DCONFIG_PIC=1 \
+        -DCONFIG_INSPECTION=1 && \
+    ninja
+
+# =============================================================================
+# Stage 3: Build ffmpeg with vendored libaom
+# =============================================================================
+FROM builder-base AS ffmpeg-builder
+
+WORKDIR /build
+
+COPY --from=libaom-builder /build/libaom /build/libaom
+COPY external/ffmpeg /build/ffmpeg
+COPY VideoParser /VideoParser
+
+WORKDIR /build/ffmpeg
+
+ENV PKG_CONFIG_PATH=/build/libaom/aom_build
+ENV SRC_PATH=/build/ffmpeg
+
+RUN ./configure \
+    --disable-programs \
+    --disable-doc \
+    --disable-stripping \
+    --enable-static \
+    --enable-pthreads \
+    --enable-debug=2 \
+    --disable-avfilter \
+    --disable-swscale \
+    --disable-swresample \
+    --disable-audiotoolbox \
+    --disable-videotoolbox \
+    --disable-vaapi \
+    --disable-vdpau \
+    --disable-vulkan \
+    --disable-securetransport \
+    --disable-iconv \
+    --disable-libdrm \
+    --disable-encoders \
+    --disable-muxers \
+    --disable-outdevs \
+    --disable-bsfs \
+    --disable-indevs \
+    --disable-protocols \
+    --enable-protocol=file \
+    --disable-parsers \
+    --enable-parser=h264 \
+    --enable-parser=hevc \
+    --enable-parser=vp9 \
+    --enable-parser=av1 \
+    --enable-parser=vorbis \
+    --disable-decoder=tiff \
+    --disable-demuxers \
+    --enable-demuxer=h264 \
+    --enable-demuxer=hevc \
+    --enable-demuxer=avi \
+    --enable-demuxer=matroska \
+    --enable-demuxer=mov \
+    --enable-demuxer=mpegvideo \
+    --enable-demuxer=mpegts \
+    --enable-libaom \
+    '--extra-cflags=-I/build/libaom -I/build/libaom/aom_build' \
+    '--extra-ldflags=-L/build/libaom/aom_build' \
+    --disable-inline-asm \
+    && make -j$(nproc)
+
+# =============================================================================
+# Stage 4: Build videoparser (static)
+# =============================================================================
+FROM builder-base AS videoparser-builder
+
+WORKDIR /app
+
+COPY --from=libaom-builder /build/libaom /app/external/libaom
+COPY --from=ffmpeg-builder /build/ffmpeg /app/external/ffmpeg
+
+COPY CMakeLists.txt /app/
+COPY VideoParser /app/VideoParser
+COPY VideoParserCli /app/VideoParserCli
+COPY util /app/util
+
+# Build with static linking flags for musl
+RUN mkdir -p build && cd build && \
+    cmake \
+        -DSKIP_FFMPEG_BUILD=ON \
+        -DCMAKE_EXE_LINKER_FLAGS="-static" \
+        -DCMAKE_CXX_FLAGS="-static" \
+        .. && \
+    cmake --build . -- -j$(nproc)
+
+# Verify static linking
+RUN file /app/build/VideoParserCli/video-parser | grep -i static
+
+# =============================================================================
+# Stage 5: Extractor stage for copying binary out
+# =============================================================================
+FROM scratch AS extractor
+
+COPY --from=videoparser-builder /app/build/VideoParserCli/video-parser /video-parser
