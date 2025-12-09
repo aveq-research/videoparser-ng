@@ -1,31 +1,16 @@
 /**
  * @file main.cpp
  * @author Werner Robitza
- * @copyright Copyright (c) 2023, AVEQ GmbH. Copyright (c) 2023, videoparser-ng
- * contributors.
+ * @copyright Copyright (c) 2023-2025, AVEQ GmbH. Copyright (c) 2023-2025,
+ * videoparser-ng contributors.
  */
 
 #include "VideoParser.h"
 #include "json.hpp"
 #include "termcolor.hpp"
+#include <cxxopts.hpp>
 
 using json = nlohmann::json;
-
-void print_usage(const char *program_name) {
-  std::cerr << "Usage: " << program_name << " [options] <filename>"
-            << std::endl;
-  std::cerr << std::endl;
-  std::cerr << "Parsing Options:" << std::endl;
-  std::cerr << "  -n, --num-frames      Parse only the first n frames"
-            << std::endl;
-  std::cerr << std::endl;
-  std::cerr << "General Options:" << std::endl;
-  std::cerr << "  -v, --verbose         Show verbose output" << std::endl;
-  std::cerr << "  -h, --help            Show this help message" << std::endl;
-  std::cerr << "  --version             Show version information" << std::endl;
-  std::cerr << std::endl;
-  std::cerr << "Copyright 2023 AVEQ GmbH" << std::endl;
-}
 
 void print_sequence_info(const videoparser::SequenceInfo &info) {
   std::cerr << termcolor::yellow
@@ -127,48 +112,56 @@ void print_frame_info_json(const videoparser::FrameInfo &frame_info) {
 }
 
 int main(int argc, char *argv[]) {
-  if (argc < 2) {
-    print_usage(argv[0]);
+  cxxopts::Options options("video-parser",
+                           "Video bitstream parser - extracts QP, motion "
+                           "vectors, and other codec information");
+
+  // clang-format off
+  options.add_options()
+      ("n,num-frames", "Parse only the first n frames", cxxopts::value<int>()->default_value("-1"))
+      ("v,verbose", "Show verbose output")
+      ("h,help", "Show this help message")
+      ("version", "Show version information")
+      ("filename", "Input video file", cxxopts::value<std::string>());
+  // clang-format on
+
+  options.parse_positional({"filename"});
+  options.positional_help("<filename>");
+
+  cxxopts::ParseResult result;
+  try {
+    result = options.parse(argc, argv);
+  } catch (const cxxopts::exceptions::exception &e) {
+    std::cerr << "Error: " << e.what() << std::endl;
+    std::cerr << options.help() << std::endl;
     return EXIT_FAILURE;
   }
 
-  // parse options and positional arguments
-  bool verbose = false;
-  std::string filename;
-  int num_frames = -1;
-  for (int i = 1; i < argc; ++i) {
-    std::string arg = argv[i];
-    if (arg == "-v" || arg == "--verbose") {
-      verbose = true;
-      videoparser::set_verbose(true);
-    } else if (arg == "-h" || arg == "--help") {
-      print_usage(argv[0]);
-      return EXIT_SUCCESS;
-    } else if (arg == "--version") {
-      std::cout << VIDEOPARSER_VERSION_MAJOR << "." << VIDEOPARSER_VERSION_MINOR
-                << "." << VIDEOPARSER_VERSION_PATCH << std::endl;
-      return EXIT_SUCCESS;
-    } else if (arg == "-n" || arg == "--num-frames") {
-      if (i + 1 < argc) {
-        try {
-          num_frames = std::stoi(argv[i + 1]);
-          ++i;
-        } catch (const std::exception &e) {
-          std::cerr << "Error: Invalid argument for option '" << arg << "'"
-                    << std::endl;
-          return EXIT_FAILURE;
-        }
-      } else {
-        std::cerr << "Error: Missing argument for option '" << arg << "'"
-                  << std::endl;
-        return EXIT_FAILURE;
-      }
-    } else {
-      filename = argv[i];
-      // std::cerr << "Error: Unknown option '" << arg << "'" << std::endl;
-      // return EXIT_FAILURE;
-    }
+  if (result.count("help")) {
+    std::cerr << options.help() << std::endl;
+    std::cerr << "Copyright 2023-2025 AVEQ GmbH" << std::endl;
+    return EXIT_SUCCESS;
   }
+
+  if (result.count("version")) {
+    std::cout << VIDEOPARSER_VERSION_MAJOR << "." << VIDEOPARSER_VERSION_MINOR
+              << "." << VIDEOPARSER_VERSION_PATCH << std::endl;
+    return EXIT_SUCCESS;
+  }
+
+  if (!result.count("filename")) {
+    std::cerr << "Error: No input file specified" << std::endl;
+    std::cerr << options.help() << std::endl;
+    return EXIT_FAILURE;
+  }
+
+  bool verbose = result.count("verbose") > 0;
+  if (verbose) {
+    videoparser::set_verbose(true);
+  }
+
+  std::string filename = result["filename"].as<std::string>();
+  int num_frames = result["num-frames"].as<int>();
 
   // check if file exists
   if (!std::filesystem::exists(filename)) {

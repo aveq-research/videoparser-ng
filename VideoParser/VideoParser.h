@@ -1,8 +1,8 @@
 /**
  * @file VideoParser.h
  * @author Werner Robitza
- * @copyright Copyright (c) 2023, AVEQ GmbH. Copyright (c) 2023, videoparser-ng
- * contributors.
+ * @copyright Copyright (c) 2023-2025, AVEQ GmbH. Copyright (c) 2023-2025,
+ * videoparser-ng contributors.
  */
 
 #ifndef VIDEOPARSER_H
@@ -93,8 +93,8 @@ struct FrameInfo {
   double motion_y_stdev;    /**< Standard deviation of Av_MotionY */
   double motion_diff_avg;   /**< Difference of the motion with its prediction */
   double motion_diff_stdev; /**< Standard deviation of Av_MotionDif */
-  int current_poc;
-  int poc_diff;
+  int current_poc;          /**< Picture Order Count of the current frame */
+  int poc_diff;             /**< Difference to the previous frame's POC */
   uint32_t motion_bit_count; /**< The number of bits used for coding motion */
   uint32_t coefs_bit_count /**< The number of bits used for coding coeffs */;
   int mb_mv_count;    /**< Number of macroblocks with MVs */

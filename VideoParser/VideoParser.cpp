@@ -1,8 +1,8 @@
 /**
  * @file VideoParser.cpp
  * @author Werner Robitza
- * @copyright Copyright (c) 2023, AVEQ GmbH. Copyright (c) 2023, videoparser-ng
- * contributors.
+ * @copyright Copyright (c) 2023-2025, AVEQ GmbH. Copyright (c) 2023-2025,
+ * videoparser-ng contributors.
  */
 
 #include "VideoParser.h"
