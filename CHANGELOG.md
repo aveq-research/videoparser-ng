@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 <!-- insertion marker -->
+## [v0.1.0](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.1.0) - 2025-12-09
+
+<small>[Compare with v0.0.2](https://github.com/aveq-research/videoparser-ng/compare/v0.0.2...v0.1.0)</small>
+
+### Continuous Integration
+
+- update workflow ([bdbac66](https://github.com/aveq-research/videoparser-ng/commit/bdbac6619f0d002fe5739e9a195120b21116facd) by Werner Robitza).
+
+### Features
+
+- AV1 motion support ([4540fab](https://github.com/aveq-research/videoparser-ng/commit/4540fab1d550d3a63467e960d2007a1e73c37571) by Werner Robitza).
+- add vendored aom, update dockerfile ([ff525f1](https://github.com/aveq-research/videoparser-ng/commit/ff525f17ceb093de951ef9ebd22c1c813aa79405) by Werner Robitza).
+- motion and MB ([1fbbafa](https://github.com/aveq-research/videoparser-ng/commit/1fbbafaacf4602825e5ea24ef56745822587ab65) by Werner Robitza).
+- motion and coef bit count ([1e1abcf](https://github.com/aveq-research/videoparser-ng/commit/1e1abcfc95c64b76b1b94908e77a469059e30eec) by Werner Robitza).
+
+### Bug Fixes
+
+- dockerfile ([c339628](https://github.com/aveq-research/videoparser-ng/commit/c3396287ce2d113b878ddb4d7833534f6483283e) by Werner Robitza).
+- coef_bit_count ([7159c0a](https://github.com/aveq-research/videoparser-ng/commit/7159c0a81f779cc55e1f328ab7c0fde1f17fb334) by Werner Robitza).
+- motion_bit_count and mv_coded_count ([3421102](https://github.com/aveq-research/videoparser-ng/commit/3421102933b4ce29ba43e27d949fc731b1b60829) by Werner Robitza).
+
+### Misc
+
+- bump version to 0.1.0 ([e3d4692](https://github.com/aveq-research/videoparser-ng/commit/e3d469203c1cec87b42066b4a4b96cebc7cee3e7) by Werner Robitza).
+
 ## [v0.0.2](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.0.2) - 2025-12-08
 
 <small>[Compare with v0.0.1](https://github.com/aveq-research/videoparser-ng/compare/v0.0.1...v0.0.2)</small>
@@ -25,7 +50,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Misc
 
-- bump version to 0.0.2 ([e14f2a0](https://github.com/aveq-research/videoparser-ng/commit/e14f2a0c5d98a8a93b9d779cfd8ee1a0a57cf09e) by Werner Robitza).
+- bump version to 0.0.2 ([105be3b](https://github.com/aveq-research/videoparser-ng/commit/105be3bdd17ea2a36974e2968a2ed2ad7f545d9e) by Werner Robitza).
 - Update ffmpeg to latest version ([a6c5662](https://github.com/aveq-research/videoparser-ng/commit/a6c5662d5efc14b3f155e31d68e107d603ac4cee) by Werner Robitza).
 - fix git hook, should fix #11 ([5bc0928](https://github.com/aveq-research/videoparser-ng/commit/5bc0928bb2cc2d0fad81614d16bf9ef8da5c7b36) by Werner Robitza).
 - change git submodule URL, fixes #12 ([d3ea3fe](https://github.com/aveq-research/videoparser-ng/commit/d3ea3fe5c55b019f324c117618f7d697ea2f1a96) by Werner Robitza).
