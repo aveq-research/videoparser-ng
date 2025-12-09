@@ -38,7 +38,7 @@ Internally, ffmpeg is used, and linked into the project. Currently, the project 
 We strive to keep the project up to date with the latest ffmpeg version.
 The actual ffmpeg changes are published in [this `ffmpeg` fork](https://github.com/aveq-research/ffmpeg/tree/videoparser) in the `videoparser` branch.
 
-For AV1 support, libaom is also vendored as a submodule. The code is mirrored at [this `libaom` fork](https://github.com/aveq-research/libaom).
+For AV1 support, libaom is also vendored as a submodule. The code, including its changes, is mirrored at [this `libaom` fork](https://github.com/aveq-research/libaom) in the `videoparser` branch.
 
 ## History and Goals
 
