@@ -165,10 +165,39 @@ jobs:
         with:
           path: ./artifacts
 
+      - name: Get version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
       - name: Prepare release assets
         run: |
+          VERSION=${{ steps.version.outputs.VERSION }}
           mkdir -p release-assets
-          find artifacts -type f -name 'video-parser-*' -exec mv {} release-assets/ \;
+
+          # Process each platform binary
+          for platform in darwin-arm64 darwin-x86_64 linux-aarch64 linux-x86_64; do
+            BINARY_PATH=$(find artifacts -type f -name "video-parser-${platform}" | head -1)
+            if [ -n "$BINARY_PATH" ]; then
+              # Create a directory for this platform's archive contents
+              ARCHIVE_DIR="video-parser-${VERSION}-${platform}"
+              mkdir -p "$ARCHIVE_DIR"
+
+              # Copy and rename the binary (without platform suffix inside the archive)
+              cp "$BINARY_PATH" "$ARCHIVE_DIR/video-parser"
+              chmod +x "$ARCHIVE_DIR/video-parser"
+
+              # Copy README and LICENSE
+              cp README.md "$ARCHIVE_DIR/"
+              cp LICENSE.txt "$ARCHIVE_DIR/"
+
+              # Create tar.gz archive
+              tar -czvf "release-assets/${ARCHIVE_DIR}.tar.gz" "$ARCHIVE_DIR"
+
+              # Cleanup
+              rm -rf "$ARCHIVE_DIR"
+            fi
+          done
+
           ls -la release-assets/
 
       - name: Create GitHub Release
