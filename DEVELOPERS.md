@@ -12,6 +12,7 @@ Contents:
   - [Motion Vector Metrics](#motion-vector-metrics)
   - [Bit Count Metrics](#bit-count-metrics)
   - [Block Count Metrics](#block-count-metrics)
+  - [POC Metrics](#poc-metrics)
   - [Frame Metadata](#frame-metadata)
 - [Differences with Legacy Implementation](#differences-with-legacy-implementation)
   - [All Codecs: POC-based Motion Vector Normalization](#all-codecs-poc-based-motion-vector-normalization)
@@ -21,6 +22,7 @@ Contents:
   - [All Codecs: Removed Arbitrary Scaling Factors](#all-codecs-removed-arbitrary-scaling-factors)
 - [Testing](#testing)
   - [Feature Testing](#feature-testing)
+  - [Regenerating Test Reference Files](#regenerating-test-reference-files)
   - [Legacy Testing](#legacy-testing)
   - [CLI Testing](#cli-testing)
 - [Debugging](#debugging)
@@ -257,6 +259,30 @@ Number of explicitly coded motion vectors (excluding predicted/derived MVs). Uni
 - **HEVC**: Counts MVs that are entropy-coded in the bitstream.
 - **VP9**: Counts NEWMV mode blocks where motion delta is explicitly coded. NEARESTMV/NEARMV modes use predicted MVs and are not counted.
 - **AV1**: Counts NEWMV mode blocks (including compound variants: NEW_NEWMV, NEAREST_NEWMV, NEW_NEARESTMV, NEAR_NEWMV, NEW_NEARMV). NEARESTMV/NEARMV/GLOBALMV modes use predicted MVs and are not counted.
+
+### POC Metrics
+
+POC (Picture Order Count) is a frame ordering mechanism used in H.264 and HEVC to track the display order of frames independently from decode order.
+
+#### current_poc
+
+The Picture Order Count of the current frame. Unit: count (dimensionless).
+
+- **H.264**: Extracted from the decoded picture's POC value in `h264_slice.c`. POC values are computed according to the H.264 spec (types 0, 1, or 2) and can wrap at 65536. Values > 32768 are adjusted to be negative for consistency.
+- **HEVC**: Extracted from `s->poc` in `hevcdec.c` during `hevc_frame_start()`. POC is computed per the HEVC spec from `pic_order_cnt_lsb` in the slice header.
+- **VP9**: Not applicable. VP9 does not use the POC concept. Always returns 0.
+- **AV1**: Not applicable. AV1 does not use the POC concept. Always returns 0.
+
+#### poc_diff
+
+The minimum POC difference between consecutive frames. This represents the POC increment per frame and is useful for temporal normalization of motion vectors. Unit: count (dimensionless).
+
+- **H.264**: Calculated by tracking POC changes between frames. Uses PTS information when available for more accurate calculation (handles cases where frames are decoded out of order). Typical values: 1 or 2.
+- **HEVC**: Same calculation method as H.264. Tracked in `hevc_frame_start()`. Typical values: 1 or 2.
+- **VP9**: Not applicable. Always returns 0.
+- **AV1**: Not applicable. Always returns 0.
+
+**Note:** For the first frame, `poc_diff` is `-1` (sentinel value indicating "not yet calculated"). Starting from the second frame, the actual POC difference is computed and reported. Most encoders use a `poc_diff` of 1 or 2.
 
 ### Frame Metadata
 
