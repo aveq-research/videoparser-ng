@@ -18,6 +18,7 @@ A command-line and API-based video bitstream parser, using ffmpeg and other thir
   - [Rebuilding ffmpeg](#rebuilding-ffmpeg)
   - [Building with Docker](#building-with-docker)
 - [Developer Guide](#developer-guide)
+- [API Documentation](#api-documentation)
 - [Acknowledgements](#acknowledgements)
 - [Contributing](#contributing)
 - [License](#license)
@@ -278,6 +279,10 @@ This will build the project and create a Docker image named `videoparser-ng`.
 ## Developer Guide
 
 We have a more detailed guide for testing and the specific features implemented. See [DEVELOPERS.md](DEVELOPERS.md).
+
+## API Documentation
+
+API documentation is available in the `docs` folder. You can [view it at this location](https://htmlpreview.github.io/?https://github.com/aveq-research/videoparser-ng/blob/master/docs/html/index.html).
 
 ## Acknowledgements
 

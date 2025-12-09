@@ -1,0 +1,26 @@
+var searchData=
+[
+  ['values_20codec_20specific_0',['3. Threshold Values (Codec-Specific)',['../d0/dc5/md_DEVELOPERS.html#autotoc_md81',1,'']]],
+  ['variance_20accumulation_1',['VP9: Removed Weighted Variance Accumulation',['../d0/dc5/md_DEVELOPERS.html#autotoc_md66',1,'']]],
+  ['vector_20information_2',['Motion Vector Information',['../d0/dc5/md_DEVELOPERS.html#autotoc_md25',1,'']]],
+  ['vector_20metrics_3',['Motion Vector Metrics',['../d0/dc5/md_DEVELOPERS.html#autotoc_md37',1,'']]],
+  ['vector_20normalization_4',['All Codecs: POC-based Motion Vector Normalization',['../d0/dc5/md_DEVELOPERS.html#autotoc_md63',1,'']]],
+  ['video_5fbit_5fdepth_5',['video_bit_depth',['../d4/dcb/structvideoparser_1_1SequenceInfo.html#a768258dd906efa293fdf10cade094d36',1,'videoparser::SequenceInfo']]],
+  ['video_5fbitrate_6',['video_bitrate',['../d4/dcb/structvideoparser_1_1SequenceInfo.html#a3403f8a5339b0820f02a1c0b0df65d3a',1,'videoparser::SequenceInfo']]],
+  ['video_5fcodec_7',['video_codec',['../d4/dcb/structvideoparser_1_1SequenceInfo.html#abb78a8f3ec857ba79a4fb27b97fc7f3a',1,'videoparser::SequenceInfo']]],
+  ['video_5fcodec_5flevel_8',['video_codec_level',['../d4/dcb/structvideoparser_1_1SequenceInfo.html#aa1835299d19bf3718c787725b9207764',1,'videoparser::SequenceInfo']]],
+  ['video_5fcodec_5fprofile_9',['video_codec_profile',['../d4/dcb/structvideoparser_1_1SequenceInfo.html#a3aa311b4b8b02568cda31deab19d1526',1,'videoparser::SequenceInfo']]],
+  ['video_5fduration_10',['video_duration',['../d4/dcb/structvideoparser_1_1SequenceInfo.html#a3209d9668d59d98de38dc46e557492ef',1,'videoparser::SequenceInfo']]],
+  ['video_5fframe_5fcount_11',['video_frame_count',['../d4/dcb/structvideoparser_1_1SequenceInfo.html#a9c0bda33738b2b3a0fa190c03b76e178',1,'videoparser::SequenceInfo']]],
+  ['video_5fframerate_12',['video_framerate',['../d4/dcb/structvideoparser_1_1SequenceInfo.html#af4b659e6edf99f716b5e8643852387c4',1,'videoparser::SequenceInfo']]],
+  ['video_5fheight_13',['video_height',['../d4/dcb/structvideoparser_1_1SequenceInfo.html#ab09dc9f45b16e25ee852411e488d8fbb',1,'videoparser::SequenceInfo']]],
+  ['video_5fpix_5ffmt_14',['video_pix_fmt',['../d4/dcb/structvideoparser_1_1SequenceInfo.html#aceb9018fce511b72b685aea8bb3a62a5',1,'videoparser::SequenceInfo']]],
+  ['video_5fwidth_15',['video_width',['../d4/dcb/structvideoparser_1_1SequenceInfo.html#aba0d948534dae3741110e73c7d03a00d',1,'videoparser::SequenceInfo']]],
+  ['videoparser_16',['VideoParser',['../d2/dd0/classvideoparser_1_1VideoParser.html',1,'videoparser::VideoParser'],['../d2/dd0/classvideoparser_1_1VideoParser.html#a1d404bf4d72eba7338edac2760308c10',1,'videoparser::VideoParser::VideoParser()']]],
+  ['videoparser_20–_20the_20next_20generation_17',['VideoParser – The Next Generation',['../index.html',1,'']]],
+  ['videostatcommon_20c_3a12_2031_18',['2. Black Border Detection (VideoStatCommon.c:12-31)',['../d0/dc5/md_DEVELOPERS.html#autotoc_md80',1,'']]],
+  ['videostatcommon_20c_3a165_20171_19',['5. Final Computation (VideoStatCommon.c:165-171)',['../d0/dc5/md_DEVELOPERS.html#autotoc_md83',1,'']]],
+  ['vp9_3a_20motion_20bit_20count_20',['VP9: Motion Bit Count',['../d0/dc5/md_DEVELOPERS.html#autotoc_md65',1,'']]],
+  ['vp9_3a_20motion_20statistics_20for_20all_20inter_20modes_21',['VP9: Motion Statistics for All Inter Modes',['../d0/dc5/md_DEVELOPERS.html#autotoc_md64',1,'']]],
+  ['vp9_3a_20removed_20weighted_20variance_20accumulation_22',['VP9: Removed Weighted Variance Accumulation',['../d0/dc5/md_DEVELOPERS.html#autotoc_md66',1,'']]]
+];

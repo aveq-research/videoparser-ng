@@ -27,6 +27,7 @@ Contents:
   - [CLI Testing](#cli-testing)
 - [Debugging](#debugging)
 - [Maintenance](#maintenance)
+  - [Generating Docs](#generating-docs)
   - [Fetching new FFmpeg commits](#fetching-new-ffmpeg-commits)
   - [Fetching new libaom commits](#fetching-new-libaom-commits)
 - [Black Border Implementation Notes](#black-border-implementation-notes)
@@ -495,6 +496,30 @@ We have successfully used the following VS Code `launch.json` configuration to d
 Replace the `"${workspaceFolder}/test/test_video_h265.mkv"` with the path to the video you want to debug.
 
 ## Maintenance
+
+### Generating Docs
+
+API documentation can be generated using Doxygen:
+
+```bash
+util/generate-docs.sh
+```
+
+This requires `doxygen` to be installed. For better diagrams, also install `graphviz`:
+
+```bash
+# macOS
+brew install doxygen graphviz
+
+# Ubuntu
+sudo apt-get install doxygen graphviz
+```
+
+After generation, open `docs/html/index.html` in your browser. On macOS, you can use:
+
+```bash
+util/generate-docs.sh --open
+```
 
 ### Fetching new FFmpeg commits
 

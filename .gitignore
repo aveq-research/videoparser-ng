@@ -45,3 +45,7 @@ test/**/__pycache__
 
 .mypy_cache
 .pytest_cache
+
+# Documentation
+doxygen.log
+Doxyfile.temp
