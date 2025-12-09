@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 <!-- insertion marker -->
+## [v0.1.1](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.1.1) - 2025-12-09
+
+<small>[Compare with v0.1.0](https://github.com/aveq-research/videoparser-ng/compare/v0.1.0...v0.1.1)</small>
+
+### Continuous Integration
+
+- add release build workflow ([3eebdda](https://github.com/aveq-research/videoparser-ng/commit/3eebdda3d5f8473ab96ab664c3329b507b032dbc) by Werner Robitza).
+
+### Bug Fixes
+
+- uint --> unsigned int for musl compat ([76e322b](https://github.com/aveq-research/videoparser-ng/commit/76e322b007ee8adfc9fb7ba61e0eb256a6b4f78e) by Werner Robitza).
+
+### Misc
+
+- bump version to 0.1.1 ([9f207ff](https://github.com/aveq-research/videoparser-ng/commit/9f207ff0235ac92da801f2f236f36c8cb0f0c86a) by Werner Robitza).
+
 ## [v0.1.0](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.1.0) - 2025-12-09
 
 <small>[Compare with v0.0.2](https://github.com/aveq-research/videoparser-ng/compare/v0.0.2...v0.1.0)</small>
@@ -29,7 +45,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Misc
 
-- bump version to 0.1.0 ([e3d4692](https://github.com/aveq-research/videoparser-ng/commit/e3d469203c1cec87b42066b4a4b96cebc7cee3e7) by Werner Robitza).
+- bump version to 0.1.0 ([2de645d](https://github.com/aveq-research/videoparser-ng/commit/2de645da67e9174a7b9652bdb77d036084b189f7) by Werner Robitza).
 
 ## [v0.0.2](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.0.2) - 2025-12-08
 
