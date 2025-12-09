@@ -4,17 +4,19 @@ A command-line and API-based video bitstream parser, using ffmpeg and other thir
 
 - [Overview](#overview)
 - [History and Goals](#history-and-goals)
-- [Requirements](#requirements)
-  - [Installation under macOS](#installation-under-macos)
-  - [Installation under Ubuntu](#installation-under-ubuntu)
-- [Build](#build)
-  - [Rebuilding ffmpeg](#rebuilding-ffmpeg)
-- [Docker](#docker)
-  - [Pre-built Docker image](#pre-built-docker-image)
-  - [Building the Docker image yourself](#building-the-docker-image-yourself)
+- [Installation](#installation)
+  - [Native Binaries](#native-binaries)
+  - [Docker](#docker)
 - [Usage](#usage)
 - [Output](#output)
 - [Available Metrics](#available-metrics)
+- [Building Manually](#building-manually)
+  - [Requirements](#requirements)
+  - [Installation under macOS](#installation-under-macos)
+  - [Installation under Ubuntu](#installation-under-ubuntu)
+  - [Building](#building)
+  - [Rebuilding ffmpeg](#rebuilding-ffmpeg)
+  - [Building with Docker](#building-with-docker)
 - [Developer Guide](#developer-guide)
 - [Acknowledgements](#acknowledgements)
 - [Contributing](#contributing)
@@ -46,107 +48,17 @@ The overall goal is to provide bitstream statistics to be later used for calcula
 
 There are some design docs about this project [available here](https://docs.google.com/document/d/1pnQGDWRjSfff4TyTNWcdeUmCMdCz8crsGo6Ws3rR6W0/edit?tab=t.0). It explains the rationale for the creation of the project, the detailed statistics available in the `bitstream_mode3_videoparser` project we'd like to port over, and what we would like to add as features on top of that.
 
-## Requirements
+## Installation
 
-- Ubuntu 22.04 or higher, or macOS 12.0 or higher
-- CMake 3.15 or higher
-- A C++17 compiler (GCC 9.3 or higher, Clang 10.0 or higher)
+### Native Binaries
 
-You also need:
+Go to [releases](https://github.com/aveq-research/videoparser-ng/releases) and pick the right archive for your platform. Extract it, then run the `video-parser` binary.
 
-- `pkg-config`
-- `ninja-build`
+**Note for macOS:** You might need to allow the binary to run. Try running it once from the Terminal, and you will run into a security notice. Then, go to *System Preferences > Security & Privacy > General*, and allow the binary. After that, you can run it from the Terminal again.
 
-Note that you can skip the build step by just using the pre-built Docker image.
+Continue with this guide to build from source.
 
-### Installation under macOS
-
-Xcode is required to compile software on your Mac. Install Xcode by ​downloading it from the website or using the Mac App Store.
-
-After installing Xcode, install the Command Line Tools from Preferences > Downloads > Components. You can also install the tools via your shell:
-
-```bash
-xcode-select --install
-```
-
-Then, using [Homebrew](https://brew.sh), install the required packages:
-
-```bash
-brew install \
-  cmake ninja pkg-config \
-  automake git libtool sdl shtool texi2html wget nasm
-```
-
-### Installation under Ubuntu
-
-```bash
-sudo apt install \
-  autoconf \
-  automake \
-  build-essential \
-  cmake \
-  git-core \
-  libsdl2-dev \
-  libtool \
-  libunistring-dev \
-  meson \
-  ninja-build \
-  pkg-config \
-  texinfo \
-  wget \
-  yasm \
-  nasm \
-  zlib1g-dev \
-  libbz2-dev
-```
-
-## Build
-
-First clone all submodules:
-
-```bash
-git submodule update --init --recursive
-```
-
-Then build ffmpeg initially:
-
-```bash
-util/build-ffmpeg.sh
-```
-
-Then run the build script for the project:
-
-```bash
-util/build-cmake.sh
-```
-
-This will create the library: `build/VideoParser/libvideoparser.a`
-
-You can also run the CLI:
-
-```
-build/VideoParserCli/video-parser
-```
-
-### Rebuilding ffmpeg
-
-If you get a warning like:
-
-```
-WARNING: libavcodec/allcodecs.c newer than config_components.h, rerun configure
-```
-
-Then run:
-
-```bash
-util/build-ffmpeg.sh --reconfigure
-```
-
-This will rebuild ffmpeg after which you can run the build script for the project again.
-
-## Docker
-
-### Pre-built Docker image
+### Docker
 
 We provide a pre-built Docker image on GitHub Container Registry. You can use it without building it yourself.
 
@@ -162,16 +74,6 @@ You will be prompted to enter your GitHub username, and as password, enter your 
 docker pull ghcr.io/aveq-research/videoparser-ng:master
 docker image tag ghcr.io/aveq-research/videoparser-ng:master videoparser-ng
 ```
-
-### Building the Docker image yourself
-
-To build the project with Docker, run:
-
-```bash
-docker build -t videoparser-ng .
-```
-
-This will build the project and create a Docker image named `videoparser-ng`.
 
 ## Usage
 
@@ -261,6 +163,118 @@ The following metadata/metrics are available:
   - Frame is IDR
   - Other, specific per-frame metrics are being implemented at the moment, see [DEVELOPERS.md](DEVELOPERS.md) for more details.
 
+## Building Manually
+
+Follow the instructions below to build the project from source.
+
+### Requirements
+
+- Ubuntu 22.04 or higher, or macOS 12.0 or higher
+- CMake 3.15 or higher
+- A C++17 compiler (GCC 9.3 or higher, Clang 10.0 or higher)
+
+You also need:
+
+- `pkg-config`
+- `ninja-build`
+
+Note that you can skip the build step by just using the pre-built Docker image.
+
+### Installation under macOS
+
+Xcode is required to compile software on your Mac. Install Xcode by ​downloading it from the website or using the Mac App Store.
+
+After installing Xcode, install the Command Line Tools from Preferences > Downloads > Components. You can also install the tools via your shell:
+
+```bash
+xcode-select --install
+```
+
+Then, using [Homebrew](https://brew.sh), install the required packages:
+
+```bash
+brew install \
+  cmake ninja pkg-config \
+  automake git libtool sdl shtool texi2html wget nasm
+```
+
+### Installation under Ubuntu
+
+```bash
+sudo apt install \
+  autoconf \
+  automake \
+  build-essential \
+  cmake \
+  git-core \
+  libsdl2-dev \
+  libtool \
+  libunistring-dev \
+  meson \
+  ninja-build \
+  pkg-config \
+  texinfo \
+  wget \
+  yasm \
+  nasm \
+  zlib1g-dev \
+  libbz2-dev
+```
+
+### Building
+
+First clone all submodules:
+
+```bash
+git submodule update --init --recursive
+```
+
+Then build ffmpeg initially:
+
+```bash
+util/build-ffmpeg.sh
+```
+
+Then run the build script for the project:
+
+```bash
+util/build-cmake.sh
+```
+
+This will create the library: `build/VideoParser/libvideoparser.a`
+
+You can also run the CLI:
+
+```
+build/VideoParserCli/video-parser
+```
+
+### Rebuilding ffmpeg
+
+If you get a warning like:
+
+```
+WARNING: libavcodec/allcodecs.c newer than config_components.h, rerun configure
+```
+
+Then run:
+
+```bash
+util/build-ffmpeg.sh --reconfigure
+```
+
+This will rebuild ffmpeg after which you can run the build script for the project again.
+
+### Building with Docker
+
+To build the project with Docker, run:
+
+```bash
+docker build -t videoparser-ng .
+```
+
+This will build the project and create a Docker image named `videoparser-ng`.
+
 ## Developer Guide
 
 We have a more detailed guide for testing and the specific features implemented. See [DEVELOPERS.md](DEVELOPERS.md).
@@ -278,6 +292,18 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 Copyright (c) AVEQ GmbH.
 Copyright (c) videoparser-ng contributors.
 
-This project is licensed under the GNU GNU LESSER GENERAL PUBLIC License v2.1 - see the LICENSE.txt file for details.
+This library is free software; you can redistribute it and/or
+modify it under the terms of the GNU Lesser General Public
+License as published by the Free Software Foundation; either
+version 2.1 of the License, or (at your option) any later version.
+
+This library is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public
+License along with this library; if not, see
+<https://www.gnu.org/licenses/>.
 
 Also, see the LICENSE.txt file for details on third-party licenses.
