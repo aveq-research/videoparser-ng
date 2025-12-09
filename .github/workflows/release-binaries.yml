@@ -65,7 +65,7 @@ jobs:
   # macOS Intel build
   # ============================================
   build-macos-intel:
-    runs-on: macos-13
+    runs-on: macos-15-intel
     env:
       # Limit parallelism to avoid resource exhaustion on GitHub runners
       MAKE_JOBS: 4
@@ -109,7 +109,7 @@ jobs:
   # macOS ARM64 build
   # ============================================
   build-macos-arm:
-    runs-on: macos-14
+    runs-on: macos-15
     env:
       # Limit parallelism to avoid resource exhaustion on GitHub runners
       MAKE_JOBS: 4
