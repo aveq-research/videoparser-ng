@@ -15,6 +15,7 @@ Contents:
   - [POC Metrics](#poc-metrics)
   - [Frame Metadata](#frame-metadata)
 - [Differences with Legacy Implementation](#differences-with-legacy-implementation)
+  - [Difference Analysis](#difference-analysis)
   - [All Codecs: POC-based Motion Vector Normalization](#all-codecs-poc-based-motion-vector-normalization)
   - [VP9: Motion Statistics for All Inter Modes](#vp9-motion-statistics-for-all-inter-modes)
   - [VP9: Motion Bit Count](#vp9-motion-bit-count)
@@ -332,6 +333,13 @@ Decoding timestamp. Unit: seconds.
 ## Differences with Legacy Implementation
 
 This section documents intentional differences between videoparser-ng and the legacy [`bitstream_mode3_videoparser`](https://github.com/Telecommunication-Telemedia-Assessment/bitstream_mode3_videoparser) implementation. These changes were made to improve correctness, cross-codec consistency, and simplicity.
+
+### Difference Analysis
+
+A detailed analysis of the differences was performed with the help of the `util/reencode_videos.sh` script, which generates a test set of encoded videos.
+As test videos, the [`a2_2k` set from the AOM CTC was used](https://media.xiph.org/video/aomctc/test_set/a2_2k/). All videos were encoded with H.264, HEVC, VP9, and AV1 at default encoding settings, using `libx264`, `libx265`, `libvpx-vp9`, and `rav1e` encoders from FFmpeg.
+
+The `util/compare_parsers.py` script was then used to compare the output of videoparser-ng against the legacy videoparser for all test videos and codecs (except AV1, because it has no legacy implementation). The results were analyzed to identify systematic differences.
 
 ### All Codecs: POC-based Motion Vector Normalization
 
