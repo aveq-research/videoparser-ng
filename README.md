@@ -48,10 +48,10 @@ For AV1 support, libaom is also vendored as a submodule. The code, including its
 The project is using previous work from the [`bitstream_mode3_videoparser`](https://github.com/Telecommunication-Telemedia-Assessment/bitstream_mode3_videoparser) project, but written from the ground up to be faster. How fast?
 
 ```
-               ╔════════════════════════════════════════════════════════════════════════════════════════════════════╗
-Legacy parser  ╢████████████████████████████████████████████████████████████████████████████████████████████████████╟ 21.161s
-videoparser-ng ╢██████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░╟  1.291s
-               ╠════════════════════════════════════════════════════════════════════════════════════════════════════╣
+               ╔══════════════════════════════════════════════════╗
+Legacy parser  ╢██████████████████████████████████████████████████╟ 21.161s
+videoparser-ng ╢███░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░╟  1.291s
+               ╠══════════════════════════════════════════════════╣
 ```
 
 Super fast – a 16⨉ speedup! This is on a 1920x1080 HEVC video file at 29.97 fps, parsing all frames and extracting all available metrics.
