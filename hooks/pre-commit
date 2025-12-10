@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Directories containing our own source files (not external dependencies)
+OUR_DIRS="VideoParser VideoParserCli"
+
 check_clang_format() {
   if ! command -v clang-format &> /dev/null; then
     echo "Error: clang-format not found. Ensure that's correctly installed in the PATH"
@@ -9,12 +12,70 @@ check_clang_format() {
 
 run_clang_format() {
   changed_files=$(git diff --name-only --cached --diff-filter=ACM "*.cpp" "*.h" "*.hpp")
-  [ -z "$changed_files" ] && exit 0
+  [ -z "$changed_files" ] && return 0
+
+  # Filter to only our directories
+  our_files=""
+  for file in $changed_files; do
+    for dir in $OUR_DIRS; do
+      if [[ "$file" == "$dir"/* ]]; then
+        our_files="$our_files $file"
+        break
+      fi
+    done
+  done
+
+  [ -z "$our_files" ] && return 0
 
   echo "Executing clang-format on modified files..."
-  clang-format -i $changed_files
-  git add $changed_files
+  clang-format -i $our_files
+  git add $our_files
+}
+
+check_copyright_headers() {
+  changed_files=$(git diff --name-only --cached --diff-filter=ACM "*.cpp" "*.h" "*.hpp" "*.c")
+  [ -z "$changed_files" ] && return 0
+
+  # Filter to only our directories
+  our_files=""
+  for file in $changed_files; do
+    for dir in $OUR_DIRS; do
+      if [[ "$file" == "$dir"/* ]]; then
+        our_files="$our_files $file"
+        break
+      fi
+    done
+  done
+
+  [ -z "$our_files" ] && return 0
+
+  missing_header=""
+  for file in $our_files; do
+    # Check if file contains copyright header (look for @copyright in first 10 lines)
+    if ! head -n 10 "$file" | grep -q "@copyright"; then
+      missing_header="$missing_header $file"
+    fi
+  done
+
+  if [ -n "$missing_header" ]; then
+    echo "Error: The following files are missing copyright headers:"
+    for file in $missing_header; do
+      echo "  - $file"
+    done
+    echo ""
+    echo "Please add a copyright header to each file:"
+    echo ""
+    echo "/**"
+    echo " * @file filename.cpp"
+    echo " * @author Your Name"
+    echo " * @copyright Copyright (c) 2024-2025, AVEQ GmbH. Copyright (c) 2024-2025,"
+    echo " * videoparser-ng contributors."
+    echo " */"
+    echo ""
+    exit 1
+  fi
 }
 
 check_clang_format
 run_clang_format
+check_copyright_headers

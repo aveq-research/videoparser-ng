@@ -1,0 +1,22 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: videoparser-ng
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Werner
+    family-names: Robitza
+    orcid: 'https://orcid.org/0000-0002-3698-9776'
+    affiliation: AVEQ GmbH
+  - given-names: Jonatan
+    family-names: Stenlund
+    affiliation: Luleå University of Technology
+repository-code: 'https://github.com/aveq-research/videoparser-ng'
+abstract: >-
+  A command-line and API-based video bitstream parser, using
+  ffmpeg and other third party libraries.
+license: LGPL-2.1-or-later

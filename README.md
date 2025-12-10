@@ -10,6 +10,9 @@ A command-line and API-based video bitstream parser, using ffmpeg and other thir
 - [Usage](#usage)
 - [Output](#output)
 - [Available Metrics](#available-metrics)
+  - [Sequence Info](#sequence-info)
+  - [Frame Info](#frame-info)
+- [API Integration](#api-integration)
 - [Building Manually](#building-manually)
   - [Requirements](#requirements)
   - [Installation under macOS](#installation-under-macos)
@@ -18,7 +21,6 @@ A command-line and API-based video bitstream parser, using ffmpeg and other thir
   - [Rebuilding ffmpeg](#rebuilding-ffmpeg)
   - [Building with Docker](#building-with-docker)
 - [Developer Guide](#developer-guide)
-- [API Documentation](#api-documentation)
 - [Acknowledgements](#acknowledgements)
 - [Contributing](#contributing)
 - [License](#license)
@@ -55,9 +57,8 @@ There are some design docs about this project [available here](https://docs.goog
 
 Go to [releases](https://github.com/aveq-research/videoparser-ng/releases) and pick the right archive for your platform. Extract it, then run the `video-parser` binary.
 
-**Note for macOS:** You might need to allow the binary to run. Try running it once from the Terminal, and you will run into a security notice. Then, go to *System Preferences > Security & Privacy > General*, and allow the binary. After that, you can run it from the Terminal again.
-
-Continue with this guide to build from source.
+> [!NOTE]
+> **macOS Security Limitations:** You might need to allow the binary to run. Try running it once from the Terminal, and you will be shown a security notice. Then, go to *System Preferences > Security & Privacy > General*, and allow the binary. After that, you can run it from the Terminal again. Another security popup will show, but this time you can allow it to run directly.
 
 ### Docker
 
@@ -72,9 +73,17 @@ docker login ghcr.io
 You will be prompted to enter your GitHub username, and as password, enter your personal access token. Once you have a token, you can pull the image, and rename it to `videoparser-ng` for easier use.
 
 ```bash
-docker pull ghcr.io/aveq-research/videoparser-ng:master
-docker image tag ghcr.io/aveq-research/videoparser-ng:master videoparser-ng
+docker pull ghcr.io/aveq-research/videoparser-ng:latest
+docker image tag ghcr.io/aveq-research/videoparser-ng:latest videoparser-ng
 ```
+
+The `latest` tag will always point to the latest stable release. If you want to use a specific version, you can pull it by replacing `latest` with the version tag, e.g. `0.2.0`:
+
+```bash
+docker pull ghcr.io/aveq-research/videoparser-ng:0.2.0
+```
+
+The latest master branch build is also available under the `master` tag, but it is not guaranteed to be stable.
 
 ## Usage
 
@@ -94,9 +103,9 @@ Add the option `-h` for detailed usage.
 
 ## Output
 
-The tool will print a set of line-delimited JSON records to STDOUT, either for per-sequence statistics, or per-frame statistics. These are denoted with the `type` field.
+The tool will print a set of line-delimited JSON records to STDOUT, either for per-sequence statistics (`sequence_info`), or per-frame statistics (`frame_info`). These are denoted with the `type` field.
 
-Example, but formatted with `jq` to make it more readable:
+Here is an example, but formatted with `jq` to make it more readable:
 
 ```bash
 build/VideoParserCli/video-parser test/test_video_h264.mkv -n 1 | jq
@@ -108,31 +117,45 @@ This would print:
 {
   "type": "sequence_info",
   "video_bit_depth": 8,
-  "video_bitrate": 0.0,
+  "video_bitrate": 37.0,
   "video_codec": "h264",
-  "video_codec_level": 52,
+  "video_codec_level": 13,
   "video_codec_profile": 100,
   "video_duration": 10.0,
-  "video_frame_count": 0,
-  "video_framerate": 60.0,
-  "video_height": 2160,
+  "video_frame_count": 300,
+  "video_framerate": 30.0,
+  "video_height": 240,
   "video_pix_fmt": "yuv420p",
-  "video_width": 3840
+  "video_width": 320
 }
 {
+  "coefs_bit_count": 1328,
+  "current_poc": 0,
   "dts": 0.0,
   "frame_idx": 0,
   "frame_type": 1,
   "is_idr": true,
+  "mb_mv_count": 0,
+  "motion_avg": 0.0,
+  "motion_bit_count": 0,
+  "motion_diff_avg": 0.0,
+  "motion_diff_stdev": 0.0,
+  "motion_stdev": 0.0,
+  "motion_x_avg": 0.0,
+  "motion_x_stdev": 0.0,
+  "motion_y_avg": 0.0,
+  "motion_y_stdev": 0.0,
+  "mv_coded_count": 0,
+  "poc_diff": -1,
   "pts": 0.0,
-  "qp_avg": 25.0,
-  "qp_bb_avg": 25.0,
-  "qp_bb_stdev": 7.54983443527075,
-  "qp_init": 19,
-  "qp_max": 42,
-  "qp_min": 15,
-  "qp_stdev": 7.54983443527075,
-  "size": 19261,
+  "qp_avg": 16.196666666666665,
+  "qp_bb_avg": 16.196666666666665,
+  "qp_bb_stdev": 7.840790067900615,
+  "qp_init": 10,
+  "qp_max": 31,
+  "qp_min": 10,
+  "qp_stdev": 7.840790067900615,
+  "size": 87,
   "type": "frame_info"
 }
 ```
@@ -143,26 +166,63 @@ The tool will also print various logs to STDERR which you can redirect to a file
 
 The following metadata/metrics are available:
 
-- Per-sequence (type: `sequence_info`):
-  - Video codec
-  - Video codec profile
-  - Video codec level
-  - Video width
-  - Video height
-  - Video pixel format
-  - Video bit depth
-  - Video frame rate
-  - Video duration
-  - Video frame count
-  - Video bitrate
-- Per-frame data (type: `frame_info`):
-  - Frame type
-  - Frame size
-  - Frame PTS
-  - Frame DTS
-  - Frame index
-  - Frame is IDR
-  - Other, specific per-frame metrics are being implemented at the moment, see [DEVELOPERS.md](DEVELOPERS.md) for more details.
+### Sequence Info
+
+| Metric                | Description                       | Unit    |
+| --------------------- | --------------------------------- | ------- |
+| `video_duration`      | Duration of the video             | seconds |
+| `video_codec`         | Codec name (h264, hevc, vp9, av1) | —       |
+| `video_bitrate`       | Average bitrate                   | kbps    |
+| `video_framerate`     | Frame rate                        | fps     |
+| `video_width`         | Frame width                       | pixels  |
+| `video_height`        | Frame height                      | pixels  |
+| `video_codec_profile` | Codec profile ID                  | —       |
+| `video_codec_level`   | Codec level ID                    | —       |
+| `video_bit_depth`     | Bit depth per sample              | bits    |
+| `video_pix_fmt`       | Pixel format (e.g., yuv420p)      | —       |
+| `video_frame_count`   | Total number of frames            | count   |
+
+### Frame Info
+
+| Metric              | Description                               | Unit     |
+| ------------------- | ----------------------------------------- | -------- |
+| `frame_idx`         | Zero-based frame index in decode order    | count    |
+| `pts`               | Presentation timestamp                    | seconds  |
+| `dts`               | Decoding timestamp                        | seconds  |
+| `size`              | Frame size                                | bytes    |
+| `frame_type`        | Frame type (1=I, 2=P, 3=B)                | enum     |
+| `is_idr`            | Whether frame is an IDR/keyframe          | boolean  |
+| `qp_avg`            | Average QP of all coding units            | QP index |
+| `qp_stdev`          | Standard deviation of QP values           | QP index |
+| `qp_min`            | Minimum QP value in frame                 | QP index |
+| `qp_max`            | Maximum QP value in frame                 | QP index |
+| `qp_init`           | Initial QP from slice/frame header        | QP index |
+| `qp_bb_avg`         | Average QP excluding black borders        | QP index |
+| `qp_bb_stdev`       | Std. dev. of QP excluding black borders   | QP index |
+| `motion_avg`        | Average motion vector length              | sub-pel  |
+| `motion_stdev`      | Std. dev. of motion vector lengths        | sub-pel  |
+| `motion_x_avg`      | Average of absolute X components          | sub-pel  |
+| `motion_y_avg`      | Average of absolute Y components          | sub-pel  |
+| `motion_x_stdev`    | Std. dev. of X components                 | sub-pel  |
+| `motion_y_stdev`    | Std. dev. of Y components                 | sub-pel  |
+| `motion_diff_avg`   | Average motion vector prediction residual | sub-pel  |
+| `motion_diff_stdev` | Std. dev. of motion vector residuals      | sub-pel  |
+| `current_poc`       | Picture Order Count of current frame      | count    |
+| `poc_diff`          | Minimum POC difference between frames     | count    |
+| `motion_bit_count`  | Bits used for motion information          | bits     |
+| `coefs_bit_count`   | Bits used for transform coefficients      | bits     |
+| `mb_mv_count`       | Number of blocks with motion vectors      | count    |
+| `mv_coded_count`    | Number of explicitly coded MVs            | count    |
+
+A detailed description of all available metrics is available in [METRICS.md](METRICS.md).
+
+For the implementation notes (i.e., what was modified to extract the metrics), see [DEVELOPERS.md](DEVELOPERS.md).
+
+## API Integration
+
+The project provides a C++ API in the `libvideoparser` library. See the `VideoParserCli` folder for an example of how to use the API.
+
+API documentation is available in the `docs` folder. You can [view it at this location](https://raw.githack.com/aveq-research/videoparser-ng/master/docs/html/index.html).
 
 ## Building Manually
 
@@ -280,22 +340,33 @@ This will build the project and create a Docker image named `videoparser-ng`.
 
 We have a more detailed guide for testing and the specific features implemented. See [DEVELOPERS.md](DEVELOPERS.md).
 
-## API Documentation
-
-API documentation is available in the `docs` folder. You can [view it at this location](https://raw.githack.com/aveq-research/videoparser-ng/master/docs/html/index.html).
-
 ## Acknowledgements
 
-If you use this project in your research, please reference this repository.
+If you use this project in your research, please reference this repository:
+
+```bibtex
+@misc{videoparser-ng,
+  author       = {Werner Robitza and Jonatan Stenlund and others},
+  title        = {VideoParser – The Next Generation},
+  year         = {2024},
+  publisher    = {GitHub},
+  journal      = {GitHub repository},
+  howpublished = {\url{https://github.com/aveq-research/videoparser-ng}}
+}
+```
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+Contributions to this project were funded by AVEQ GmbH and Ericsson. Contributors:
+
+- Werner Robitza (AVEQ GmbH)
+- Jonatan Stenlund (Ericsson, Luleå University of Technology): initial motion vector analysis implementation, see [`motion-vectors` branch](https://github.com/aveq-research/videoparser-ng/compare/master...motion-vectors)
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) if you want to contribute.
 
 ## License
 
-Copyright (c) AVEQ GmbH.
-Copyright (c) videoparser-ng contributors.
+Copyright (c) AVEQ GmbH, videoparser-ng contributors.
 
 This library is free software; you can redistribute it and/or
 modify it under the terms of the GNU Lesser General Public
