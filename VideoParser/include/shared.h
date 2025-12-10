@@ -70,6 +70,12 @@ typedef struct SharedFrameInfo {
   ;
   int mb_mv_count;    /**< Number of macroblocks with MVs */
   int mv_coded_count; /**< Number of coded MVs */
+
+  // VP9 hidden frame handling (legacy mode only)
+  int is_hidden;      /**< VP9: frame is invisible/hidden (altref) */
+  int is_short_frame; /**< VP9: frame is show_existing_frame (pkt_size < 100) */
+  int frame_distance; /**< VP9: distance from last invisible frame */
+  int64_t pts;        /**< Presentation timestamp for FrmDist calculation */
 } SharedFrameInfo;
 
 #endif
