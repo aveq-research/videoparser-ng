@@ -128,10 +128,12 @@ Motion vector metrics are in codec-native sub-pel units:
 
 Average motion vector length per frame, computed as the mean of `sqrt(mv_x² + mv_y²)` over all motion vectors.
 
-- **H.264**: Extracted in `h264_mb.c` via `mv_statistics_264`. Motion vectors are collected from both L0 (forward) and L1 (backward) reference lists. For bi-directional blocks, values from both directions are averaged. By default, raw motion vector values are used. A compile-time flag `VP_MV_POC_NORMALIZATION` can be set to `1` to enable POC-based normalization, which weighs motion vectors by temporal distance to their reference frames.
-- **HEVC**: Extracted in `hevcdec.c` via `mv_statistics_hevc`. Motion vectors are collected from L0 and L1 prediction lists. For bi-predictive blocks, values from both directions are averaged. Raw MV values without POC normalization.
+- **H.264**: Extracted in `h264_mb.c` via `mv_statistics_264`. Motion vectors are collected from both L0 (forward) and L1 (backward) reference lists. For bi-directional blocks, values from both directions are averaged. By default, raw motion vector values are used.
+- **HEVC**: Extracted in `hevcdec.c` via `mv_statistics_hevc`. Motion vectors are collected from L0 and L1 prediction lists. For bi-predictive blocks, values from both directions are averaged. By default, raw motion vector values are used.
 - **VP9**: Extracted in `vp9mvs.c` via `mv_statistics_vp9`. Motion vectors are collected after prediction in `ff_vp9_fill_mv`. For compound (bi-predictive) mode, values from both references are averaged. Raw MV values.
 - **AV1**: Extracted in `libaomdec.c` via `videoparser_av1_extract_mv_stats` using libaom's inspection API. Motion vectors are collected from all inter blocks (mode >= NEARESTMV). For compound prediction, values from L0 and L1 references are averaged. Raw MV values in 1/8 pel units.
+
+Note to developers: A compile-time flag `VP_MV_POC_NORMALIZATION` can be set to `1` to enable POC-based normalization, which weighs motion vectors by temporal distance to their reference frames, and does some other "legacy" processing (including known bugs) so that the values match the legacy parser.
 
 #### motion_stdev
 
@@ -289,6 +291,8 @@ Decoding timestamp. Unit: seconds.
 
 This section documents (intentional) differences between videoparser-ng and the legacy [`bitstream_mode3_videoparser`](https://github.com/Telecommunication-Telemedia-Assessment/bitstream_mode3_videoparser) implementation. These changes were made to improve correctness, cross-codec consistency, and simplicity.
 
+The two "Difference Analysis" sections below summarize the differences found when comparing the two implementations on a common test set, both in new and legacy mode. Then, there are explanations regarding the most significant differences.
+
 ### Difference Analysis
 
 A detailed analysis of the differences was performed with the help of the `util/reencode_videos.sh` script, which generates a test set of encoded videos.
@@ -426,6 +430,138 @@ Here's the summary – note the (intentional) differences in motion vector metri
 | qp_stdev          | 0           | 0        | 0         | N/A          |
 | size              | 70489.9     | 70489.9  | 0         | +0.0000      |
 
+### Difference Analysis (Legacy Mode)
+
+Here are the results when compiling videoparser-ng with the `VP_MV_POC_NORMALIZATION` flag set to `1`, which enables POC-based motion vector normalization and other legacy behaviors to match the old parser.
+
+#### All Codecs (60 videos)
+
+| Metric            | Legacy Mean | New Mean | Diff Mean | Rel Diff (%) |
+| ----------------- | ----------- | -------- | --------- | ------------ |
+| coefs_bit_count   | 0           | 287541   | 287541    | N/A          |
+| current_poc       | 3.70577     | 3.70577  | 0         | +0.0000      |
+| dts               | 1.76728     | 1.76728  | 0         | +0.0000      |
+| frame_idx         | 64.5        | 64.5     | 0         | +0.0000      |
+| frame_type        | 1.93731     | 1.93731  | 0         | +0.0000      |
+| is_idr            | 0.062692    | 0.062692 | 0         | +0.0000      |
+| mb_mv_count       | 53095.9     | 40362.4  | -12733.5  | -26.7518     |
+| motion_avg        | 59.3029     | 51.1062  | -8.19667  | +53.1947     |
+| motion_bit_count  | 0           | 32502.3  | 32502.3   | N/A          |
+| motion_diff_avg   | 11.8565     | 9.9376   | -1.91895  | +9.9905      |
+| motion_diff_stdev | 82.7285     | 29.0902  | -53.6383  | -22.5494     |
+| motion_stdev      | 151.392     | 47.005   | -100.53   | -20.7362     |
+| motion_x_avg      | 21.929      | 37.4861  | 15.5571   | +308.5274    |
+| motion_x_stdev    | 41.4919     | 38.2304  | -2.21127  | +10.0675     |
+| motion_y_avg      | 11.2515     | 24.2108  | 12.9594   | +305.9422    |
+| motion_y_stdev    | 28.3646     | 30.2181  | 2.2922    | +14.2793     |
+| mv_coded_count    | 23458.3     | 11115.3  | -12343    | -29.3364     |
+| poc_diff          | 1.22603     | 0.678462 | -0.547564 | -44.6430     |
+| pts               | 1.76728     | 1.76728  | 0         | +0.0000      |
+| qp_avg            | 56.6819     | 56.6131  | -0.068836 | -0.1222      |
+| qp_bb_avg         | 56.6826     | 56.6131  | -0.069485 | -0.1245      |
+| qp_bb_stdev       | 1.73938     | 1.75385  | 0.014475  | +3.6207      |
+| qp_init           | 59.9001     | 57.6337  | -2.26641  | -6.6261      |
+| qp_max            | 63.5731     | 63.5731  | 0         | +0.0000      |
+| qp_min            | 54.0451     | 54.0451  | 0         | +0.0000      |
+| qp_stdev          | 1.73937     | 1.75385  | 0.014483  | +3.6206      |
+| size              | 48851.7     | 48851.7  | 0         | +0.0000      |
+
+#### Codec: h264 (22 videos)
+
+| Metric            | Legacy Mean | New Mean | Diff Mean | Rel Diff (%) |
+| ----------------- | ----------- | -------- | --------- | ------------ |
+| coefs_bit_count   | 0           | 43261    | 43261     | N/A          |
+| current_poc       | 5.42308     | 5.42308  | 0         | +0.0000      |
+| dts               | 1.7696      | 1.7696   | 0         | +0.0000      |
+| frame_idx         | 64.5        | 64.5     | 0         | +0.0000      |
+| frame_type        | 1.91538     | 1.91538  | 0         | +0.0000      |
+| is_idr            | 0.084615    | 0.084615 | 0         | +0.0000      |
+| mb_mv_count       | 70000.8     | 70000.8  | 0         | +0.0000      |
+| motion_avg        | 25.1819     | 25.1819  | 0         | +0.0000      |
+| motion_bit_count  | 0           | 43609    | 43609     | N/A          |
+| motion_diff_avg   | 4.59748     | 4.59748  | 0         | +0.0000      |
+| motion_diff_stdev | 8.63572     | 8.63572  | 0         | +0.0000      |
+| motion_stdev      | 24.9904     | 24.9904  | 0         | +0.0000      |
+| motion_x_avg      | 19.2419     | 19.2419  | 0         | +0.0000      |
+| motion_x_stdev    | 22.8662     | 22.8662  | 0         | +0.0000      |
+| motion_y_avg      | 10.8976     | 10.8976  | 0         | +0.0000      |
+| motion_y_stdev    | 13.4801     | 13.4801  | 0         | +0.0000      |
+| mv_coded_count    | 6238.22     | 6238.22  | 0         | +0.0000      |
+| poc_diff          | 1.76923     | 1        | -0.769231 | -43.4783     |
+| pts               | 1.7696      | 1.7696   | 0         | +0.0000      |
+| qp_avg            | 28.6783     | 28.6783  | 0         | +0.0000      |
+| qp_bb_avg         | 28.6783     | 28.6783  | -1.1e-05  | -0.0000      |
+| qp_bb_stdev       | 1.93188     | 1.9319   | 2.1e-05   | +0.0011      |
+| qp_init           | 33.7552     | 30.5615  | -3.19371  | -9.7213      |
+| qp_max            | 40.8217     | 40.8217  | 0         | +0.0000      |
+| qp_min            | 27.2476     | 27.2476  | 0         | +0.0000      |
+| qp_stdev          | 1.9319      | 1.9319   | -0        | -0.0000      |
+| size              | 49785.2     | 49785.2  | 0         | +0.0000      |
+
+#### Codec: hevc (19 videos)
+
+| Metric            | Legacy Mean | New Mean | Diff Mean | Rel Diff (%) |
+| ----------------- | ----------- | -------- | --------- | ------------ |
+| coefs_bit_count   | 0           | 151677   | 151677    | N/A          |
+| current_poc       | 5.42308     | 5.42308  | 0         | +0.0000      |
+| dts               | 1.76595     | 1.76595  | 0         | +0.0000      |
+| frame_idx         | 64.5        | 64.5     | 0         | +0.0000      |
+| frame_type        | 1.91538     | 1.91538  | 0         | +0.0000      |
+| is_idr            | 0.084615    | 0.084615 | 0         | +0.0000      |
+| mb_mv_count       | 39225.8     | 39225.8  | 0         | +0.0000      |
+| motion_avg        | 25.2005     | 25.2005  | 0         | +0.0000      |
+| motion_bit_count  | 0           | 13420.3  | 13420.3   | N/A          |
+| motion_diff_avg   | 10.1426     | 10.1426  | 0         | +0.0000      |
+| motion_diff_stdev | 27.9233     | 27.9233  | 0         | +0.0000      |
+| motion_stdev      | 27.4369     | 27.4369  | 0         | +0.0000      |
+| motion_x_avg      | 18.3599     | 18.3599  | 0         | +0.0000      |
+| motion_x_stdev    | 22.7405     | 22.7405  | -0        | +0.0000      |
+| motion_y_avg      | 11.5723     | 11.5723  | 0         | +0.0000      |
+| motion_y_stdev    | 17.3031     | 17.3031  | 0         | -0.0000      |
+| mv_coded_count    | 24907.9     | 24907.9  | 0         | +0.0000      |
+| poc_diff          | 1.82308     | 0.984615 | -0.838462 | -45.9916     |
+| pts               | 1.76595     | 1.76595  | 0         | +0.0000      |
+| qp_avg            | 31.9785     | 31.7612  | -0.217378 | -0.3860      |
+| qp_bb_avg         | 31.9806     | 31.7612  | -0.219413 | -0.3932      |
+| qp_bb_stdev       | 3.25586     | 3.30155  | 0.045688  | +7.8119      |
+| qp_init           | 36.2628     | 32.8036  | -3.45911  | -9.6683      |
+| qp_max            | 39.6794     | 39.6794  | 0         | +0.0000      |
+| qp_min            | 25.3085     | 25.3085  | 0         | +0.0000      |
+| qp_stdev          | 3.25581     | 3.30155  | 0.045737  | +7.8129      |
+| size              | 26132.6     | 26132.6  | 0         | +0.0000      |
+
+#### Codec: vp9 (19 videos)
+
+| Metric            | Legacy Mean | New Mean | Diff Mean | Rel Diff (%) |
+| ----------------- | ----------- | -------- | --------- | ------------ |
+| coefs_bit_count   | 0           | 706254   | 706254    | N/A          |
+| current_poc       | 0           | 0        | 0         | N/A          |
+| dts               | 1.76595     | 1.76595  | 0         | +0.0000      |
+| frame_idx         | 64.5        | 64.5     | 0         | +0.0000      |
+| frame_type        | 1.98462     | 1.98462  | 0         | +0.0000      |
+| is_idr            | 0.015385    | 0.015385 | 0         | +0.0000      |
+| mb_mv_count       | 47391.8     | 7180.91  | -40210.9  | -84.4794     |
+| motion_avg        | 132.914     | 107.03   | -25.8842  | +167.9833    |
+| motion_bit_count  | 0           | 38723.9  | 38723.9   | N/A          |
+| motion_diff_avg   | 21.9757     | 15.9159  | -6.05983  | +31.5489     |
+| motion_diff_stdev | 223.325     | 53.9412  | -169.384  | -71.2085     |
+| motion_stdev      | 421.708     | 92.0636  | -329.515  | -67.9687     |
+| motion_x_avg      | 28.6094     | 77.7372  | 49.1278   | +974.2970    |
+| motion_x_stdev    | 81.81       | 71.5106  | -7.24807  | +32.9989     |
+| motion_y_avg      | 11.3404     | 52.2647  | 40.9243   | +966.1333    |
+| motion_y_stdev    | 56.6607     | 62.514   | 7.51332   | +46.8045     |
+| mv_coded_count    | 41947.9     | 2969.93  | -38978    | -92.6414     |
+| poc_diff          | 0           | 0        | 0         | N/A          |
+| pts               | 1.76595     | 1.76595  | 0         | +0.0000      |
+| qp_avg            | 113.811     | 113.811  | 0         | +0.0000      |
+| qp_bb_avg         | 113.811     | 113.811  | 0         | +0.0000      |
+| qp_bb_stdev       | 0           | 0        | 0         | N/A          |
+| qp_init           | 113.811     | 113.811  | 0         | +0.0000      |
+| qp_max            | 113.811     | 113.811  | 0         | +0.0000      |
+| qp_min            | 113.811     | 113.811  | 0         | +0.0000      |
+| qp_stdev          | 0           | 0        | 0         | N/A          |
+| size              | 70489.9     | 70489.9  | 0         | +0.0000      |
+
 ### All Codecs: POC-based Motion Vector Normalization
 
 The legacy implementation normalized motion vectors by temporal distance (POC difference) to reference frames:
@@ -442,7 +578,7 @@ videoparser-ng uses raw motion vector values without normalization. This provide
 - Values that directly correspond to what's in the bitstream
 - Independence from GOP structure and reference frame selection
 
-If temporal normalization is needed, it can be applied as a post-processing step.
+If temporal normalization is needed, it can be applied as a post-processing step, or via the `VP_MV_POC_NORMALIZATION` flag (see [DEVELOPERS.md](DEVELOPERS.md)).
 
 ### VP9: Motion Statistics for All Inter Modes
 

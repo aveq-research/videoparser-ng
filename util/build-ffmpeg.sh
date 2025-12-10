@@ -72,6 +72,13 @@ if [[ ! -f config.h ]] || [[ "$reconfigure" = true ]]; then
   # Set PKG_CONFIG_PATH so ffmpeg's configure can find libaom via pkg-config
   export PKG_CONFIG_PATH="${LIBAOM_BUILD}:${PKG_CONFIG_PATH:-}"
 
+  # VP_EXTRA_CFLAGS can be used to pass additional compiler flags
+  # e.g., VP_EXTRA_CFLAGS="-DVP_MV_POC_NORMALIZATION=1" to enable POC-based MV normalization
+  EXTRA_CFLAGS="-I${LIBAOM_SRC} -I${LIBAOM_BUILD}"
+  if [[ -n "${VP_EXTRA_CFLAGS:-}" ]]; then
+    EXTRA_CFLAGS="${EXTRA_CFLAGS} ${VP_EXTRA_CFLAGS}"
+  fi
+
   configureFlags=(
     --disable-programs
     --disable-doc
@@ -128,7 +135,7 @@ if [[ ! -f config.h ]] || [[ "$reconfigure" = true ]]; then
     --enable-demuxer=mpegts
     # for AOM (vendored)
     --enable-libaom
-    "--extra-cflags=-I${LIBAOM_SRC} -I${LIBAOM_BUILD}"
+    "--extra-cflags=${EXTRA_CFLAGS}"
     "--extra-ldflags=-L${LIBAOM_BUILD}"
     # to make bit count work for CABAC
     --disable-inline-asm

@@ -62,6 +62,31 @@ To obtain motion vector information, we modify:
 - VP9: `vp9mvs.c`, via `mv_statistics_vp9` function
 - AV1: `libaomdec.c`, via `videoparser_av1_extract_mv_stats` function using libaom's inspection API
 
+Both H.264 and HEVC support an optional compile-time flag `VP_MV_POC_NORMALIZATION` that, when set to `1`, enables POC-based motion vector normalization and "legacy" mode. This weighs motion vectors by their temporal distance to reference frames, using the formula `1.0 / (2.0 * |temporal_distance| / poc_diff)`. For HEVC, we also determine the coding type (Intra, Skip, Inter) and change the normalization based on that. By default, raw motion vector values are used.
+
+To enable POC normalization, rebuild ffmpeg with:
+
+```bash
+VP_EXTRA_CFLAGS="-DVP_MV_POC_NORMALIZATION=1" util/build-ffmpeg.sh --clean
+util/build-cmake.sh
+```
+
+When `VP_MV_POC_NORMALIZATION=1`, we intentionally replicate a bug from the legacy parser for exact compatibility. The legacy code (`VideoStatCommon.c` line 195) computes `motion_diff_stdev` using:
+
+```c
+StdDev_MotionDif = sqrt(0.00001 + MV_DifSumSQR / NumDifs - SQR(MV_DifSum / NumDifs))
+```
+
+However, `MV_DifSum` is never accumulated in the legacy code (only `MV_dLength` is), so `MV_DifSum` is always 0. This means the legacy formula effectively becomes:
+
+```c
+StdDev_MotionDif = sqrt(0.00001 + MV_DifSumSQR / NumDifs)  // Missing mean subtraction
+```
+
+This computes the root mean square (RMS) rather than the true standard deviation. The correct formula would be `sqrt(E[X²] - E[X]²)`, but legacy computes `sqrt(E[X²])`.
+
+We replicate this bug in `libavutil/frame.c` when legacy mode is enabled. See the comment "LEGACY BUG REPLICATION" in the source code for details.
+
 ### AV1 / libaom Specific Changes
 
 For AV1 support, we use a vendored copy of libaom built with `CONFIG_INSPECTION=1` to enable the inspection API. The inspection API provides access to internal decoder state including per-block mode info and motion vectors.
