@@ -302,38 +302,6 @@ The `util/compare_parsers.py` script was then used to compare the output of vide
 
 Here's the summary – note the (intentional) differences in motion vector metrics:
 
-#### All Codecs (60 videos)
-
-| Metric            | Legacy Mean | New Mean | Diff Mean | Rel Diff (%) |
-| ----------------- | ----------- | -------- | --------- | ------------ |
-| coefs_bit_count   | 0           | 287541   | 287541    | N/A          |
-| current_poc       | 3.70577     | 3.70577  | 0         | +0.0000      |
-| dts               | 1.76728     | 1.76728  | 0         | +0.0000      |
-| frame_idx         | 64.5        | 64.5     | 0         | +0.0000      |
-| frame_type        | 1.93731     | 1.93731  | 0         | +0.0000      |
-| is_idr            | 0.062692    | 0.062692 | 0         | +0.0000      |
-| mb_mv_count       | 53095.9     | 56914.3  | 3818.45   | +18.4815     |
-| motion_avg        | 59.3029     | 66.2023  | 6.8994    | +106.3121    |
-| motion_bit_count  | 0           | 32502.3  | 32502.3   | N/A          |
-| motion_diff_avg   | 11.8565     | 13.3622  | 1.50562   | +61.2840     |
-| motion_diff_stdev | 82.7285     | 34.617   | -48.1115  | +15.7609     |
-| motion_stdev      | 151.392     | 61.8602  | -85.4229  | +35.5615     |
-| motion_x_avg      | 21.929      | 48.918   | 26.989    | +361.8505    |
-| motion_x_stdev    | 41.4919     | 51.2327  | 11.0114   | +66.1315     |
-| motion_y_avg      | 11.2515     | 30.8161  | 19.5647   | +359.1044    |
-| motion_y_stdev    | 28.3646     | 38.7961  | 11.0156   | +70.2423     |
-| mv_coded_count    | 23458.3     | 11115.3  | -12343    | -29.3364     |
-| poc_diff          | 1.22603     | 0.678462 | -0.547564 | -44.6430     |
-| pts               | 1.76728     | 1.76728  | 0         | +0.0000      |
-| qp_avg            | 56.6819     | 56.6131  | -0.068836 | -0.1222      |
-| qp_bb_avg         | 56.6826     | 56.6131  | -0.069485 | -0.1245      |
-| qp_bb_stdev       | 1.73938     | 1.75385  | 0.014475  | +3.6207      |
-| qp_init           | 59.9001     | 57.6337  | -2.26641  | -6.6261      |
-| qp_max            | 63.5731     | 63.5731  | 0         | +0.0000      |
-| qp_min            | 54.0451     | 54.0451  | 0         | +0.0000      |
-| qp_stdev          | 1.73937     | 1.75385  | 0.014483  | +3.6206      |
-| size              | 48851.7     | 48851.7  | 0         | +0.0000      |
-
 #### Codec: h264 (22 videos)
 
 | Metric            | Legacy Mean | New Mean | Diff Mean | Rel Diff (%) |
@@ -433,38 +401,12 @@ Here's the summary – note the (intentional) differences in motion vector metri
 ### Difference Analysis (Legacy Mode)
 
 Here are the results when compiling videoparser-ng with the `VP_MV_POC_NORMALIZATION` flag set to `1`, which enables POC-based motion vector normalization and other legacy behaviors to match the old parser.
+<!--
 
-#### All Codecs (60 videos)
-
-| Metric            | Legacy Mean | New Mean | Diff Mean | Rel Diff (%) |
-| ----------------- | ----------- | -------- | --------- | ------------ |
-| coefs_bit_count   | 0           | 287541   | 287541    | N/A          |
-| current_poc       | 3.70577     | 3.70577  | 0         | +0.0000      |
-| dts               | 1.76728     | 1.76728  | 0         | +0.0000      |
-| frame_idx         | 64.5        | 64.5     | 0         | +0.0000      |
-| frame_type        | 1.93731     | 1.93731  | 0         | +0.0000      |
-| is_idr            | 0.062692    | 0.062692 | 0         | +0.0000      |
-| mb_mv_count       | 53095.9     | 40362.4  | -12733.5  | -26.7518     |
-| motion_avg        | 59.3029     | 51.1062  | -8.19667  | +53.1947     |
-| motion_bit_count  | 0           | 32502.3  | 32502.3   | N/A          |
-| motion_diff_avg   | 11.8565     | 9.9376   | -1.91895  | +9.9905      |
-| motion_diff_stdev | 82.7285     | 29.0902  | -53.6383  | -22.5494     |
-| motion_stdev      | 151.392     | 47.005   | -100.53   | -20.7362     |
-| motion_x_avg      | 21.929      | 37.4861  | 15.5571   | +308.5274    |
-| motion_x_stdev    | 41.4919     | 38.2304  | -2.21127  | +10.0675     |
-| motion_y_avg      | 11.2515     | 24.2108  | 12.9594   | +305.9422    |
-| motion_y_stdev    | 28.3646     | 30.2181  | 2.2922    | +14.2793     |
-| mv_coded_count    | 23458.3     | 11115.3  | -12343    | -29.3364     |
-| poc_diff          | 1.22603     | 0.678462 | -0.547564 | -44.6430     |
-| pts               | 1.76728     | 1.76728  | 0         | +0.0000      |
-| qp_avg            | 56.6819     | 56.6131  | -0.068836 | -0.1222      |
-| qp_bb_avg         | 56.6826     | 56.6131  | -0.069485 | -0.1245      |
-| qp_bb_stdev       | 1.73938     | 1.75385  | 0.014475  | +3.6207      |
-| qp_init           | 59.9001     | 57.6337  | -2.26641  | -6.6261      |
-| qp_max            | 63.5731     | 63.5731  | 0         | +0.0000      |
-| qp_min            | 54.0451     | 54.0451  | 0         | +0.0000      |
-| qp_stdev          | 1.73937     | 1.75385  | 0.014483  | +3.6206      |
-| size              | 48851.7     | 48851.7  | 0         | +0.0000      |
+VP_EXTRA_CFLAGS="-DVP_MV_POC_NORMALIZATION=1" util/build-ffmpeg.sh --clean && ./util/build-cmake.sh
+parallel --eta --progress 'build/VideoParserCli/video-parser {} > {.}.ldjson' ::: /Volumes/Data/Databases/a2_2k_reencoded/*.mkv
+uv run ./test/compare_parsers.py /Volumes/Data/Databases/a2_2k_reencoded
+-->
 
 #### Codec: h264 (22 videos)
 
@@ -540,17 +482,17 @@ Here are the results when compiling videoparser-ng with the `VP_MV_POC_NORMALIZA
 | frame_idx         | 64.5        | 64.5     | 0         | +0.0000      |
 | frame_type        | 1.98462     | 1.98462  | 0         | +0.0000      |
 | is_idr            | 0.015385    | 0.015385 | 0         | +0.0000      |
-| mb_mv_count       | 47391.8     | 7180.91  | -40210.9  | -84.4794     |
-| motion_avg        | 132.914     | 107.03   | -25.8842  | +167.9833    |
+| mb_mv_count       | 47391.8     | 47213.5  | -178.293  | -0.4063      |
+| motion_avg        | 132.914     | 25.0518  | -107.862  | -41.1636     |
 | motion_bit_count  | 0           | 38723.9  | 38723.9   | N/A          |
-| motion_diff_avg   | 21.9757     | 15.9159  | -6.05983  | +31.5489     |
-| motion_diff_stdev | 223.325     | 53.9412  | -169.384  | -71.2085     |
-| motion_stdev      | 421.708     | 92.0636  | -329.515  | -67.9687     |
-| motion_x_avg      | 28.6094     | 77.7372  | 49.1278   | +974.2970    |
-| motion_x_stdev    | 81.81       | 71.5106  | -7.24807  | +32.9989     |
-| motion_y_avg      | 11.3404     | 52.2647  | 40.9243   | +966.1333    |
-| motion_y_stdev    | 56.6607     | 62.514   | 7.51332   | +46.8045     |
-| mv_coded_count    | 41947.9     | 2969.93  | -38978    | -92.6414     |
+| motion_diff_avg   | 21.9757     | 6.55199  | -15.4237  | -41.4324     |
+| motion_diff_stdev | 223.325     | 142.344  | -80.981   | -32.2643     |
+| motion_stdev      | 421.708     | 298.596  | -113.729  | -23.9113     |
+| motion_x_avg      | 28.6094     | 4.50133  | -24.1081  | -41.0552     |
+| motion_x_stdev    | 81.81       | 56.9991  | -22.2286  | -24.5506     |
+| motion_y_avg      | 11.3404     | 3.1537   | -8.18674  | -41.8347     |
+| motion_y_stdev    | 56.6607     | 40.8945  | -15.1036  | -24.7284     |
+| mv_coded_count    | 41947.9     | 20470.9  | -21477    | -46.3126     |
 | poc_diff          | 0           | 0        | 0         | N/A          |
 | pts               | 1.76595     | 1.76595  | 0         | +0.0000      |
 | qp_avg            | 113.811     | 113.811  | 0         | +0.0000      |

@@ -62,7 +62,41 @@ To obtain motion vector information, we modify:
 - VP9: `vp9mvs.c`, via `mv_statistics_vp9` function
 - AV1: `libaomdec.c`, via `videoparser_av1_extract_mv_stats` function using libaom's inspection API
 
-Both H.264 and HEVC support an optional compile-time flag `VP_MV_POC_NORMALIZATION` that, when set to `1`, enables POC-based motion vector normalization and "legacy" mode. This weighs motion vectors by their temporal distance to reference frames, using the formula `1.0 / (2.0 * |temporal_distance| / poc_diff)`. For HEVC, we also determine the coding type (Intra, Skip, Inter) and change the normalization based on that. By default, raw motion vector values are used.
+H.264, HEVC, and VP9 support an optional compile-time flag `VP_MV_POC_NORMALIZATION` that, when set to `1`, enables POC-based motion vector normalization and "legacy" mode. This replicates the behavior of the legacy `bitstream_mode3_videoparser` for compatibility testing. By default, raw motion vector values are used.
+
+For H.264 and HEVC, this weighs motion vectors by their temporal distance to reference frames, using the formula `1.0 / (2.0 * |temporal_distance| / poc_diff)`. For HEVC, we also determine the coding type (Intra, Skip, Inter) and change the normalization based on that.
+
+For VP9, the legacy mode applies:
+
+- Normalization by frame distance: `mv / (8 * FrmDist)` where `FrmDist = max(1, (current_PTS - ref_PTS) / frame_duration)`
+- A 4x multiplier to MV lengths: `MV_Length = 4.0 * sqrt(mvX² + mvY²)`
+- Only accumulates statistics for NEWMV mode blocks (explicitly coded motion vectors)
+- NEARESTMV and NEARMV modes only increment the block count but don't contribute to MV statistics
+- Outlier rejection: Blocks where `(mvX + mvY) > 20 * AvMot` or `(mvdX + mvdY) > 20 * AvDif` are rejected
+- Weighted `mv_coded_count`: In legacy mode, `mv_coded_count` is incremented by the block's 4x4 count (not just 1), and only for non-outlier NEWMV blocks
+
+**VP9 Reference Frame Buffer Bug Replication**: The legacy parser had a bug in how it accessed reference frame PTS values. The correct way to get the reference frame is `s->s.refs[s->s.h.refidx[b->ref[0]]]` (mapping reference type through refidx), but the legacy code used `s->s.refs[b->ref[0]]` directly. This bug is replicated for compatibility. In practice, this only affects behavior when refidx mapping is non-identity (which is uncommon).
+
+**VP9 Outlier Rejection**: The legacy parser (`VideoStatVP9.c`, `ProcessMV` function) rejects motion vectors that exceed 20x the running average. Specifically:
+
+```c
+if( FrmStat->S.CodedMv )
+    AvMot = FrmStat->S.MV_Length / FrmStat->S.CodedMv ;
+if( FrmStat->S.CodedMv )
+    AvDif = FrmStat->S.MV_dLength / FrmStat->S.CodedMv ;
+
+if( !((abs(mvX) + abs(mvY) > 20 * AvMot) || (abs(mvdX) + abs(mvdY) > 20 * AvDif)) )
+{
+    // Only accumulate if not an outlier
+}
+```
+
+This is now replicated in `mv_statistics_vp9()` when legacy mode is enabled. If `CodedMv` is 0 (first block), the running averages default to 1.0.
+
+**Comparison Status**: With legacy mode enabled (including outlier rejection), the VP9 implementation should closely match the legacy parser. Any remaining differences may be due to:
+
+1. X/Y asymmetry: Minor precision differences in MV component extraction
+2. Frame duration field: Legacy uses `pkt_duration` while we use `duration`
 
 To enable POC normalization, rebuild ffmpeg with:
 
