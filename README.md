@@ -45,7 +45,7 @@ For AV1 support, libaom is also vendored as a submodule. The code, including its
 
 ## History and Goals
 
-The project is using previous work from the [`bitstream_mode3_videoparser`](https://github.com/Telecommunication-Telemedia-Assessment/bitstream_mode3_videoparser) project, but written from the ground up to be faster. How fast?
+The project is using previous work from the [`bitstream_mode3_videoparser`](https://github.com/Telecommunication-Telemedia-Assessment/bitstream_mode3_videoparser) project. This project was written from the ground up to be faster. How fast?
 
 ```
                ╔══════════════════════════════════════════════════╗
@@ -55,10 +55,11 @@ videoparser-ng ╢███░░░░░░░░░░░░░░░░░�
 ```
 
 Super fast – a 16⨉ speedup! This is on a 1920x1080 HEVC video file at 29.97 fps, parsing all frames and extracting all available metrics.
+For 3840x2160 (4K) videos, the speedup is even higher, around 70x as measured on a M1 Mac.
 
 The overall goal is to provide bitstream statistics to be later used for calculating video quality metrics such as ITU-T Rec. P.1204.3, which has a [reference implementation available](https://github.com/Telecommunication-Telemedia-Assessment/bitstream_mode3_p1204_3).
 
-There are some design docs about this project [available here](https://docs.google.com/document/d/1pnQGDWRjSfff4TyTNWcdeUmCMdCz8crsGo6Ws3rR6W0/edit?tab=t.0). It explains the rationale for the creation of the project, the detailed statistics available in the `bitstream_mode3_videoparser` project we'd like to port over, and what we would like to add as features on top of that.
+There are some design docs about this project [available here](https://docs.google.com/document/d/1pnQGDWRjSfff4TyTNWcdeUmCMdCz8crsGo6Ws3rR6W0/edit?tab=t.0). It explains the rationale for the creation of the project, the detailed statistics available in the `bitstream_mode3_videoparser` project have ported over, and what we would like to add as features on top of that.
 
 ## Installation
 
@@ -364,12 +365,14 @@ If you use this project in your research, please reference this repository:
 }
 ```
 
-## Contributing
-
 Contributions to this project were funded by AVEQ GmbH and Ericsson. Contributors:
 
 - Werner Robitza (AVEQ GmbH)
 - Jonatan Stenlund (Ericsson, Luleå University of Technology): initial motion vector analysis implementation, see [`motion-vectors` branch](https://github.com/aveq-research/videoparser-ng/compare/master...motion-vectors)
+
+This project would not have been possible without the major work that went into the original video parser. The main developers who have to be credited for this include Peter List (basic parser code, bulk of the implementation for H.264 and HEVC), Anton Schubert (VP9 implementation), Steve Göring (major code and build improvements), Werner Robitza (Python parser interface, debugging), and Rakesh Rao Ramachandra Rao (various code improvements and model training).
+
+## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) if you want to contribute.
 
