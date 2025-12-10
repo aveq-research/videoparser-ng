@@ -246,19 +246,12 @@ def analyze_video_pair(
                 ]
                 metric_result["difference"] = compute_stats(differences)
 
-                # Also compute relative difference (percentage) for non-zero legacy values
-                rel_diffs = []
-                for i in range(len(legacy_values)):
-                    if legacy_values[i] != 0:
-                        rel_diffs.append(
-                            (new_values[i] - legacy_values[i])
-                            / abs(legacy_values[i])
-                            * 100
-                        )
-                if rel_diffs:
-                    metric_result["relative_difference_percent"] = compute_stats(
-                        rel_diffs
-                    )
+                # Compute relative difference based on aggregate means (not per-frame)
+                legacy_mean = metric_result["legacy"]["mean"]
+                new_mean = metric_result["new"]["mean"]
+                if legacy_mean is not None and legacy_mean != 0:
+                    rel_diff = (new_mean - legacy_mean) / abs(legacy_mean) * 100
+                    metric_result["relative_difference_percent"] = rel_diff
 
             result["metrics"][new_name] = metric_result
 
@@ -312,7 +305,7 @@ def compute_aggregate_stats(
                 )
             if "relative_difference_percent" in metric_data:
                 aggregate_stats[metric_name]["rel_diff_means"].append(
-                    metric_data["relative_difference_percent"]["mean"]
+                    metric_data["relative_difference_percent"]
                 )
 
     # Compute final aggregate stats
