@@ -4,6 +4,7 @@
 # dependencies = [
 #     "numpy>=1.24.0",
 #     "tqdm>=4.64.0",
+#     "tabulate>=0.9.0",
 # ]
 # ///
 """
@@ -20,12 +21,14 @@ Usage:
 import argparse
 import bz2
 import json
+import multiprocessing
 import sys
 from pathlib import Path
 from typing import Any, Callable, Optional, TypedDict
 
 import numpy as np
-from tqdm import tqdm
+from tabulate import tabulate
+from tqdm.contrib.concurrent import process_map
 
 
 class SingleResultsDict(TypedDict):
@@ -262,59 +265,25 @@ def analyze_video_pair(
     return result
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Compare legacy and new videoparser outputs"
-    )
-    parser.add_argument(
-        "folder",
-        type=Path,
-        help="Folder containing .json.bz2 (legacy) and .ldjson (new) files",
-    )
-    parser.add_argument(
-        "--output",
-        "-o",
-        type=Path,
-        default=None,
-        help="Output JSON file path (default: comparison_results.json in input folder)",
-    )
-    args = parser.parse_args()
+def _analyze_video_pair_wrapper(args: tuple[str, Path, Path]) -> SingleResultsDict:
+    """Wrapper for analyze_video_pair to work with process_map."""
+    video_name, legacy_path, new_path = args
+    return analyze_video_pair(video_name, legacy_path, new_path)
 
-    folder = args.folder.resolve()
-    if not folder.is_dir():
-        print(f"Error: {folder} is not a directory", file=sys.stderr)
-        sys.exit(1)
 
-    # Find video pairs
-    pairs = find_video_pairs(folder)
-    if not pairs:
-        print(f"Error: No matching video pairs found in {folder}", file=sys.stderr)
-        print(
-            "Expected: <name>.ldjson and <name>-videoparser.json.bz2", file=sys.stderr
-        )
-        sys.exit(1)
+def compute_aggregate_stats(
+    videos: list[SingleResultsDict], codec_filter: str | None = None
+) -> dict[str, Any]:
+    """Compute aggregate statistics across videos, optionally filtered by codec."""
+    filtered_videos = videos
+    if codec_filter:
+        filtered_videos = [v for v in videos if v["codec"] == codec_filter]
 
-    print(f"Found {len(pairs)} video pairs to analyze", file=sys.stderr)
+    if not filtered_videos:
+        return {}
 
-    # Analyze each pair
-    results: ResultsDict = {
-        "source_folder": str(folder),
-        "video_count": len(pairs),
-        "videos": [],
-        "aggregate_metrics": {},
-    }
-
-    for video_name in tqdm(
-        sorted(pairs.keys()), desc="Analyzing videos", file=sys.stderr
-    ):
-        paths = pairs[video_name]
-        tqdm.write(f"  Analyzing: {video_name}", file=sys.stderr)
-        video_result = analyze_video_pair(video_name, paths["legacy"], paths["new"])
-        results["videos"].append(video_result)
-
-    # Compute aggregate statistics across all videos per metric
     aggregate_stats: dict[str, dict[str, Any]] = {}
-    for video in results["videos"]:
+    for video in filtered_videos:
         for metric_name, metric_data in video["metrics"].items():
             if metric_name not in aggregate_stats:
                 aggregate_stats[metric_name] = {
@@ -347,41 +316,166 @@ def main() -> None:
                 )
 
     # Compute final aggregate stats
-    results["aggregate_metrics"] = {}
+    result: dict[str, Any] = {}
     for metric_name, data in aggregate_stats.items():
-        results["aggregate_metrics"][metric_name] = {
+        result[metric_name] = {
             "legacy_name": data["legacy_name"],
             "new_name": data["new_name"],
             "legacy_across_videos": compute_stats(data["legacy_means"]),
             "new_across_videos": compute_stats(data["new_means"]),
         }
         if data["difference_means"]:
-            results["aggregate_metrics"][metric_name]["difference_across_videos"] = (
-                compute_stats(data["difference_means"])
+            result[metric_name]["difference_across_videos"] = compute_stats(
+                data["difference_means"]
             )
         if data["rel_diff_means"]:
-            results["aggregate_metrics"][metric_name][
-                "relative_difference_percent_across_videos"
-            ] = compute_stats(data["rel_diff_means"])
+            result[metric_name]["relative_difference_percent_across_videos"] = (
+                compute_stats(data["rel_diff_means"])
+            )
 
-    # Write output
+    return result
+
+
+def format_markdown_table(
+    aggregate_metrics: dict[str, Any], title: str, video_count: int
+) -> str:
+    """Format aggregate metrics as a markdown table."""
+    lines = [f"## {title} ({video_count} videos)", ""]
+
+    # Build table data
+    table_data = []
+    headers = ["Metric", "Legacy Mean", "New Mean", "Diff Mean", "Rel Diff (%)"]
+
+    for metric_name in sorted(aggregate_metrics.keys()):
+        data = aggregate_metrics[metric_name]
+        legacy_mean = data["legacy_across_videos"]["mean"]
+        new_mean = data["new_across_videos"]["mean"]
+        diff_mean = data.get("difference_across_videos", {}).get("mean")
+        rel_diff_mean = data.get("relative_difference_percent_across_videos", {}).get(
+            "mean"
+        )
+
+        row = [
+            metric_name,
+            f"{legacy_mean:.6f}" if legacy_mean is not None else "N/A",
+            f"{new_mean:.6f}" if new_mean is not None else "N/A",
+            f"{diff_mean:+.6f}" if diff_mean is not None else "N/A",
+            f"{rel_diff_mean:+.4f}" if rel_diff_mean is not None else "N/A",
+        ]
+        table_data.append(row)
+
+    lines.append(tabulate(table_data, headers=headers, tablefmt="github"))
+    lines.append("")
+    return "\n".join(lines)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Compare legacy and new videoparser outputs"
+    )
+    parser.add_argument(
+        "folder",
+        type=Path,
+        help="Folder containing .json.bz2 (legacy) and .ldjson (new) files",
+    )
+    parser.add_argument(
+        "--output",
+        "-o",
+        type=Path,
+        default=None,
+        help="Output JSON file path (default: comparison_results.json in input folder)",
+    )
+    parser.add_argument(
+        "--workers",
+        "-w",
+        type=int,
+        default=None,
+        help="Number of parallel workers (default: CPU count)",
+    )
+    args = parser.parse_args()
+
+    folder = args.folder.resolve()
+    if not folder.is_dir():
+        print(f"Error: {folder} is not a directory", file=sys.stderr)
+        sys.exit(1)
+
+    # Find video pairs
+    pairs = find_video_pairs(folder)
+    if not pairs:
+        print(f"Error: No matching video pairs found in {folder}", file=sys.stderr)
+        print(
+            "Expected: <name>.ldjson and <name>-videoparser.json.bz2", file=sys.stderr
+        )
+        sys.exit(1)
+
+    num_workers = args.workers or multiprocessing.cpu_count()
+    print(
+        f"Found {len(pairs)} video pairs to analyze using {num_workers} workers",
+        file=sys.stderr,
+    )
+
+    # Prepare arguments for parallel processing
+    work_items = [
+        (video_name, pairs[video_name]["legacy"], pairs[video_name]["new"])
+        for video_name in sorted(pairs.keys())
+    ]
+
+    # Analyze pairs in parallel using process_map
+    video_results = process_map(
+        _analyze_video_pair_wrapper,
+        work_items,
+        max_workers=num_workers,
+        desc="Analyzing videos",
+    )
+
+    # Build results dict
+    results: ResultsDict = {
+        "source_folder": str(folder),
+        "video_count": len(pairs),
+        "videos": list(video_results),
+        "aggregate_metrics": {},
+    }
+
+    # Compute aggregate statistics across all videos
+    results["aggregate_metrics"] = compute_aggregate_stats(results["videos"])
+
+    # Compute per-codec aggregate statistics
+    codecs = sorted(set(v["codec"] for v in results["videos"]))
+    codec_aggregates: dict[str, dict[str, Any]] = {}
+    for codec in codecs:
+        codec_aggregates[codec] = compute_aggregate_stats(results["videos"], codec)
+
+    # Write JSON output
     output_path = args.output or (folder / "comparison_results.json")
+    json_output = {
+        **results,
+        "per_codec_aggregate_metrics": codec_aggregates,
+    }
     with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(results, f, indent=2)
+        json.dump(json_output, f, indent=2)
 
     print(f"Results written to: {output_path}", file=sys.stderr)
 
-    # Print summary to stdout
-    print("\n=== Summary ===")
-    print(f"Videos analyzed: {len(results['videos'])}")
-    print(f"Codecs: {set(v['codec'] for v in results['videos'])}")
-    print("\nAggregate metric differences (mean across all videos):")
-    for metric_name, data in sorted(results["aggregate_metrics"].items()):
-        if "difference_across_videos" in data:
-            diff = data["difference_across_videos"]["mean"]
-            rel = data.get("relative_difference_percent_across_videos", {}).get("mean")
-            rel_str = f" ({rel:+.2f}%)" if rel is not None else ""
-            print(f"  {metric_name}: {diff:+.6f}{rel_str}")
+    # Print markdown summary to stdout
+    print("\n# Parser Comparison Results\n")
+    print(f"**Source folder:** `{folder}`\n")
+
+    # Overall aggregate table
+    print(
+        format_markdown_table(
+            results["aggregate_metrics"], "All Codecs", len(results["videos"])
+        )
+    )
+
+    # Per-codec tables
+    for codec in codecs:
+        codec_videos = [v for v in results["videos"] if v["codec"] == codec]
+        if codec_aggregates[codec]:
+            print(
+                format_markdown_table(
+                    codec_aggregates[codec], f"Codec: {codec}", len(codec_videos)
+                )
+            )
 
 
 if __name__ == "__main__":

@@ -45,7 +45,16 @@ For AV1 support, libaom is also vendored as a submodule. The code, including its
 
 ## History and Goals
 
-The project is using previous work from the [`bitstream_mode3_videoparser`](https://github.com/Telecommunication-Telemedia-Assessment/bitstream_mode3_videoparser) project, but written from the ground up to be faster.
+The project is using previous work from the [`bitstream_mode3_videoparser`](https://github.com/Telecommunication-Telemedia-Assessment/bitstream_mode3_videoparser) project, but written from the ground up to be faster. How fast?
+
+```
+               ╔════════════════════════════════════════════════════════════════════════════════════════════════════╗
+Legacy parser  ╢████████████████████████████████████████████████████████████████████████████████████████████████████╟ 21.161s
+videoparser-ng ╢██████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░╟  1.291s
+               ╠════════════════════════════════════════════════════════════════════════════════════════════════════╣
+```
+
+Super fast – a 16⨉ speedup! This is on a 1920x1080 HEVC video file at 29.97 fps, parsing all frames and extracting all available metrics.
 
 The overall goal is to provide bitstream statistics to be later used for calculating video quality metrics such as ITU-T Rec. P.1204.3, which has a [reference implementation available](https://github.com/Telecommunication-Telemedia-Assessment/bitstream_mode3_p1204_3).
 
