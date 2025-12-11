@@ -46,21 +46,28 @@ We have modified `decode.c` to extract the frame index (method `ff_decode_receiv
 
 ### QP Information
 
+QP (Quantization Parameter) values are codec-specific indices that control quantization strength. Higher values mean more compression/lower quality. Typical ranges: H.264/HEVC: 0–51, VP9: 0–255, AV1: 0–255.
+
 To obtain the QP information, we modify:
 
-- H.264: `h264_mb.c`, to extract the QP information from the `H264SliceContext` struct, in the function `ff_h264_hl_decode_mb`
-- HEVC: `hevcdec.c`, to extract the QP information from the `HEVCLocalContext` struct, in the function `hls_coding_unit`
-- VP9: `vp9.c`, to extract the QP information from the `VP9SharedContext` struct, in the function `vp9_decode_frame`
-- AV1: `libaomdec.c`, to extract the QP information from the `AV1DecodeContext` struct, in the function `aom_decode`
+- **H.264**: `h264_mb.c`, function `ff_h264_hl_decode_mb`. Extracts QP from `sl->qscale` (the slice-level QP). Per-macroblock QP is accumulated via `videoparser_shared_frame_info_update_qp()` which tracks `qp_sum`, `qp_cnt`, `qp_sum_sqr` for standard deviation, and updates `qp_min`/`qp_max`.
+- **HEVC**: `hevcdec.c`, function `hls_coding_unit`. Extracts QP from `lc->qp_y` (the luma QP for the coding unit). Per-coding-unit QP statistics are accumulated similarly to H.264.
+- **VP9**: `vp9.c`, function `vp9_decode_frame`. Extracts QP from `s->s.h.yac_qi` (the Y-AC quantizer index). Note: QP metrics are not yet implemented for segmented streams.
+- **AV1**: `libaomdec.c`, function `aom_decode`. Extracts QP via `aom_codec_control(&ctx->decoder, AOMD_GET_LAST_QUANTIZER, &qp)`.
 
 ### Motion Vector Information
 
+Motion vector metrics are in codec-native sub-pel units:
+
+- **H.264/HEVC**: Quarter-pel (1/4 pixel). Divide by 4 for full-pel values.
+- **VP9/AV1**: Eighth-pel (1/8 pixel). Divide by 8 for full-pel values.
+
 To obtain motion vector information, we modify:
 
-- H.264: `h264_mb.c`, via `mv_statistics_264` function
-- HEVC: `hevcdec.c`, via `mv_statistics_hevc` function
-- VP9: `vp9mvs.c`, via `mv_statistics_vp9` function
-- AV1: `libaomdec.c`, via `videoparser_av1_extract_mv_stats` function using libaom's inspection API
+- **H.264**: `h264_mb.c`, via `mv_statistics_264` function. Motion vectors are collected from both L0 (forward) and L1 (backward) reference lists via `sl->mv_cache[0]` and `sl->mv_cache[1]`. For bi-directional blocks, values from both directions are averaged. MVD is extracted from `sl->mvd_cache[0]` and `sl->mvd_cache[1]` (values stored as unsigned 8-bit integers; values > 127 are interpreted as negative via two's complement).
+- **HEVC**: `hevcdec.c`, via `mv_statistics_hevc` function. Motion vectors are collected from L0 and L1 prediction lists. For bi-predictive blocks, values from both directions are averaged. MVD is extracted from `MvField.mvd`.
+- **VP9**: `vp9mvs.c`, via `mv_statistics_vp9` function. Motion vectors are collected after prediction in `ff_vp9_fill_mv`. For compound (bi-predictive) mode, values from both references are averaged. MVD is extracted from coded MVD components for NEWMV mode only (NEARESTMV/NEARMV modes use predicted MVs without coded residuals, so MVD is zero).
+- **AV1**: `libaomdec.c`, via `videoparser_av1_extract_mv_stats` function using libaom's inspection API. Motion vectors are collected from all inter blocks (mode >= NEARESTMV). For compound prediction, values from L0 and L1 references are averaged. MVD is captured during `assign_mv()` in `decodemv.c` by computing the difference between final MV and reference MV for NEWMV modes, stored in `mbmi->mvd[]`.
 
 H.264, HEVC, and VP9 support an optional compile-time flag `VP_MV_POC_NORMALIZATION` that, when set to `1`, enables POC-based motion vector normalization and "legacy" mode. This replicates the behavior of the legacy `bitstream_mode3_videoparser` for compatibility testing. By default, raw motion vector values are used.
 
@@ -142,6 +149,42 @@ To extract motion vector differences (MVD) and bit counts for AV1, additional mo
 - `external/libaom/av1/decoder/decodemv.c`: Store MVD in `mbmi->mvd[]` for all NEWMV modes in `assign_mv()`, and track motion bits using `aom_reader_tell_frac()` around MV decoding
 - `external/libaom/av1/decoder/decodeframe.c`: Track coefficient bits around intra/inter coefficient decoding using `aom_reader_tell_frac()`, reset counters at frame start in `av1_decode_frame_headers_and_setup()`
 
+### Bit Count Information
+
+Bit counts track the number of bits used for motion information and transform coefficients in each frame.
+
+- **H.264**: A `bit_count` field was added to `CABACContext` in `cabac.h`. It is incremented in `cabac_functions.h` during `get_cabac_inline()`, `get_cabac_bypass()`, and `get_cabac_bypass_sign()`. Motion bits are accumulated in `h264_cabac.c` during MVD decoding; coefficient bits are accumulated after `decode_cabac_luma_residual()`. Note: CAVLC streams do not currently track bit counts (only CABAC). **Important**: FFmpeg must be built with `--disable-inline-asm` for CABAC bit counting to work correctly (see `util/build-ffmpeg.sh`), as the inline assembly implementations bypass the C code where `bit_count` is incremented.
+- **HEVC**: Uses the same `bit_count` field in `CABACContext` (via `lc->cc.bit_count`). It is reset before transform unit decoding (`hls_transform_unit`) and prediction unit decoding (`hls_prediction_unit`), then accumulated into `sf->coefs_bit_count` and `sf->motion_bit_count` respectively in `hevcdec.c`.
+- **VP9**: A `bit_count` field was added to `VPXRangeCoder` in `vpx_rac.h`. It is incremented in `vpx_rac_get_prob()`, `vpx_rac_get_prob_branchy()`, and `vpx_rac_get()`. Motion and coefficient bits are accumulated in `vp9mvs.c` and `vp9block.c` respectively.
+- **AV1**: Accumulated in modified libaom decoder using `aom_reader_tell_frac()` before and after `assign_mv()` calls in `read_inter_block_mode_info()` (`decodemv.c`) for motion bits, and around coefficient reading calls in `decode_reconstruct_tx()` and intra block decoding loops (`decodeframe.c`) for coefficient bits. Bit counts are in fractional bits (1/8th precision) during accumulation and converted to whole bits in `ifd_inspect()`.
+
+### Block Count Information
+
+Block counts track the number of macroblocks/coding units with motion vectors and explicitly coded motion vectors.
+
+- **H.264**: `mb_mv_count` incremented for each macroblock partition that uses inter prediction. `mv_coded_count` counts MVs that are entropy-coded in the bitstream.
+- **HEVC**: `mb_mv_count` incremented for each prediction unit (PU) with inter prediction. `mv_coded_count` counts MVs that are entropy-coded.
+- **VP9**: `mb_mv_count` incremented for each block with non-zero motion (excludes ZEROMV mode). Note: VP9 uses variable block sizes (4x4 to 64x64), so count depends on encoder block size decisions. `mv_coded_count` counts NEWMV mode blocks where motion delta is explicitly coded; NEARESTMV/NEARMV modes use predicted MVs and are not counted.
+- **AV1**: `mb_mv_count` incremented for each MI (mode info) block with inter prediction (mode >= NEARESTMV). Note: AV1 uses variable block sizes (4x4 to 128x128), so count is at MI resolution (4x4 units). `mv_coded_count` counts NEWMV mode blocks (including compound variants: NEW_NEWMV, NEAREST_NEWMV, NEW_NEARESTMV, NEAR_NEWMV, NEW_NEARMV).
+
+### POC Information
+
+POC (Picture Order Count) is a frame ordering mechanism used in H.264 and HEVC to track display order independently from decode order.
+
+- **H.264**: `current_poc` extracted from `curr_pic->poc` in `h264_slice.c` (`decode_slice` function). POC values can wrap at 65536; values > 32768 are adjusted to be negative for consistency. `poc_diff` is calculated by tracking POC changes between frames, using PTS/duration information when available for more accurate calculation in reordered streams.
+- **HEVC**: `current_poc` extracted from `s->poc` in `hevcdec.c` during `hevc_frame_start()`. `poc_diff` is tracked similarly to H.264, using PTS information when available.
+- **VP9/AV1**: Not applicable. These codecs do not use the POC concept; values always return 0.
+
+### Frame Metadata
+
+Frame metadata is extracted via standard FFmpeg API:
+
+- `frame_type`: Extracted from frame header via ffmpeg's `pict_type` (1=I, 2=P, 3=B).
+- `frame_idx`: Zero-based index tracked by the parser during decoding in `decode.c`.
+- `is_idr`: H.264: NAL unit type 5. HEVC: IDR_W_RADL or IDR_N_LP NAL units. VP9/AV1: keyframes.
+- `size`: Extracted from packet size directly in ffmpeg.
+- `pts`/`dts`: Converted from ffmpeg's timestamps using stream time base.
+
 ## Testing
 
 The test scripts use [uv](https://docs.astral.sh/uv/) inline script metadata (PEP 723) for dependency management. This means you can run them directly without installing dependencies manually – `uv` will handle it automatically.
@@ -193,7 +236,7 @@ Then run the legacy tests:
 uv run test/legacy/test.py
 ```
 
-Note: Some tests may fail due to intentional differences documented in [Differences with Legacy Implementation](#differences-with-legacy-implementation).
+Note: Some tests may fail due to intentional differences documented in [METRICS.md](METRICS.md#differences-with-legacy-implementation).
 
 ### CLI Testing
 
