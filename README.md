@@ -294,6 +294,21 @@ sudo apt install \
 
 ### Building
 
+#### Legacy Mode
+
+To enable "legacy" computation mode (replicating known bugs from the original `bitstream_mode3_videoparser` for compatibility testing), rebuild with:
+
+```bash
+VP_EXTRA_CFLAGS="-DVP_MV_POC_NORMALIZATION=1" util/build-ffmpeg.sh --clean && ./util/build-cmake.sh
+```
+
+This enables POC-based motion vector normalization and other legacy behaviors. See [DEVELOPERS.md](DEVELOPERS.md#mv-poc-normalization) for details on what this flag changes.
+
+> [!WARNING]
+> Legacy mode is only recommended for H.264 and HEVC compatibility testing. For VP9, the legacy parser had fundamental bugs making its output unreliable. See [VP9_Parsing.md](VP9_Parsing.md) for details.
+
+#### Standard Build
+
 First clone all submodules:
 
 ```bash
