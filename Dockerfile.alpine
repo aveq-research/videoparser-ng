@@ -171,3 +171,4 @@ COPY --from=ffmpeg-builder /build/ffmpeg/libavutil/*.h /include/libavutil/
 
 # VideoParser headers
 COPY --from=videoparser-builder /app/VideoParser/*.h /include/VideoParser/
+COPY --from=videoparser-builder /app/VideoParser/include/ /include/VideoParser/include/
