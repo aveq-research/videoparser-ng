@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 <!-- insertion marker -->
+## [v0.5.4](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.5.4) - 2026-01-15
+
+<small>[Compare with v0.5.3](https://github.com/aveq-research/videoparser-ng/compare/v0.5.3...v0.5.4)</small>
+
+### Continuous Integration
+
+- fix SDK paths ([5cd7980](https://github.com/aveq-research/videoparser-ng/commit/5cd7980aa57fc850be1e8382d625487689ebb1e6) by Werner Robitza).
+
+### Misc
+
+- bump version to 0.5.4 ([8d6953c](https://github.com/aveq-research/videoparser-ng/commit/8d6953c29bc77aca79fc77c8254ee729c3c0d3b5) by Werner Robitza).
+
 ## [v0.5.3](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.5.3) - 2026-01-15
 
 <small>[Compare with v0.5.2](https://github.com/aveq-research/videoparser-ng/compare/v0.5.2...v0.5.3)</small>
@@ -16,7 +28,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Misc
 
-- bump version to 0.5.3 ([c317307](https://github.com/aveq-research/videoparser-ng/commit/c3173078d5a1987e0b0685054b241198657afcce) by Werner Robitza).
+- bump version to 0.5.3 ([474795b](https://github.com/aveq-research/videoparser-ng/commit/474795b55fcb0ee44a541487029559614d33b239) by Werner Robitza).
 
 ## [v0.5.2](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.5.2) - 2026-01-15
 
