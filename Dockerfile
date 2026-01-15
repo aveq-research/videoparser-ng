@@ -53,6 +53,9 @@ RUN mkdir -p aom_build && cd aom_build && \
 # =============================================================================
 FROM builder-base AS ffmpeg-builder
 
+# Build arg for legacy mode (pass --build-arg LEGACY_MODE=1 to enable)
+ARG LEGACY_MODE=0
+
 WORKDIR /build
 
 # Copy libaom build artifacts from previous stage
@@ -71,6 +74,9 @@ WORKDIR /build/ffmpeg
 # Configure and build ffmpeg with vendored libaom
 ENV PKG_CONFIG_PATH=/build/libaom/aom_build
 ENV SRC_PATH=/build/ffmpeg
+
+# Set extra CFLAGS for legacy mode (POC-based MV normalization)
+ENV VP_EXTRA_CFLAGS=${LEGACY_MODE:+"-DVP_MV_POC_NORMALIZATION=1"}
 
 RUN ./configure \
     --disable-programs \
@@ -113,7 +119,7 @@ RUN ./configure \
     --enable-demuxer=mpegvideo \
     --enable-demuxer=mpegts \
     --enable-libaom \
-    '--extra-cflags=-I/build/libaom -I/build/libaom/aom_build' \
+    --extra-cflags="-I/build/libaom -I/build/libaom/aom_build ${VP_EXTRA_CFLAGS}" \
     '--extra-ldflags=-L/build/libaom/aom_build' \
     --disable-inline-asm \
     && make -j$(nproc)

@@ -361,6 +361,22 @@ docker build -t videoparser-ng .
 
 This will build the project and create a Docker image named `videoparser-ng`.
 
+To build in legacy mode (with POC-based motion vector normalization for compatibility with the original `bitstream_mode3_videoparser`), pass the `LEGACY_MODE` build argument:
+
+```bash
+docker build --build-arg LEGACY_MODE=1 -t videoparser-ng-legacy .
+```
+
+For fully static Alpine-based builds (used for GitHub releases), use the Alpine Dockerfile:
+
+```bash
+# Standard build
+docker build -f Dockerfile.alpine -t videoparser-ng-static .
+
+# Legacy mode
+docker build -f Dockerfile.alpine --build-arg LEGACY_MODE=1 -t videoparser-ng-static-legacy .
+```
+
 ## Developer Guide
 
 We have a more detailed guide for testing and the specific features implemented. See [DEVELOPERS.md](DEVELOPERS.md).
