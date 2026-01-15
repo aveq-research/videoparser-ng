@@ -6,6 +6,43 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 <!-- insertion marker -->
+## [v0.5.0](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.5.0) - 2026-01-15
+
+<small>[Compare with v0.4.0](https://github.com/aveq-research/videoparser-ng/compare/v0.4.0...v0.5.0)</small>
+
+### Build
+
+- legacy mode for regular docker builds ([9afc4c5](https://github.com/aveq-research/videoparser-ng/commit/9afc4c55040cd6d6880b798a57bcea0b20022c71) by Werner Robitza).
+- update ffmpeg/aom scripts ([0bfdff1](https://github.com/aveq-research/videoparser-ng/commit/0bfdff1ec62566c16097870f05098084bf5f7d9f) by Werner Robitza).
+
+### Chore
+
+- update libaom to dc48d8ad53 ([fd9cdc6](https://github.com/aveq-research/videoparser-ng/commit/fd9cdc67f4a737351981db34834038803a54c13e) by Werner Robitza).
+- update ffmpeg to latest version ([5885a78](https://github.com/aveq-research/videoparser-ng/commit/5885a780a3e1f6cbbad04e7650ee1aaddd440d1b) by Werner Robitza).
+
+### Continuous Integration
+
+- static builds and SDK releases ([5accaea](https://github.com/aveq-research/videoparser-ng/commit/5accaeaab74a698220ce25e49d172e628176fa16) by Werner Robitza).
+- add legacy builds ([7ae0f73](https://github.com/aveq-research/videoparser-ng/commit/7ae0f73b4bda29194dfb8e3e9cfbb443eac89f43) by Werner Robitza).
+
+### Docs
+
+- add legacy mode ([c13ba8a](https://github.com/aveq-research/videoparser-ng/commit/c13ba8a6919b309a3a6a68e4d153f866cc1c8ba9) by Werner Robitza).
+- update docs ([39c4e9f](https://github.com/aveq-research/videoparser-ng/commit/39c4e9ff9633e7acfc14b6b734922e2229853092) by Werner Robitza).
+
+### Docs
+
+- add legacy mode ([c13ba8a](https://github.com/aveq-research/videoparser-ng/commit/c13ba8a6919b309a3a6a68e4d153f866cc1c8ba9) by Werner Robitza).
+- update docs ([39c4e9f](https://github.com/aveq-research/videoparser-ng/commit/39c4e9ff9633e7acfc14b6b734922e2229853092) by Werner Robitza).
+
+### Bug Fixes
+
+- ffmpeg history ([63ae99d](https://github.com/aveq-research/videoparser-ng/commit/63ae99d1c4274ca66e4ddfe09c2eaff5b8d7ee46) by Werner Robitza).
+
+### Misc
+
+- bump version to 0.5.0 ([6335efc](https://github.com/aveq-research/videoparser-ng/commit/6335efc6c5f31b5f4c89b369125b0cef9de978bd) by Werner Robitza).
+
 ## [v0.4.0](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.4.0) - 2025-12-10
 
 <small>[Compare with v0.3.0](https://github.com/aveq-research/videoparser-ng/compare/v0.3.0...v0.4.0)</small>
@@ -33,7 +70,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Misc
 
-- bump version to 0.4.0 ([55b8f11](https://github.com/aveq-research/videoparser-ng/commit/55b8f116c3a9eb9c7775d6b503d1846e1f6c8dcd) by Werner Robitza).
+- bump version to 0.4.0 ([b743bf1](https://github.com/aveq-research/videoparser-ng/commit/b743bf1c630f92a0179d14ea2d55d1804cbb8800) by Werner Robitza).
 
 ## [v0.3.0](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.3.0) - 2025-12-10
 
