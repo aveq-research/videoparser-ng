@@ -168,6 +168,10 @@ jobs:
           cp VideoParser/*.h "${SDK_DIR}/include/VideoParser/"
           cp -r VideoParser/include "${SDK_DIR}/include/VideoParser/"
 
+          # VideoParser headers at root level (for FFmpeg relative include paths)
+          # FFmpeg's frame.h uses "../../../VideoParser/include/shared.h" relative to libavutil/
+          cp -r VideoParser/include "${SDK_DIR}/VideoParser/"
+
       - name: Upload SDK artifact
         uses: actions/upload-artifact@v4
         with:
@@ -254,6 +258,10 @@ jobs:
           # VideoParser headers
           cp VideoParser/*.h "${SDK_DIR}/include/VideoParser/"
           cp -r VideoParser/include "${SDK_DIR}/include/VideoParser/"
+
+          # VideoParser headers at root level (for FFmpeg relative include paths)
+          # FFmpeg's frame.h uses "../../../VideoParser/include/shared.h" relative to libavutil/
+          cp -r VideoParser/include "${SDK_DIR}/VideoParser/"
 
       - name: Upload SDK artifact
         uses: actions/upload-artifact@v4
