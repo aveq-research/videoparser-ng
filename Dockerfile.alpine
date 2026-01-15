@@ -154,6 +154,7 @@ COPY --from=videoparser-builder /app/build/VideoParserCli/video-parser /video-pa
 FROM scratch AS sdk-extractor
 
 # Static libraries
+COPY --from=videoparser-builder /app/build/VideoParser/libvideoparser.a /lib/libvideoparser.a
 COPY --from=libaom-builder /build/libaom/aom_build/libaom.a /lib/libaom.a
 COPY --from=ffmpeg-builder /build/ffmpeg/libavcodec/libavcodec.a /lib/libavcodec.a
 COPY --from=ffmpeg-builder /build/ffmpeg/libavformat/libavformat.a /lib/libavformat.a

@@ -149,6 +149,7 @@ jobs:
           mkdir -p "${SDK_DIR}/lib" "${SDK_DIR}/include/aom" "${SDK_DIR}/include/libavcodec" "${SDK_DIR}/include/libavformat" "${SDK_DIR}/include/libavutil" "${SDK_DIR}/include/VideoParser"
 
           # Static libraries
+          cp build/VideoParser/libvideoparser.a "${SDK_DIR}/lib/"
           cp external/libaom/aom_build/libaom.a "${SDK_DIR}/lib/"
           cp external/ffmpeg/libavcodec/libavcodec.a "${SDK_DIR}/lib/"
           cp external/ffmpeg/libavformat/libavformat.a "${SDK_DIR}/lib/"
@@ -234,6 +235,7 @@ jobs:
           mkdir -p "${SDK_DIR}/lib" "${SDK_DIR}/include/aom" "${SDK_DIR}/include/libavcodec" "${SDK_DIR}/include/libavformat" "${SDK_DIR}/include/libavutil" "${SDK_DIR}/include/VideoParser"
 
           # Static libraries
+          cp build/VideoParser/libvideoparser.a "${SDK_DIR}/lib/"
           cp external/libaom/aom_build/libaom.a "${SDK_DIR}/lib/"
           cp external/ffmpeg/libavcodec/libavcodec.a "${SDK_DIR}/lib/"
           cp external/ffmpeg/libavformat/libavformat.a "${SDK_DIR}/lib/"
@@ -356,9 +358,10 @@ jobs:
             ## SDK (Static Libraries + Headers)
 
             Pre-compiled static libraries and headers for building your own applications on top of the video parser. Includes:
+            - `libvideoparser.a` - VideoParser library
             - `libaom.a` - AV1 decoder library
             - `libavcodec.a`, `libavformat.a`, `libavutil.a` - FFmpeg libraries
-            - Headers for libaom, FFmpeg, and VideoParser
+            - Headers for VideoParser, libaom, and FFmpeg
 
             | Platform | Standard | Legacy |
             |----------|----------|--------|

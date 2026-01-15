@@ -104,9 +104,10 @@ The latest master branch build is also available under the `master` and `master-
 
 Pre-compiled static libraries and headers are available for building your own applications on top of the video parser. The SDK includes:
 
+- `libvideoparser.a` – VideoParser library
 - `libaom.a` – AV1 decoder library
 - `libavcodec.a`, `libavformat.a`, `libavutil.a` – FFmpeg libraries
-- Headers for libaom, FFmpeg, and VideoParser
+- Headers for VideoParser, libaom, and FFmpeg
 
 Download the SDK archive for your platform from the [releases page](https://github.com/aveq-research/videoparser-ng/releases). Both standard and legacy variants are available.
 
