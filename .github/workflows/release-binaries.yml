@@ -65,11 +65,27 @@ jobs:
           chmod +x ./dist/${ARTIFACT_NAME}
           file ./dist/${ARTIFACT_NAME}
 
-      - name: Upload artifact
+      - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
           name: video-parser-linux-${{ matrix.arch.suffix }}${{ matrix.variant.artifact_suffix }}
           path: ./dist/video-parser-linux-${{ matrix.arch.suffix }}${{ matrix.variant.artifact_suffix }}
+
+      - name: Extract SDK (libraries and headers)
+        run: |
+          docker buildx build \
+            --platform ${{ matrix.arch.platform }} \
+            --file Dockerfile.alpine \
+            --build-arg LEGACY_MODE=${{ matrix.variant.legacy_mode }} \
+            --target sdk-extractor \
+            --output type=local,dest=./sdk \
+            .
+
+      - name: Upload SDK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: videoparser-sdk-linux-${{ matrix.arch.suffix }}${{ matrix.variant.artifact_suffix }}
+          path: ./sdk/
 
   # ============================================
   # macOS Intel build
@@ -121,11 +137,40 @@ jobs:
           chmod +x dist/video-parser-darwin-x86_64${{ matrix.variant.artifact_suffix }}
           file dist/video-parser-darwin-x86_64${{ matrix.variant.artifact_suffix }}
 
-      - name: Upload artifact
+      - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
           name: video-parser-darwin-x86_64${{ matrix.variant.artifact_suffix }}
           path: dist/video-parser-darwin-x86_64${{ matrix.variant.artifact_suffix }}
+
+      - name: Package SDK (libraries and headers)
+        run: |
+          SDK_DIR="sdk"
+          mkdir -p "${SDK_DIR}/lib" "${SDK_DIR}/include/aom" "${SDK_DIR}/include/libavcodec" "${SDK_DIR}/include/libavformat" "${SDK_DIR}/include/libavutil" "${SDK_DIR}/include/VideoParser"
+
+          # Static libraries
+          cp external/libaom/aom_build/libaom.a "${SDK_DIR}/lib/"
+          cp external/ffmpeg/libavcodec/libavcodec.a "${SDK_DIR}/lib/"
+          cp external/ffmpeg/libavformat/libavformat.a "${SDK_DIR}/lib/"
+          cp external/ffmpeg/libavutil/libavutil.a "${SDK_DIR}/lib/"
+
+          # libaom headers
+          cp -r external/libaom/aom/* "${SDK_DIR}/include/aom/"
+          cp external/libaom/aom_build/config/aom_config.h "${SDK_DIR}/include/aom/"
+
+          # FFmpeg headers
+          cp external/ffmpeg/libavcodec/*.h "${SDK_DIR}/include/libavcodec/"
+          cp external/ffmpeg/libavformat/*.h "${SDK_DIR}/include/libavformat/"
+          cp external/ffmpeg/libavutil/*.h "${SDK_DIR}/include/libavutil/"
+
+          # VideoParser headers
+          cp VideoParser/*.h "${SDK_DIR}/include/VideoParser/"
+
+      - name: Upload SDK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: videoparser-sdk-darwin-x86_64${{ matrix.variant.artifact_suffix }}
+          path: sdk/
 
   # ============================================
   # macOS ARM64 build
@@ -177,11 +222,40 @@ jobs:
           chmod +x dist/video-parser-darwin-arm64${{ matrix.variant.artifact_suffix }}
           file dist/video-parser-darwin-arm64${{ matrix.variant.artifact_suffix }}
 
-      - name: Upload artifact
+      - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
           name: video-parser-darwin-arm64${{ matrix.variant.artifact_suffix }}
           path: dist/video-parser-darwin-arm64${{ matrix.variant.artifact_suffix }}
+
+      - name: Package SDK (libraries and headers)
+        run: |
+          SDK_DIR="sdk"
+          mkdir -p "${SDK_DIR}/lib" "${SDK_DIR}/include/aom" "${SDK_DIR}/include/libavcodec" "${SDK_DIR}/include/libavformat" "${SDK_DIR}/include/libavutil" "${SDK_DIR}/include/VideoParser"
+
+          # Static libraries
+          cp external/libaom/aom_build/libaom.a "${SDK_DIR}/lib/"
+          cp external/ffmpeg/libavcodec/libavcodec.a "${SDK_DIR}/lib/"
+          cp external/ffmpeg/libavformat/libavformat.a "${SDK_DIR}/lib/"
+          cp external/ffmpeg/libavutil/libavutil.a "${SDK_DIR}/lib/"
+
+          # libaom headers
+          cp -r external/libaom/aom/* "${SDK_DIR}/include/aom/"
+          cp external/libaom/aom_build/config/aom_config.h "${SDK_DIR}/include/aom/"
+
+          # FFmpeg headers
+          cp external/ffmpeg/libavcodec/*.h "${SDK_DIR}/include/libavcodec/"
+          cp external/ffmpeg/libavformat/*.h "${SDK_DIR}/include/libavformat/"
+          cp external/ffmpeg/libavutil/*.h "${SDK_DIR}/include/libavutil/"
+
+          # VideoParser headers
+          cp VideoParser/*.h "${SDK_DIR}/include/VideoParser/"
+
+      - name: Upload SDK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: videoparser-sdk-darwin-arm64${{ matrix.variant.artifact_suffix }}
+          path: sdk/
 
   # ============================================
   # Create GitHub Release
@@ -234,6 +308,30 @@ jobs:
             done
           done
 
+          # Process SDK artifacts (standard and legacy variants)
+          for platform in darwin-arm64 darwin-x86_64 linux-aarch64 linux-x86_64; do
+            for variant in "" "-legacy"; do
+              SDK_PATH=$(find artifacts -type d -name "videoparser-sdk-${platform}${variant}" | head -1)
+              if [ -n "$SDK_PATH" ]; then
+                ARCHIVE_DIR="videoparser-sdk-${VERSION}-${platform}${variant}"
+                mkdir -p "$ARCHIVE_DIR"
+
+                # Copy lib and include directories
+                cp -r "${SDK_PATH}/lib" "$ARCHIVE_DIR/"
+                cp -r "${SDK_PATH}/include" "$ARCHIVE_DIR/"
+
+                # Copy LICENSE
+                cp LICENSE.txt "$ARCHIVE_DIR/"
+
+                # Create tar.gz archive
+                tar -czvf "release-assets/${ARCHIVE_DIR}.tar.gz" "$ARCHIVE_DIR"
+
+                # Cleanup
+                rm -rf "$ARCHIVE_DIR"
+              fi
+            done
+          done
+
           ls -la release-assets/
 
       - name: Create GitHub Release
@@ -244,21 +342,59 @@ jobs:
           draft: false
           prerelease: ${{ contains(github.ref, '-') }}
           body: |
-            ## Download
+            ## Binaries
 
-            **Standard builds** (recommended for most users):
+            Pre-built static binaries for command-line video parsing.
 
-            - `video-parser-${{ steps.version.outputs.VERSION }}-<platform>.tar.gz`
+            | Platform | Standard | Legacy |
+            |----------|----------|--------|
+            | Linux x86_64 | `video-parser-${{ steps.version.outputs.VERSION }}-linux-x86_64.tar.gz` | `video-parser-${{ steps.version.outputs.VERSION }}-linux-x86_64-legacy.tar.gz` |
+            | Linux ARM64 | `video-parser-${{ steps.version.outputs.VERSION }}-linux-aarch64.tar.gz` | `video-parser-${{ steps.version.outputs.VERSION }}-linux-aarch64-legacy.tar.gz` |
+            | macOS Intel | `video-parser-${{ steps.version.outputs.VERSION }}-darwin-x86_64.tar.gz` | `video-parser-${{ steps.version.outputs.VERSION }}-darwin-x86_64-legacy.tar.gz` |
+            | macOS Apple Silicon | `video-parser-${{ steps.version.outputs.VERSION }}-darwin-arm64.tar.gz` | `video-parser-${{ steps.version.outputs.VERSION }}-darwin-arm64-legacy.tar.gz` |
 
-            **Legacy builds** (for compatibility testing only):
+            ## SDK (Static Libraries + Headers)
 
-            - `video-parser-${{ steps.version.outputs.VERSION }}-<platform>-legacy.tar.gz`
+            Pre-compiled static libraries and headers for building your own applications on top of the video parser. Includes:
+            - `libaom.a` - AV1 decoder library
+            - `libavcodec.a`, `libavformat.a`, `libavutil.a` - FFmpeg libraries
+            - Headers for libaom, FFmpeg, and VideoParser
 
-            ### Which version should I use?
+            | Platform | Standard | Legacy |
+            |----------|----------|--------|
+            | Linux x86_64 | `videoparser-sdk-${{ steps.version.outputs.VERSION }}-linux-x86_64.tar.gz` | `videoparser-sdk-${{ steps.version.outputs.VERSION }}-linux-x86_64-legacy.tar.gz` |
+            | Linux ARM64 | `videoparser-sdk-${{ steps.version.outputs.VERSION }}-linux-aarch64.tar.gz` | `videoparser-sdk-${{ steps.version.outputs.VERSION }}-linux-aarch64-legacy.tar.gz` |
+            | macOS Intel | `videoparser-sdk-${{ steps.version.outputs.VERSION }}-darwin-x86_64.tar.gz` | `videoparser-sdk-${{ steps.version.outputs.VERSION }}-darwin-x86_64-legacy.tar.gz` |
+            | macOS Apple Silicon | `videoparser-sdk-${{ steps.version.outputs.VERSION }}-darwin-arm64.tar.gz` | `videoparser-sdk-${{ steps.version.outputs.VERSION }}-darwin-arm64-legacy.tar.gz` |
 
-            Use the **standard build** unless you specifically need to compare results with the original [bitstream_mode3_videoparser](https://github.com/Telecommunication-Telemedia-Assessment/bitstream_mode3_videoparser).
+            ## Docker Images
 
-            The **legacy build** replicates known bugs from the original parser (POC-based motion vector normalization) for compatibility testing with H.264 and HEVC. See [DEVELOPERS.md](https://github.com/aveq-research/videoparser-ng/blob/master/DEVELOPERS.md#mv-poc-normalization) for details.
+            Multi-architecture Docker images are available on GitHub Container Registry:
+
+            ```bash
+            # Standard (recommended)
+            docker pull ghcr.io/aveq-research/videoparser-ng:${{ steps.version.outputs.VERSION }}
+            docker pull ghcr.io/aveq-research/videoparser-ng:latest
+
+            # Legacy
+            docker pull ghcr.io/aveq-research/videoparser-ng:${{ steps.version.outputs.VERSION }}-legacy
+            docker pull ghcr.io/aveq-research/videoparser-ng:latest-legacy
+            ```
+
+            ## Standard vs Legacy
+
+            Use the **standard** build unless you specifically need to compare results with the original [bitstream_mode3_videoparser](https://github.com/Telecommunication-Telemedia-Assessment/bitstream_mode3_videoparser).
+
+            The **legacy** build replicates known bugs from the original parser (POC-based motion vector normalization) for compatibility testing with H.264 and HEVC. See [DEVELOPERS.md](https://github.com/aveq-research/videoparser-ng/blob/master/DEVELOPERS.md#mv-poc-normalization) for details.
+
+            ## Source Code & Licensing
+
+            This software is licensed under **LGPL 2.1+**. The binaries and SDK include statically linked libraries:
+
+            - **FFmpeg** (LGPL 2.1+): [github.com/aveq-research/ffmpeg](https://github.com/aveq-research/ffmpeg)
+            - **libaom** (BSD 2-clause): [github.com/aveq-research/libaom](https://github.com/aveq-research/libaom)
+
+            Per LGPL 2.1 Section 6, you may obtain the complete source code (including exact library versions as Git submodules) from: [github.com/aveq-research/videoparser-ng/tree/${{ github.ref_name }}](https://github.com/aveq-research/videoparser-ng/tree/${{ github.ref_name }})
 
             ---
 

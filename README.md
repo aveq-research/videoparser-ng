@@ -7,6 +7,7 @@ A command-line and API-based video bitstream parser, using ffmpeg and other thir
 - [Installation](#installation)
   - [Native Binaries](#native-binaries)
   - [Docker](#docker)
+  - [SDK (Static Libraries)](#sdk-static-libraries)
 - [Usage](#usage)
 - [Output](#output)
 - [Available Metrics](#available-metrics)
@@ -72,7 +73,7 @@ Go to [releases](https://github.com/aveq-research/videoparser-ng/releases) and p
 
 ### Docker
 
-We provide a pre-built Docker image on GitHub Container Registry. You can use it without building it yourself.
+We provide pre-built Docker images on GitHub Container Registry. You can use them without building yourself.
 
 To pull the image, you need to have a valid GitHub token with access to the repository. If you don't have a token, [create one here](https://github.com/settings/tokens), and make sure it has `read:packages` scope enabled.
 
@@ -80,20 +81,34 @@ To pull the image, you need to have a valid GitHub token with access to the repo
 docker login ghcr.io
 ```
 
-You will be prompted to enter your GitHub username, and as password, enter your personal access token. Once you have a token, you can pull the image, and rename it to `videoparser-ng` for easier use.
+You will be prompted to enter your GitHub username, and as password, enter your personal access token. Once you have a token, you can pull the image:
 
 ```bash
+# Standard build (recommended)
 docker pull ghcr.io/aveq-research/videoparser-ng:latest
-docker image tag ghcr.io/aveq-research/videoparser-ng:latest videoparser-ng
+
+# Legacy build (for compatibility testing with bitstream_mode3_videoparser)
+docker pull ghcr.io/aveq-research/videoparser-ng:latest-legacy
 ```
 
-The `latest` tag will always point to the latest stable release. If you want to use a specific version, you can pull it by replacing `latest` with the version tag, e.g. `0.2.0`:
+The `latest` tag will always point to the latest stable release. If you want to use a specific version, you can pull it by replacing `latest` with the version tag, e.g. `0.6.0`:
 
 ```bash
-docker pull ghcr.io/aveq-research/videoparser-ng:0.2.0
+docker pull ghcr.io/aveq-research/videoparser-ng:0.6.0
+docker pull ghcr.io/aveq-research/videoparser-ng:0.6.0-legacy
 ```
 
-The latest master branch build is also available under the `master` tag, but it is not guaranteed to be stable.
+The latest master branch build is also available under the `master` and `master-legacy` tags, but these are not guaranteed to be stable.
+
+### SDK (Static Libraries)
+
+Pre-compiled static libraries and headers are available for building your own applications on top of the video parser. The SDK includes:
+
+- `libaom.a` – AV1 decoder library
+- `libavcodec.a`, `libavformat.a`, `libavutil.a` – FFmpeg libraries
+- Headers for libaom, FFmpeg, and VideoParser
+
+Download the SDK archive for your platform from the [releases page](https://github.com/aveq-research/videoparser-ng/releases). Both standard and legacy variants are available.
 
 ## Usage
 

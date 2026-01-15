@@ -147,3 +147,26 @@ RUN file /app/build/VideoParserCli/video-parser | grep -i static
 FROM scratch AS extractor
 
 COPY --from=videoparser-builder /app/build/VideoParserCli/video-parser /video-parser
+
+# =============================================================================
+# Stage 6: SDK extractor stage for copying libraries and headers
+# =============================================================================
+FROM scratch AS sdk-extractor
+
+# Static libraries
+COPY --from=libaom-builder /build/libaom/aom_build/libaom.a /lib/libaom.a
+COPY --from=ffmpeg-builder /build/ffmpeg/libavcodec/libavcodec.a /lib/libavcodec.a
+COPY --from=ffmpeg-builder /build/ffmpeg/libavformat/libavformat.a /lib/libavformat.a
+COPY --from=ffmpeg-builder /build/ffmpeg/libavutil/libavutil.a /lib/libavutil.a
+
+# libaom headers
+COPY --from=libaom-builder /build/libaom/aom /include/aom/
+COPY --from=libaom-builder /build/libaom/aom_build/config/aom_config.h /include/aom/aom_config.h
+
+# FFmpeg headers (public headers only)
+COPY --from=ffmpeg-builder /build/ffmpeg/libavcodec/*.h /include/libavcodec/
+COPY --from=ffmpeg-builder /build/ffmpeg/libavformat/*.h /include/libavformat/
+COPY --from=ffmpeg-builder /build/ffmpeg/libavutil/*.h /include/libavutil/
+
+# VideoParser headers
+COPY --from=videoparser-builder /app/VideoParser/*.h /include/VideoParser/
