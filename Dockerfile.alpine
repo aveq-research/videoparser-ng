@@ -149,30 +149,43 @@ FROM scratch AS extractor
 COPY --from=videoparser-builder /app/build/VideoParserCli/video-parser /video-parser
 
 # =============================================================================
-# Stage 6: SDK extractor stage for copying libraries and headers
+# Stage 6: SDK preparation (with tools for post-processing)
+# =============================================================================
+FROM alpine:3.20 AS sdk-prep
+
+RUN apk add --no-cache sed
+
+# Static libraries
+COPY --from=videoparser-builder /app/build/VideoParser/libvideoparser.a /sdk/lib/libvideoparser.a
+COPY --from=libaom-builder /build/libaom/aom_build/libaom.a /sdk/lib/libaom.a
+COPY --from=ffmpeg-builder /build/ffmpeg/libavcodec/libavcodec.a /sdk/lib/libavcodec.a
+COPY --from=ffmpeg-builder /build/ffmpeg/libavformat/libavformat.a /sdk/lib/libavformat.a
+COPY --from=ffmpeg-builder /build/ffmpeg/libavutil/libavutil.a /sdk/lib/libavutil.a
+
+# libaom headers
+COPY --from=libaom-builder /build/libaom/aom /sdk/include/aom/
+COPY --from=libaom-builder /build/libaom/aom_build/config/aom_config.h /sdk/include/aom/aom_config.h
+
+# FFmpeg headers (public headers only)
+COPY --from=ffmpeg-builder /build/ffmpeg/libavcodec/*.h /sdk/include/libavcodec/
+COPY --from=ffmpeg-builder /build/ffmpeg/libavformat/*.h /sdk/include/libavformat/
+COPY --from=ffmpeg-builder /build/ffmpeg/libavutil/*.h /sdk/include/libavutil/
+
+# VideoParser headers
+COPY --from=videoparser-builder /app/VideoParser/*.h /sdk/include/VideoParser/
+COPY --from=videoparser-builder /app/VideoParser/include/ /sdk/include/VideoParser/include/
+
+# Fix FFmpeg include paths for SDK layout
+# Source tree uses "../../../VideoParser/include/shared.h" (3 levels up from external/ffmpeg/libavutil/)
+# SDK uses "../../VideoParser/include/shared.h" (2 levels up from include/libavutil/)
+RUN sed -i 's|"../../../VideoParser/include/shared.h"|"../../VideoParser/include/shared.h"|g' /sdk/include/libavutil/frame.h
+
+# Copy VideoParser to SDK root for the relative include path
+COPY --from=videoparser-builder /app/VideoParser/include/ /sdk/VideoParser/include/
+
+# =============================================================================
+# Stage 7: SDK extractor (minimal output)
 # =============================================================================
 FROM scratch AS sdk-extractor
 
-# Static libraries
-COPY --from=videoparser-builder /app/build/VideoParser/libvideoparser.a /lib/libvideoparser.a
-COPY --from=libaom-builder /build/libaom/aom_build/libaom.a /lib/libaom.a
-COPY --from=ffmpeg-builder /build/ffmpeg/libavcodec/libavcodec.a /lib/libavcodec.a
-COPY --from=ffmpeg-builder /build/ffmpeg/libavformat/libavformat.a /lib/libavformat.a
-COPY --from=ffmpeg-builder /build/ffmpeg/libavutil/libavutil.a /lib/libavutil.a
-
-# libaom headers
-COPY --from=libaom-builder /build/libaom/aom /include/aom/
-COPY --from=libaom-builder /build/libaom/aom_build/config/aom_config.h /include/aom/aom_config.h
-
-# FFmpeg headers (public headers only)
-COPY --from=ffmpeg-builder /build/ffmpeg/libavcodec/*.h /include/libavcodec/
-COPY --from=ffmpeg-builder /build/ffmpeg/libavformat/*.h /include/libavformat/
-COPY --from=ffmpeg-builder /build/ffmpeg/libavutil/*.h /include/libavutil/
-
-# VideoParser headers
-COPY --from=videoparser-builder /app/VideoParser/*.h /include/VideoParser/
-COPY --from=videoparser-builder /app/VideoParser/include/ /include/VideoParser/include/
-
-# VideoParser headers at root level (for FFmpeg relative include paths)
-# FFmpeg's frame.h uses "../../../VideoParser/include/shared.h" relative to libavutil/
-COPY --from=videoparser-builder /app/VideoParser/include/ /VideoParser/include/
+COPY --from=sdk-prep /sdk/ /

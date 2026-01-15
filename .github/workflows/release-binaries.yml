@@ -168,8 +168,12 @@ jobs:
           cp VideoParser/*.h "${SDK_DIR}/include/VideoParser/"
           cp -r VideoParser/include "${SDK_DIR}/include/VideoParser/"
 
-          # VideoParser headers at root level (for FFmpeg relative include paths)
-          # FFmpeg's frame.h uses "../../../VideoParser/include/shared.h" relative to libavutil/
+          # Fix FFmpeg include paths for SDK layout
+          # Source tree uses "../../../VideoParser/include/shared.h" (3 levels up from external/ffmpeg/libavutil/)
+          # SDK uses "../../VideoParser/include/shared.h" (2 levels up from include/libavutil/)
+          sed -i '' 's|"../../../VideoParser/include/shared.h"|"../../VideoParser/include/shared.h"|g' "${SDK_DIR}/include/libavutil/frame.h"
+
+          # Copy VideoParser to SDK root for the relative include path
           cp -r VideoParser/include "${SDK_DIR}/VideoParser/"
 
       - name: Upload SDK artifact
@@ -259,8 +263,12 @@ jobs:
           cp VideoParser/*.h "${SDK_DIR}/include/VideoParser/"
           cp -r VideoParser/include "${SDK_DIR}/include/VideoParser/"
 
-          # VideoParser headers at root level (for FFmpeg relative include paths)
-          # FFmpeg's frame.h uses "../../../VideoParser/include/shared.h" relative to libavutil/
+          # Fix FFmpeg include paths for SDK layout
+          # Source tree uses "../../../VideoParser/include/shared.h" (3 levels up from external/ffmpeg/libavutil/)
+          # SDK uses "../../VideoParser/include/shared.h" (2 levels up from include/libavutil/)
+          sed -i '' 's|"../../../VideoParser/include/shared.h"|"../../VideoParser/include/shared.h"|g' "${SDK_DIR}/include/libavutil/frame.h"
+
+          # Copy VideoParser to SDK root for the relative include path
           cp -r VideoParser/include "${SDK_DIR}/VideoParser/"
 
       - name: Upload SDK artifact
@@ -331,6 +339,11 @@ jobs:
                 # Copy lib and include directories
                 cp -r "${SDK_PATH}/lib" "$ARCHIVE_DIR/"
                 cp -r "${SDK_PATH}/include" "$ARCHIVE_DIR/"
+
+                # Copy VideoParser directory (for FFmpeg relative include paths)
+                if [ -d "${SDK_PATH}/VideoParser" ]; then
+                  cp -r "${SDK_PATH}/VideoParser" "$ARCHIVE_DIR/"
+                fi
 
                 # Copy LICENSE
                 cp LICENSE.txt "$ARCHIVE_DIR/"
