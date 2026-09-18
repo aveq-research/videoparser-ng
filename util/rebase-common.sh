@@ -60,7 +60,9 @@ build_component() {
     echo ""
     echo "Verifying $COMPONENT build..."
     cd "$PROJECT_ROOT" || exit 1
-    if ! "./util/build-${COMPONENT}.sh" --reconfigure; then
+    # Rebases can remove or rename source files, leaving stale build-system
+    # dependencies behind. Start from a clean component build after rebasing.
+    if ! "./util/build-${COMPONENT}.sh" --clean; then
         echo ""
         echo "ERROR: $COMPONENT build failed!"
         return 1
