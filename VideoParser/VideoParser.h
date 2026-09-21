@@ -185,6 +185,8 @@ private:
   AVCodecContext *codec_context = nullptr;
   AVPacket *current_packet = nullptr;
   AVFrame *frame = nullptr;
+  bool decoder_draining = false;
+  bool decoder_finished = false;
   uint32_t frame_idx = 0;
   SequenceInfo sequence_info;
   double first_pts = 0;

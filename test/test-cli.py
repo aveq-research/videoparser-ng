@@ -86,3 +86,15 @@ class TestCLI:
 
         # Second frame should have frame_idx 1
         assert frame_info[1]["frame_idx"] == 1
+
+    @pytest.mark.parametrize(
+        "test_file", ["test-libx264.mp4", "test-libx265.mp4"]
+    )
+    def test_parser_cli_flushes_delayed_frames(self, test_file: str):
+        frame_info, sequence_info = call_parser(
+            os.path.join(HERE, test_file), num_frames=-1
+        )
+
+        assert len(frame_info) == sequence_info["video_frame_count"] == 300
+        assert frame_info[-1]["frame_idx"] == 299
+        assert frame_info[-1]["size"] > 0

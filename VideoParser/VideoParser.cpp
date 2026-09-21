@@ -7,6 +7,8 @@
 
 #include "VideoParser.h"
 
+#include <cstring>
+
 namespace videoparser {
 static bool verbose = false;
 
@@ -105,6 +107,11 @@ VideoParser::VideoParser(const char *filename) {
     throw std::runtime_error("Error setting codec parameters");
   }
 
+  // Preserve packet metadata on the decoded frame. This is needed for codecs
+  // with frame reordering, where the packet being read is not necessarily the
+  // packet corresponding to the frame returned by the decoder.
+  codec_context->flags |= AV_CODEC_FLAG_COPY_OPAQUE;
+
   const char *pix_fmt_name = av_get_pix_fmt_name(codec_context->pix_fmt);
   strncpy(sequence_info.video_pix_fmt, pix_fmt_name ? pix_fmt_name : "",
           sizeof(sequence_info.video_pix_fmt) - 1);
@@ -200,8 +207,13 @@ void VideoParser::set_frame_info(FrameInfo &frame_info) {
   }
   last_pts = pts;
 
+  int packet_size = current_packet ? current_packet->size : 0;
+  if (frame->opaque_ref && frame->opaque_ref->size == sizeof(packet_size)) {
+    memcpy(&packet_size, frame->opaque_ref->data, sizeof(packet_size));
+  }
+
   // count general size statistics
-  packet_size_sum += current_packet->size;
+  packet_size_sum += packet_size;
 
   // set the frame type
   FrameType frame_type = UNKNOWN;
@@ -220,7 +232,7 @@ void VideoParser::set_frame_info(FrameInfo &frame_info) {
   frame_info.frame_idx = frame_idx;
   frame_info.pts = pts;
   frame_info.dts = dts;
-  frame_info.size = current_packet->size;
+  frame_info.size = packet_size;
   frame_info.frame_type = frame_type;
   frame_info.is_idr = frame->flags & AV_FRAME_FLAG_KEY;
 
@@ -354,32 +366,78 @@ void VideoParser::set_frame_info_av1(FrameInfo &frame_info) {}
  * @return false If no frame was parsed (stop parsing)
  */
 bool VideoParser::parse_frame(FrameInfo &frame_info) {
-  while (av_read_frame(format_context, current_packet) == 0) {
-    if (current_packet->stream_index == video_stream_idx) {
-      if (avcodec_send_packet(codec_context, current_packet) == 0) {
-        while (avcodec_receive_frame(codec_context, frame) == 0) {
-          try {
-            set_frame_info(frame_info);
-            // only unref and return true if we successfully set frame info
-            av_packet_unref(current_packet);
-            return true;
-          } catch (const std::exception &e) {
-            if (verbose) {
-              std::cerr << "Warning: Could not set frame info for frame index "
-                        << frame_idx << ": " << e.what() << std::endl;
-            }
-            // continue to next frame if we couldn't set frame info
-            continue;
-          }
-        }
-      }
-    }
-    av_packet_unref(current_packet);
+  if (decoder_finished) {
+    return false;
   }
 
-  // Free the packet, no more frames
-  av_packet_free(&current_packet);
-  return false;
+  while (true) {
+    int receive_result = avcodec_receive_frame(codec_context, frame);
+    if (receive_result == 0) {
+      try {
+        set_frame_info(frame_info);
+        return true;
+      } catch (const std::exception &e) {
+        if (verbose) {
+          std::cerr << "Warning: Could not set frame info for frame index "
+                    << frame_idx << ": " << e.what() << std::endl;
+        }
+        // Continue to the next decoded frame if this one has no parser data.
+        continue;
+      }
+    }
+
+    if (receive_result == AVERROR_EOF) {
+      decoder_finished = true;
+      av_packet_free(&current_packet);
+      return false;
+    }
+
+    if (receive_result != AVERROR(EAGAIN)) {
+      throw std::runtime_error("Error receiving a decoded frame");
+    }
+
+    if (decoder_draining) {
+      throw std::runtime_error("Decoder requested input after end of stream");
+    }
+
+    bool packet_sent = false;
+    while (av_read_frame(format_context, current_packet) == 0) {
+      if (current_packet->stream_index != video_stream_idx) {
+        av_packet_unref(current_packet);
+        continue;
+      }
+
+      current_packet->opaque_ref =
+          av_buffer_alloc(sizeof(current_packet->size));
+      if (!current_packet->opaque_ref) {
+        av_packet_unref(current_packet);
+        throw std::runtime_error("Error allocating packet metadata");
+      }
+      memcpy(current_packet->opaque_ref->data, &current_packet->size,
+             sizeof(current_packet->size));
+
+      int send_result = avcodec_send_packet(codec_context, current_packet);
+      av_packet_unref(current_packet);
+      if (send_result < 0) {
+        throw std::runtime_error("Error sending a packet for decoding");
+      }
+
+      packet_sent = true;
+      break;
+    }
+
+    if (packet_sent) {
+      continue;
+    }
+
+    // A null packet signals EOF to codecs with delayed output (notably H.264
+    // and HEVC with frame reordering). Keep receiving until AVERROR_EOF.
+    int send_result = avcodec_send_packet(codec_context, nullptr);
+    if (send_result < 0 && send_result != AVERROR_EOF) {
+      throw std::runtime_error("Error flushing the video decoder");
+    }
+    decoder_draining = true;
+  }
 }
 
 /**
