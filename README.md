@@ -319,13 +319,27 @@ sudo apt install \
 
 #### Legacy Mode
 
-To enable "legacy" computation mode (replicating known bugs from the original `bitstream_mode3_videoparser` for compatibility testing), rebuild with:
+To build the "legacy" computation mode (replicating known bugs from the original `bitstream_mode3_videoparser` for compatibility testing) next to the standard build, run:
+
+```bash
+util/build-cmake.sh --legacy
+```
+
+This builds ffmpeg with `-DVP_MV_POC_NORMALIZATION=1` in a copy of its source in `build/ffmpeg-legacy/src`, and the library and CLI in `build/legacy`. The CLI is `build/legacy/VideoParserCli/video-parser`. It also installs an SDK with the same layout as the release SDK archives to `build/legacy/sdk` (use `--prefix <dir>` for another location). The standard build in `external/ffmpeg` and `build` is not changed.
+
+To build other programs against the legacy library, use the SDK, since it contains the matching ffmpeg libraries. For example, for p1204-bitstream-cpp:
+
+```bash
+cmake -S . -B build -DVIDEOPARSER_SDK=/path/to/videoparser-ng/build/legacy/sdk
+```
+
+Alternatively, rebuild the standard build in place in legacy mode:
 
 ```bash
 VP_EXTRA_CFLAGS="-DVP_MV_POC_NORMALIZATION=1" util/build-ffmpeg.sh --clean && ./util/build-cmake.sh
 ```
 
-This enables POC-based motion vector normalization and other legacy behaviors. See [DEVELOPERS.md](DEVELOPERS.md#mv-poc-normalization) for details on what this flag changes.
+Legacy mode enables POC-based motion vector normalization and other legacy behaviors. See [DEVELOPERS.md](DEVELOPERS.md#mv-poc-normalization) for details on what this flag changes.
 
 > [!WARNING]
 > Legacy mode is only recommended for H.264 and HEVC compatibility testing. For VP9, the legacy parser had fundamental bugs making its output unreliable. See [VP9_Parsing.md](VP9_Parsing.md) for details.
@@ -351,6 +365,8 @@ util/build-cmake.sh
 ```
 
 This will create the library: `build/VideoParser/libvideoparser.a`
+
+To also install an SDK (static libraries and headers in `lib/` and `include/`, as in the release SDK archives), pass `--prefix <dir>`.
 
 You can also run the CLI:
 

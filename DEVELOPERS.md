@@ -108,7 +108,13 @@ This is now replicated in `mv_statistics_vp9()` when legacy mode is enabled. If 
 1. X/Y asymmetry: Minor precision differences in MV component extraction
 2. Frame duration field: Legacy uses `pkt_duration` while we use `duration`
 
-To enable POC normalization, rebuild ffmpeg with:
+To build with POC normalization next to the standard build, run:
+
+```bash
+util/build-cmake.sh --legacy
+```
+
+This runs `util/build-ffmpeg.sh --legacy`, which copies the ffmpeg source to `build/ffmpeg-legacy/src` and builds it there with the flag. CMake then builds the library and CLI in `build/legacy` with `-DVIDEOPARSER_LEGACY=ON`, which links them against that copy, and installs an SDK to `build/legacy/sdk`. The flag only affects ffmpeg, so both variants share the libaom build. Alternatively, rebuild the standard build in place:
 
 ```bash
 VP_EXTRA_CFLAGS="-DVP_MV_POC_NORMALIZATION=1" util/build-ffmpeg.sh --clean

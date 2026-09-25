@@ -6,6 +6,10 @@
 # for use by other programs (e.g. OpenCV). The source is copied to
 # build/ffmpeg-shared/src, since ffmpeg cannot be built out of tree once the
 # source directory holds the static build.
+#
+# With --legacy, build with VP_MV_POC_NORMALIZATION=1 (legacy mode) in a copy
+# of the source in build/ffmpeg-legacy/src, next to the normal build.
+# Combined with --shared, the build goes to build/ffmpeg-shared-legacy.
 
 set -e
 
@@ -14,7 +18,6 @@ PROJECT_ROOT="${SCRIPT_DIR}/.."
 LIBAOM_BUILD="${PROJECT_ROOT}/external/libaom/aom_build"
 
 FFMPEG_SRC="${PROJECT_ROOT}/external/ffmpeg"
-SHARED_BUILD="${PROJECT_ROOT}/build/ffmpeg-shared"
 
 # Build libaom if not already built
 if [[ ! -f "${LIBAOM_BUILD}/libaom.a" ]]; then
@@ -27,6 +30,7 @@ usage() {
   echo "  --reconfigure       reconfigure ffmpeg"
   echo "  --clean             clean ffmpeg build (implies reconfigure)"
   echo "  --shared            build shared libraries into build/ffmpeg-shared"
+  echo "  --legacy            build in legacy mode into build/ffmpeg-legacy"
   echo "  --prefix <dir>      install directory for --shared (default: build/ffmpeg-shared/install)"
   echo "  --help              print this message"
   exit 1
@@ -35,7 +39,8 @@ usage() {
 reconfigure=false
 clean=false
 shared=false
-prefix="${SHARED_BUILD}/install"
+legacy=false
+prefix=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -47,6 +52,9 @@ while [[ $# -gt 0 ]]; do
       ;;
     --shared)
       shared=true
+      ;;
+    --legacy)
+      legacy=true
       ;;
     --prefix)
       shift
@@ -63,14 +71,24 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
-if [[ "$shared" = true ]]; then
+# Directory for builds outside of external/ffmpeg
+copyBuild="${PROJECT_ROOT}/build/ffmpeg"
+[[ "$shared" = true ]] && copyBuild="${copyBuild}-shared"
+[[ "$legacy" = true ]] && copyBuild="${copyBuild}-legacy"
+prefix="${prefix:-${copyBuild}/install}"
+
+if [[ "$legacy" = true ]]; then
+  VP_EXTRA_CFLAGS="${VP_EXTRA_CFLAGS:+${VP_EXTRA_CFLAGS} }-DVP_MV_POC_NORMALIZATION=1"
+fi
+
+if [[ "$shared" = true ]] || [[ "$legacy" = true ]]; then
   # Copy tracked and untracked (but not ignored) source files. tar keeps the
   # modification times, so make only rebuilds what changed.
-  mkdir -p "${SHARED_BUILD}/src"
+  mkdir -p "${copyBuild}/src"
   git -C "${FFMPEG_SRC}" ls-files -z --cached --others --exclude-standard |
     tar -C "${FFMPEG_SRC}" --null -T - -cf - |
-    tar -C "${SHARED_BUILD}/src" -xf -
-  cd "${SHARED_BUILD}/src"
+    tar -C "${copyBuild}/src" -xf -
+  cd "${copyBuild}/src"
 else
   cd "${FFMPEG_SRC}" || (echo "ffmpeg directory not found!" && exit 1)
 fi
