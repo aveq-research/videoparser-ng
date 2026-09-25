@@ -103,6 +103,8 @@ export PKG_CONFIG_PATH="${FFMPEG_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
 cmakeFlags=(
   -DCMAKE_BUILD_TYPE=Release
   "-DCMAKE_INSTALL_PREFIX=${prefix}"
+  # lib/, not lib64/ as on RHEL-based systems
+  -DCMAKE_INSTALL_LIBDIR=lib
   -DCMAKE_POSITION_INDEPENDENT_CODE=ON
   -DBUILD_SHARED_LIBS=OFF
   -DBUILD_LIST=core,imgproc,imgcodecs,videoio
