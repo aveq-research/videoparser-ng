@@ -7,6 +7,7 @@
 
 #include "VideoParser.h"
 
+#include <cmath>
 #include <cstring>
 
 namespace videoparser {
@@ -355,10 +356,10 @@ void VideoParser::set_frame_info(FrameInfo &frame_info) {
                        ? frame->pkt_dts
                        : frame->best_effort_timestamp;
   // Raw bitstreams may have no timestamps at all: use the frame index and
-  // frame rate instead
+  // frame rate instead, or NaN (null in JSON) without a frame rate
   double frame_time = sequence_info.video_framerate > 0
                           ? frame_idx / sequence_info.video_framerate
-                          : 0.0;
+                          : std::nan("");
   double pts = pts_ts != AV_NOPTS_VALUE ? pts_ts * time_base : frame_time;
   double dts = dts_ts != AV_NOPTS_VALUE ? dts_ts * time_base : frame_time;
   // set first and last pts to calculate video duration at the end
