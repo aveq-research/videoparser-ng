@@ -194,11 +194,13 @@ The following metadata/metrics are available:
 
 ### Sequence Info
 
+Supported containers are MP4/MOV, Matroska/WebM, AVI, MPEG-TS, MPEG-PS, and raw H.264/HEVC/MPEG-2 bitstreams.
+
 | Metric                | Description                       | Unit    |
 | --------------------- | --------------------------------- | ------- |
 | `video_duration`      | Duration of the video             | seconds |
-| `video_codec`         | Codec name (h264, hevc, vp9, av1) | —       |
-| `video_bitrate`       | Average bitrate                   | kbps    |
+| `video_codec`         | Codec name (h264, hevc, vp9, av1, mpeg2) | —       |
+| `video_bitrate`       | Average video bitrate             | kbps    |
 | `video_framerate`     | Frame rate                        | fps     |
 | `video_width`         | Frame width                       | pixels  |
 | `video_height`        | Frame height                      | pixels  |
@@ -239,6 +241,11 @@ The following metadata/metrics are available:
 | `coefs_bit_count`   | Bits used for transform coefficients      | bits     |
 | `mb_mv_count`       | Number of blocks with motion vectors      | count    |
 | `mv_coded_count`    | Number of explicitly coded MVs            | count    |
+
+QP and motion vector values are in codec-native units:
+
+- QP: H.264/HEVC 0–51, VP9/AV1 0–255, MPEG-2 1–112 (the `quantiser_scale` value, not the 5-bit code)
+- Motion vectors: quarter-pel for H.264/HEVC, eighth-pel for VP9/AV1, half-pel for MPEG-2
 
 A detailed description of all available metrics is available in [METRICS.md](METRICS.md).
 

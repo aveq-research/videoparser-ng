@@ -6,41 +6,41 @@ This document describes the various metrics extracted by the videoparser-ng tool
 
 The following table shows which metrics are available for each supported codec.
 
-| Metric                    | H.264 | HEVC  |  VP9  |  AV1  |
-| ------------------------- | :---: | :---: | :---: | :---: |
-| **QP Metrics**            |       |       |       |       |
-| `qp_avg`                  |   ✅   |   ✅   |  ✅¹   |   ✅   |
-| `qp_stdev`                |   ✅   |   ✅   |  ✅¹   |   ✅   |
-| `qp_min`                  |   ✅   |   ✅   |  ✅¹   |   ✅   |
-| `qp_max`                  |   ✅   |   ✅   |  ✅¹   |   ✅   |
-| `qp_init`                 |   ✅   |   ✅   |  ✅¹   |   ✅   |
-| `qp_bb_avg`               |   ⏳   |   ⏳   |   ⏳   |   ⏳   |
-| `qp_bb_stdev`             |   ⏳   |   ⏳   |   ⏳   |   ⏳   |
-| **Motion Vector Metrics** |       |       |       |       |
-| `motion_avg`              |   ✅   |   ✅   |   ✅   |   ✅   |
-| `motion_stdev`            |   ✅   |   ✅   |   ✅   |   ✅   |
-| `motion_x_avg`            |   ✅   |   ✅   |   ✅   |   ✅   |
-| `motion_y_avg`            |   ✅   |   ✅   |   ✅   |   ✅   |
-| `motion_x_stdev`          |   ✅   |   ✅   |   ✅   |   ✅   |
-| `motion_y_stdev`          |   ✅   |   ✅   |   ✅   |   ✅   |
-| `motion_diff_avg`         |   ✅   |   ✅   |   ✅   |   ✅   |
-| `motion_diff_stdev`       |   ✅   |   ✅   |   ✅   |   ✅   |
-| **Bit Count Metrics**     |       |       |       |       |
-| `motion_bit_count`        |   ✅   |   ✅   |   ✅   |   ✅   |
-| `coefs_bit_count`         |   ✅   |   ✅   |   ✅   |   ✅   |
-| **Block Count Metrics**   |       |       |       |       |
-| `mb_mv_count`             |   ✅   |   ✅   |   ✅   |   ✅   |
-| `mv_coded_count`          |   ✅   |   ✅   |   ✅   |   ✅   |
-| **POC Metrics**           |       |       |       |       |
-| `current_poc`             |   ✅   |   ✅   |   —   |   —   |
-| `poc_diff`                |   ✅   |   ✅   |   —   |   —   |
-| **Frame Metadata**        |       |       |       |       |
-| `frame_type`              |   ✅   |   ✅   |   ✅   |   ✅   |
-| `frame_idx`               |   ✅   |   ✅   |   ✅   |   ✅   |
-| `is_idr`                  |   ✅   |   ✅   |   ✅   |   ✅   |
-| `size`                    |   ✅   |   ✅   |   ✅   |   ✅   |
-| `pts`                     |   ✅   |   ✅   |   ✅   |   ✅   |
-| `dts`                     |   ✅   |   ✅   |   ✅   |   ✅   |
+| Metric                    | H.264 | HEVC  |  VP9  |  AV1  | MPEG-2 |
+| ------------------------- | :---: | :---: | :---: | :---: | :----: |
+| **QP Metrics**            |       |       |       |       |        |
+| `qp_avg`                  |   ✅   |   ✅   |  ✅¹   |   ✅   |   ✅    |
+| `qp_stdev`                |   ✅   |   ✅   |  ✅¹   |   ✅   |   ✅    |
+| `qp_min`                  |   ✅   |   ✅   |  ✅¹   |   ✅   |   ✅    |
+| `qp_max`                  |   ✅   |   ✅   |  ✅¹   |   ✅   |   ✅    |
+| `qp_init`                 |   ✅   |   ✅   |  ✅¹   |   ✅   |   ✅    |
+| `qp_bb_avg`               |   ⏳   |   ⏳   |   ⏳   |   ⏳   |   ⏳    |
+| `qp_bb_stdev`             |   ⏳   |   ⏳   |   ⏳   |   ⏳   |   ⏳    |
+| **Motion Vector Metrics** |       |       |       |       |        |
+| `motion_avg`              |   ✅   |   ✅   |   ✅   |   ✅   |   ✅    |
+| `motion_stdev`            |   ✅   |   ✅   |   ✅   |   ✅   |   ✅    |
+| `motion_x_avg`            |   ✅   |   ✅   |   ✅   |   ✅   |   ✅    |
+| `motion_y_avg`            |   ✅   |   ✅   |   ✅   |   ✅   |   ✅    |
+| `motion_x_stdev`          |   ✅   |   ✅   |   ✅   |   ✅   |   ✅    |
+| `motion_y_stdev`          |   ✅   |   ✅   |   ✅   |   ✅   |   ✅    |
+| `motion_diff_avg`         |   ✅   |   ✅   |   ✅   |   ✅   |   ✅    |
+| `motion_diff_stdev`       |   ✅   |   ✅   |   ✅   |   ✅   |   ✅    |
+| **Bit Count Metrics**     |       |       |       |       |        |
+| `motion_bit_count`        |   ✅   |   ✅   |   ✅   |   ✅   |   ✅²   |
+| `coefs_bit_count`         |   ✅   |   ✅   |   ✅   |   ✅   |   ✅    |
+| **Block Count Metrics**   |       |       |       |       |        |
+| `mb_mv_count`             |   ✅   |   ✅   |   ✅   |   ✅   |   ✅²   |
+| `mv_coded_count`          |   ✅   |   ✅   |   ✅   |   ✅   |   ✅    |
+| **POC Metrics**           |       |       |       |       |        |
+| `current_poc`             |   ✅   |   ✅   |   —   |   —   |   —    |
+| `poc_diff`                |   ✅   |   ✅   |   —   |   —   |   —    |
+| **Frame Metadata**        |       |       |       |       |        |
+| `frame_type`              |   ✅   |   ✅   |   ✅   |   ✅   |   ✅    |
+| `frame_idx`               |   ✅   |   ✅   |   ✅   |   ✅   |   ✅    |
+| `is_idr`                  |   ✅   |   ✅   |   ✅   |   ✅   |   ✅    |
+| `size`                    |   ✅   |   ✅   |   ✅   |   ✅   |   ✅    |
+| `pts`                     |   ✅   |   ✅   |   ✅   |   ✅   |   ✅    |
+| `dts`                     |   ✅   |   ✅   |   ✅   |   ✅   |   ✅    |
 
 Legend:
 
@@ -51,6 +51,7 @@ Legend:
 Notes:
 
 1. VP9 QP metrics are not yet implemented for segmented streams.
+2. For MPEG-2, `mb_mv_count` counts 16x16 macroblocks, and `motion_bit_count` includes concealment motion vectors in intra macroblocks.
 
 ## Metric Definitions
 
@@ -58,7 +59,7 @@ This section documents the per-frame metrics extracted by the video parser. For 
 
 ### QP Metrics
 
-QP (Quantization Parameter) values are codec-specific indices that control quantization strength. Higher values mean more compression/lower quality. Typical ranges: H.264/HEVC: 0–51, VP9: 0–255, AV1: 0–255.
+QP (Quantization Parameter) values are codec-specific indices that control quantization strength. Higher values mean more compression/lower quality. Typical ranges: H.264/HEVC: 0–51, VP9: 0–255, AV1: 0–255, MPEG-2: 1–112 (the `quantiser_scale` value, not the 5-bit code; for MPEG-1: 1–31).
 
 | Metric | Description |
 | ------ | ----------- |
@@ -76,6 +77,7 @@ Motion vector metrics are in codec-native sub-pel units:
 
 - **H.264/HEVC**: Quarter-pel (1/4 pixel). Divide by 4 for full-pel values.
 - **VP9/AV1**: Eighth-pel (1/8 pixel). Divide by 8 for full-pel values.
+- **MPEG-2**: Half-pel (1/2 pixel). Divide by 2 for full-pel values. Vertical components of field motion vectors in frame pictures are converted to frame lines.
 
 | Metric | Description |
 | ------ | ----------- |
@@ -104,12 +106,12 @@ Motion vector metrics are in codec-native sub-pel units:
 
 ### POC Metrics
 
-POC (Picture Order Count) is a frame ordering mechanism used in H.264 and HEVC to track the display order of frames independently from decode order. VP9 and AV1 do not use POC.
+POC (Picture Order Count) is a frame ordering mechanism used in H.264 and HEVC to track the display order of frames independently from decode order. VP9, AV1 and MPEG-2 do not use POC.
 
 | Metric | Description |
 | ------ | ----------- |
-| `current_poc` | The Picture Order Count of the current frame. Returns 0 for VP9/AV1. |
-| `poc_diff` | The minimum POC difference between consecutive frames. Useful for temporal normalization. Returns 0 for VP9/AV1. For the first frame, returns `-1` (sentinel value). Most encoders use a value of 1 or 2. |
+| `current_poc` | The Picture Order Count of the current frame. Returns 0 for VP9/AV1/MPEG-2. |
+| `poc_diff` | The minimum POC difference between consecutive frames. Useful for temporal normalization. Returns 0 for VP9/AV1/MPEG-2. For the first frame, returns `-1` (sentinel value). Most encoders use a value of 1 or 2. |
 
 ### Frame Metadata
 

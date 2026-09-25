@@ -121,6 +121,7 @@ if [[ ! -f config.h ]] || [[ "$reconfigure" = true ]]; then
     --enable-parser=hevc
     --enable-parser=vp9
     --enable-parser=av1
+    --enable-parser=mpegvideo
     --enable-parser=vorbis
     # needs lzma, we don't need it
     --disable-decoder=tiff
@@ -133,6 +134,7 @@ if [[ ! -f config.h ]] || [[ "$reconfigure" = true ]]; then
     --enable-demuxer=mov
     --enable-demuxer=mpegvideo
     --enable-demuxer=mpegts
+    --enable-demuxer=mpegps
     # for AOM (vendored)
     --enable-libaom
     "--extra-cflags=${EXTRA_CFLAGS}"

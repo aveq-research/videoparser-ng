@@ -42,6 +42,20 @@ FIXTURES = [
         },
         id="libaom-av1",
     ),
+    pytest.param(
+        {
+            "expected_features": "test-mpeg2video.ldjson",
+            "video": "test-mpeg2video.ts",
+        },
+        id="mpeg2video-mpeg2",
+    ),
+    pytest.param(
+        {
+            "expected_features": "test-mpeg2video-ps.ldjson",
+            "video": "test-mpeg2video.mpg",
+        },
+        id="mpeg2video-mpeg2-ps",
+    ),
 ]
 
 # Keys to compare for frame_info entries

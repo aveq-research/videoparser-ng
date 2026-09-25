@@ -78,9 +78,18 @@ VideoParser::VideoParser(const char *filename) {
           sizeof(sequence_info.video_codec) - 1);
   sequence_info.video_codec[sizeof(sequence_info.video_codec) - 1] = '\0';
 
-  // fix: we replace libaom-av1 with "av1"
+  // fix: we replace libaom-av1 with "av1", and mpeg{1,2}video with
+  // "mpeg{1,2}" (the full name does not fit into the field)
+  const char *codec_name_override = nullptr;
   if (strcmp(codec->name, "libaom-av1") == 0) {
-    strncpy(sequence_info.video_codec, "av1",
+    codec_name_override = "av1";
+  } else if (strcmp(codec->name, "mpeg2video") == 0) {
+    codec_name_override = "mpeg2";
+  } else if (strcmp(codec->name, "mpeg1video") == 0) {
+    codec_name_override = "mpeg1";
+  }
+  if (codec_name_override) {
+    strncpy(sequence_info.video_codec, codec_name_override,
             sizeof(sequence_info.video_codec) - 1);
     sequence_info.video_codec[sizeof(sequence_info.video_codec) - 1] = '\0';
   }
@@ -279,6 +288,9 @@ void VideoParser::set_frame_info(FrameInfo &frame_info) {
     set_frame_info_vp9(frame_info);
   } else if (codec_context->codec_id == AV_CODEC_ID_AV1) {
     set_frame_info_av1(frame_info);
+  } else if (codec_context->codec_id == AV_CODEC_ID_MPEG2VIDEO ||
+             codec_context->codec_id == AV_CODEC_ID_MPEG1VIDEO) {
+    set_frame_info_mpeg2(frame_info);
   } else {
     std::cerr << "Warning: unsupported codec "
               << avcodec_get_name(codec_context->codec_id)
@@ -357,6 +369,7 @@ void VideoParser::set_frame_info_h264(FrameInfo &frame_info) {}
 void VideoParser::set_frame_info_h265(FrameInfo &frame_info) {}
 void VideoParser::set_frame_info_vp9(FrameInfo &frame_info) {}
 void VideoParser::set_frame_info_av1(FrameInfo &frame_info) {}
+void VideoParser::set_frame_info_mpeg2(FrameInfo &frame_info) {}
 
 /**
  * @brief Parse a single frame and set the frame_info struct
