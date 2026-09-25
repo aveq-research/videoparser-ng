@@ -9,10 +9,12 @@
 # ffmpeg's current API. The patches in util/patches/opencv are applied to the
 # submodule before building.
 #
-# Intel IPP (ippicv) is linked in by default. Its license (Intel Simplified
-# Software License) allows redistribution without modification, but the
-# copyright notice and terms must be shipped with the software and its
-# documentation. The license is installed to share/licenses/opencv4.
+# Intel IPP (ippicv) is linked in by default on x86_64. It only exists for
+# x86, and on other architectures OpenCV would link its 32-bit x86 build, so
+# it is off there. Its license (Intel Simplified Software License) allows
+# redistribution without modification, but the copyright notice and terms
+# must be shipped with the software and its documentation. The license is
+# installed to share/licenses/opencv4.
 
 set -e
 
@@ -27,14 +29,17 @@ usage() {
   echo "  --ffmpeg-prefix <dir>  shared ffmpeg install (default: build/ffmpeg-shared/install)"
   echo "  --build-dir <dir>      build directory (default: build/opencv)"
   echo "  --prefix <dir>         install directory (default: <build dir>/install)"
-  echo "  --without-ipp          build without Intel IPP"
+  echo "  --without-ipp          build without Intel IPP (default on other than x86_64)"
   echo "  --clean                remove the previous build first"
   echo "  --help                 print this message"
   exit 1
 }
 
 prefix=""
-withIpp=ON
+withIpp=OFF
+if [[ "$(uname -m)" = x86_64 ]]; then
+  withIpp=ON
+fi
 clean=false
 
 while [[ $# -gt 0 ]]; do
