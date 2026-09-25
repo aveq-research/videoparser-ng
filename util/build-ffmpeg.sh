@@ -7,6 +7,13 @@
 # build/ffmpeg-shared/src, since ffmpeg cannot be built out of tree once the
 # source directory holds the static build.
 #
+# The shared build also includes libavfilter with a few filters (scaling,
+# deinterlacing, and the psnr, ssim and libvmaf metrics), a static libvmaf
+# from `util/build-libvmaf.sh`, and the ffmpeg and ffprobe programs. The
+# programs can decode to the null muxer and write raw video (plain or as
+# YUV4MPEG) to a file or pipe. All options stay LGPL. As with the library,
+# the patched decoders need one thread: run `ffmpeg -threads 1 -i <input>`.
+#
 # With --legacy, build with VP_MV_POC_NORMALIZATION=1 (legacy mode) in a copy
 # of the source in build/ffmpeg-legacy/src, next to the normal build.
 # Combined with --shared, the build goes to build/ffmpeg-shared-legacy.
@@ -32,6 +39,8 @@ usage() {
   echo "  --shared            build shared libraries into build/ffmpeg-shared"
   echo "  --legacy            build in legacy mode into build/ffmpeg-legacy"
   echo "  --prefix <dir>      install directory for --shared (default: build/ffmpeg-shared/install)"
+  echo "  --exe-rpath <dirs>  runpath of the programs for --shared: directories relative"
+  echo "                      to the program, separated by ':' (default: ../lib)"
   echo "  --help              print this message"
   exit 1
 }
@@ -41,6 +50,7 @@ clean=false
 shared=false
 legacy=false
 prefix=""
+exeRpath="../lib"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -60,6 +70,10 @@ while [[ $# -gt 0 ]]; do
       shift
       prefix="$1"
       ;;
+    --exe-rpath)
+      shift
+      exeRpath="$1"
+      ;;
     --help)
       usage
       ;;
@@ -77,6 +91,14 @@ copyBuild="${PROJECT_ROOT}/build/ffmpeg"
 [[ "$legacy" = true ]] && copyBuild="${copyBuild}-legacy"
 prefix="${prefix:-${copyBuild}/install}"
 
+LIBVMAF_PREFIX="${PROJECT_ROOT}/build/libvmaf/install"
+
+# Build libvmaf for the shared build if not already built
+if [[ "$shared" = true ]] && [[ ! -f "${LIBVMAF_PREFIX}/lib/libvmaf.a" ]]; then
+  echo "Building libvmaf first..."
+  "${SCRIPT_DIR}/build-libvmaf.sh" --prefix "${LIBVMAF_PREFIX}"
+fi
+
 if [[ "$legacy" = true ]]; then
   VP_EXTRA_CFLAGS="${VP_EXTRA_CFLAGS:+${VP_EXTRA_CFLAGS} }-DVP_MV_POC_NORMALIZATION=1"
 fi
@@ -88,6 +110,14 @@ if [[ "$shared" = true ]] || [[ "$legacy" = true ]]; then
   git -C "${FFMPEG_SRC}" ls-files -z --cached --others --exclude-standard |
     tar -C "${FFMPEG_SRC}" --null -T - -cf - |
     tar -C "${copyBuild}/src" -xf -
+  # The copy is not a git checkout of ffmpeg, so give ffmpeg's version script
+  # the version it would find in external/ffmpeg
+  ffmpegVersion="$(git -C "${FFMPEG_SRC}" describe --tags --match N 2>/dev/null ||
+    git -C "${FFMPEG_SRC}" describe --tags --always 2>/dev/null || true)"
+  if [[ -n "${ffmpegVersion}" ]] && [[ "$(cat "${copyBuild}/src/FF_VERSION" 2>/dev/null)" != "${ffmpegVersion}" ]]; then
+    echo "${ffmpegVersion}" > "${copyBuild}/src/FF_VERSION"
+    rm -f "${copyBuild}/src/.version"
+  fi
   cd "${copyBuild}/src"
 else
   cd "${FFMPEG_SRC}" || (echo "ffmpeg directory not found!" && exit 1)
@@ -187,19 +217,60 @@ if [[ ! -f config.h ]] || [[ "$reconfigure" = true ]]; then
   )
 
   if [[ "$shared" = true ]]; then
+    export PKG_CONFIG_PATH="${LIBVMAF_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH}"
     configureFlags+=(
       --enable-shared
       --disable-static
       "--prefix=${prefix}"
-      # needed by OpenCV's videoio
+      # needed by OpenCV's videoio and the scale and aresample filters
       --enable-swscale
       --enable-swresample
       --disable-avdevice
+      # no system libraries except zlib and bzip2 (e.g. no X11, SDL, ALSA,
+      # lzma or hardware decoders)
+      --disable-autodetect
+      --enable-zlib
+      --enable-bzlib
+      --enable-pthreads
+      # programs, e.g. for VMAF: ffmpeg -i ref -i dist -lavfi libvmaf -f null -
+      --enable-ffmpeg
+      --enable-ffprobe
+      --disable-ffplay
+      # only the filters needed for scaling, deinterlacing and full-reference
+      # metrics; the buffer and buffersink filters are always built
+      --enable-avfilter
+      --disable-filters
+      --enable-filter=scale,format,fps,setpts,crop,pad
+      --enable-filter=bwdif,yadif
+      --enable-filter=psnr,ssim,libvmaf
+      --enable-filter=aresample,aformat,split,null,anull
+      --enable-libvmaf
+      # static libvmaf (and libaom) with their dependencies
+      --pkg-config-flags=--static
+      # decoding to the null muxer, and raw video (plain or as YUV4MPEG),
+      # e.g. for piping deinterlaced video to another program
+      --enable-muxer=null,yuv4mpegpipe,rawvideo
+      --enable-encoder=wrapped_avframe,rawvideo
+      --enable-demuxer=yuv4mpegpipe
+      # AV1 and VP9 elementary streams (OBU, Annex B, IVF)
+      --enable-demuxer=obu,av1,ivf
+      # audio frame splitting, e.g. for AAC, AC-3 and MPEG audio in MPEG-TS
+      --enable-parser=aac,aac_latm,ac3,mpegaudio
+      --enable-protocol=pipe
     )
-    # Find the other ffmpeg libraries in the same directory. configure expands
-    # "$" once and make twice, hence the escaping.
+    # Find the other ffmpeg libraries in the same directory, and the libraries
+    # from the programs. configure expands "$" once, and make twice for the
+    # libraries and once for the programs, hence the escaping.
     if [[ "$(uname)" = Linux ]]; then
-      configureFlags+=("--extra-ldsoflags=-Wl,-rpath,'\\\$\\\$\\\$\\\$ORIGIN'")
+      exeRunpath=""
+      IFS=: read -r -a exeRpathDirs <<< "${exeRpath}"
+      for dir in "${exeRpathDirs[@]}"; do
+        exeRunpath="${exeRunpath:+${exeRunpath}:}\\\$\\\$ORIGIN/${dir}"
+      done
+      configureFlags+=(
+        "--extra-ldsoflags=-Wl,-rpath,'\\\$\\\$\\\$\\\$ORIGIN'"
+        "--extra-ldexeflags=-Wl,-rpath,'${exeRunpath}'"
+      )
     fi
   else
     configureFlags+=(

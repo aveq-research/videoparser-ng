@@ -25,14 +25,15 @@ FFMPEG_PREFIX="${PROJECT_ROOT}/build/ffmpeg-shared/install"
 usage() {
   echo "Usage: $0 [options]"
   echo "  --ffmpeg-prefix <dir>  shared ffmpeg install (default: build/ffmpeg-shared/install)"
-  echo "  --prefix <dir>         install directory (default: build/opencv/install)"
+  echo "  --build-dir <dir>      build directory (default: build/opencv)"
+  echo "  --prefix <dir>         install directory (default: <build dir>/install)"
   echo "  --without-ipp          build without Intel IPP"
   echo "  --clean                remove the previous build first"
   echo "  --help                 print this message"
   exit 1
 }
 
-prefix="${OPENCV_BUILD}/install"
+prefix=""
 withIpp=ON
 clean=false
 
@@ -41,6 +42,10 @@ while [[ $# -gt 0 ]]; do
     --ffmpeg-prefix)
       shift
       FFMPEG_PREFIX="$1"
+      ;;
+    --build-dir)
+      shift
+      OPENCV_BUILD="$1"
       ;;
     --prefix)
       shift
@@ -62,6 +67,8 @@ while [[ $# -gt 0 ]]; do
   esac
   shift
 done
+
+prefix="${prefix:-${OPENCV_BUILD}/install}"
 
 if [[ ! -f "${OPENCV_SRC}/CMakeLists.txt" ]]; then
   echo "OpenCV source not found, run: git submodule update --init external/opencv"
