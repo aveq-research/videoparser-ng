@@ -205,6 +205,13 @@ private:
   SequenceInfo sequence_info;
   double first_pts = 0;
   double last_pts = 0;
+  /** Index and time of the last frame with a timestamp */
+  struct TimestampAnchor {
+    int64_t frame_idx = -1;
+    double time = 0.0;
+  };
+  TimestampAnchor last_valid_pts;   // for frames without a pts
+  TimestampAnchor last_valid_dts;   // for frames without a dts
   uint64_t packet_size_sum = 0;     // accumulated packet size sum, if not
                                     // available from format context
   bool bitrate_from_scan = false;   // bitrate estimated by scan_video_packets()
