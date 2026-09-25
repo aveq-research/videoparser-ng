@@ -347,13 +347,20 @@ void VideoParser::set_frame_info(FrameInfo &frame_info) {
   }
 
   // collect frame timing information
-  double pts = (frame->pts != AV_NOPTS_VALUE ? frame->pts
-                                             : frame->best_effort_timestamp) *
-               av_q2d(format_context->streams[video_stream_idx]->time_base);
-  double dts =
-      (frame->pkt_dts != AV_NOPTS_VALUE ? frame->pkt_dts
-                                        : frame->best_effort_timestamp) *
+  double time_base =
       av_q2d(format_context->streams[video_stream_idx]->time_base);
+  int64_t pts_ts =
+      frame->pts != AV_NOPTS_VALUE ? frame->pts : frame->best_effort_timestamp;
+  int64_t dts_ts = frame->pkt_dts != AV_NOPTS_VALUE
+                       ? frame->pkt_dts
+                       : frame->best_effort_timestamp;
+  // Raw bitstreams may have no timestamps at all: use the frame index and
+  // frame rate instead
+  double frame_time = sequence_info.video_framerate > 0
+                          ? frame_idx / sequence_info.video_framerate
+                          : 0.0;
+  double pts = pts_ts != AV_NOPTS_VALUE ? pts_ts * time_base : frame_time;
+  double dts = dts_ts != AV_NOPTS_VALUE ? dts_ts * time_base : frame_time;
   // set first and last pts to calculate video duration at the end
   if (frame_idx == 0) {
     first_pts = pts;
