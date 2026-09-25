@@ -355,13 +355,30 @@ void VideoParser::set_frame_info(FrameInfo &frame_info) {
   int64_t dts_ts = frame->pkt_dts != AV_NOPTS_VALUE
                        ? frame->pkt_dts
                        : frame->best_effort_timestamp;
-  // Raw bitstreams may have no timestamps at all: use the frame index and
-  // frame rate instead, or NaN (null in JSON) without a frame rate
-  double frame_time = sequence_info.video_framerate > 0
-                          ? frame_idx / sequence_info.video_framerate
-                          : std::nan("");
-  double pts = pts_ts != AV_NOPTS_VALUE ? pts_ts * time_base : frame_time;
-  double dts = dts_ts != AV_NOPTS_VALUE ? dts_ts * time_base : frame_time;
+  // Frames without a timestamp (all frames of raw bitstreams, or single
+  // frames at the end of a stream) get the last known timestamp plus the
+  // frame distance, or the frame index divided by the frame rate if there is
+  // none. Without a frame rate, NaN (null in JSON).
+  double framerate = sequence_info.video_framerate;
+  auto estimate = [&](const TimestampAnchor &anchor) {
+    if (!(framerate > 0)) {
+      return std::nan("");
+    }
+    if (anchor.frame_idx < 0) {
+      return frame_idx / framerate;
+    }
+    return anchor.time + (frame_idx - anchor.frame_idx) / framerate;
+  };
+  double pts =
+      pts_ts != AV_NOPTS_VALUE ? pts_ts * time_base : estimate(last_valid_pts);
+  double dts =
+      dts_ts != AV_NOPTS_VALUE ? dts_ts * time_base : estimate(last_valid_dts);
+  if (pts_ts != AV_NOPTS_VALUE) {
+    last_valid_pts = {static_cast<int64_t>(frame_idx), pts};
+  }
+  if (dts_ts != AV_NOPTS_VALUE) {
+    last_valid_dts = {static_cast<int64_t>(frame_idx), dts};
+  }
   // set first and last pts to calculate video duration at the end
   if (frame_idx == 0) {
     first_pts = pts;
