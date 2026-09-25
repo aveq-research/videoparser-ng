@@ -4,3 +4,7 @@
 [submodule "external/libaom"]
 	path = external/libaom
 	url = https://github.com/aveq-research/libaom.git
+[submodule "external/opencv"]
+	path = external/opencv
+	url = https://github.com/opencv/opencv.git
+	branch = 4.x

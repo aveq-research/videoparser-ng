@@ -64,11 +64,6 @@ COPY --from=libaom-builder /build/libaom /build/libaom
 # Copy ffmpeg source
 COPY external/ffmpeg /build/ffmpeg
 
-# Copy VideoParser headers (required by our ffmpeg fork)
-# ffmpeg includes "../../../VideoParser/include/shared.h" from libavutil/frame.h
-# From /build/ffmpeg/libavutil/frame.h, that resolves to /VideoParser/include/shared.h
-COPY VideoParser /VideoParser
-
 WORKDIR /build/ffmpeg
 
 # Configure and build ffmpeg with vendored libaom

@@ -30,7 +30,7 @@ This program patches ffmpeg to add support for extracting additional bitstream p
 - ffmpeg is cloned and has a separate branch checked out.
 - `libaom` is also cloned and has a separate branch checked out, with modifications to support the extraction of bitstream properties.
 
-To pass extra information from the ffmpeg part to the VideoParser part, we use the `SharedFrameInfo` struct to store the bitstream properties like QP values, motion vectors, etc. The definition is in `VideoParser/include/shared.h`, and it is included in ffmpeg as well, via an extra side data type `AV_FRAME_DATA_VIDEOPARSER_INFO`.
+To pass extra information from the ffmpeg part to the VideoParser part, we use the `SharedFrameInfo` struct to store the bitstream properties like QP values, motion vectors, etc. The definition is in `libavutil/videoparser.h` in the ffmpeg fork, which installs it with its other public headers. `VideoParser/include/shared.h` includes it. ffmpeg attaches the struct to each frame as the side data type `AV_FRAME_DATA_VIDEOPARSER_INFO`.
 
 It is extracted from there using a helper function `videoparser_get_final_shared_frame_info`. This is implemented in `ffmpeg/libavutil/frame.c` as an additional method. It performs some extra calculations on the data, like average QP, standard deviation, etc.
 

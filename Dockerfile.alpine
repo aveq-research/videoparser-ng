@@ -58,7 +58,6 @@ WORKDIR /build
 
 COPY --from=libaom-builder /build/libaom /build/libaom
 COPY external/ffmpeg /build/ffmpeg
-COPY VideoParser /VideoParser
 
 WORKDIR /build/ffmpeg
 
@@ -176,14 +175,6 @@ COPY --from=ffmpeg-builder /build/ffmpeg/libavutil/*.h /sdk/include/libavutil/
 # VideoParser headers
 COPY --from=videoparser-builder /app/VideoParser/*.h /sdk/include/VideoParser/
 COPY --from=videoparser-builder /app/VideoParser/include/ /sdk/include/VideoParser/include/
-
-# Fix FFmpeg include paths for SDK layout
-# Source tree uses "../../../VideoParser/include/shared.h" (3 levels up from external/ffmpeg/libavutil/)
-# SDK uses "../../VideoParser/include/shared.h" (2 levels up from include/libavutil/)
-RUN sed -i 's|"../../../VideoParser/include/shared.h"|"../../VideoParser/include/shared.h"|g' /sdk/include/libavutil/frame.h
-
-# Copy VideoParser to SDK root for the relative include path
-COPY --from=videoparser-builder /app/VideoParser/include/ /sdk/VideoParser/include/
 
 # =============================================================================
 # Stage 7: SDK extractor (minimal output)
