@@ -199,6 +199,15 @@ int main(int argc, char *argv[]) {
     }
 
     parser.close();
+
+    // A video stream without frames is an error, unless no frames were
+    // requested
+    if (frames_processed == 0 && num_frames != 0) {
+      std::cerr << "Error: No frames could be parsed from the video stream "
+                   "(unsupported codec or undecodable stream)"
+                << std::endl;
+      return EXIT_FAILURE;
+    }
   } catch (const std::exception &e) {
     std::cerr << "Error: " << e.what() << std::endl;
     return EXIT_FAILURE;
