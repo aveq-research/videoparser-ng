@@ -148,6 +148,15 @@ public:
   VideoParser(const char *filename);
 
   /**
+   * @brief Destroy the Video Parser object and free all resources not yet
+   * freed by close()
+   */
+  ~VideoParser();
+
+  VideoParser(const VideoParser &) = delete;
+  VideoParser &operator=(const VideoParser &) = delete;
+
+  /**
    * @brief Get information about the video sequence
    *
    * This method can be called either before or after parsing frames.
@@ -175,7 +184,8 @@ public:
    * @brief Close the video file and free resources
    *
    * This method should be called after parsing is complete to properly close
-   * the video file and free all allocated resources.
+   * the video file and free all allocated resources. Calling it more than once
+   * is safe. The destructor also calls it.
    */
   void close();
 
@@ -191,11 +201,12 @@ private:
   SequenceInfo sequence_info;
   double first_pts = 0;
   double last_pts = 0;
-  uint64_t packet_size_sum = 0;   // accumulated packet size sum, if not
-                                  // available from format context
-  bool bitrate_from_scan = false; // bitrate estimated by scan_video_packets()
-  std::function<void()> close_input;
+  uint64_t packet_size_sum = 0;     // accumulated packet size sum, if not
+                                    // available from format context
+  bool bitrate_from_scan = false;   // bitrate estimated by scan_video_packets()
+  bool network_initialized = false; // avformat_network_init() was called
 
+  void open(const char *filename);
   void scan_video_packets();
   void print_shared_frame_info(SharedFrameInfo &shared_frame_info);
   void set_frame_info(FrameInfo &frame_info);

@@ -22,22 +22,30 @@ void set_verbose(bool verbose) {
 }
 
 VideoParser::VideoParser(const char *filename) {
+  // The destructor does not run if the constructor throws, so free what was
+  // opened so far
+  try {
+    open(filename);
+  } catch (...) {
+    close();
+    throw;
+  }
+}
+
+VideoParser::~VideoParser() { close(); }
+
+/**
+ * @brief Open the file and the decoder, and fill the sequence info
+ */
+void VideoParser::open(const char *filename) {
   // Initialize FFmpeg networking
   avformat_network_init();
+  network_initialized = true;
 
   // Open the video file
   if (avformat_open_input(&format_context, filename, nullptr, nullptr) != 0) {
     throw std::runtime_error("Error opening the file");
   }
-
-  // ScopeExit for closing the input and freeing memory
-  close_input = [this]() {
-    // Close the video file
-    avformat_close_input(&format_context);
-
-    // Free up memory
-    avformat_free_context(format_context);
-  };
 
   // Retrieve stream information
   if (avformat_find_stream_info(format_context, nullptr) < 0) {
@@ -142,11 +150,11 @@ VideoParser::VideoParser(const char *filename) {
   // // https://ffmpeg.org/doxygen/trunk/extract_mvs_8c-example.html
   // av_dict_set(&opts, "flags2", "+export_mvs", 0);
 
-  if (avcodec_open2(codec_context, codec, &opts) < 0) {
+  int open_result = avcodec_open2(codec_context, codec, &opts);
+  av_dict_free(&opts);
+  if (open_result < 0) {
     throw std::runtime_error("Error opening codec");
   }
-
-  av_dict_free(&opts);
 
   // Allocate packet and frame
   current_packet = av_packet_alloc();
@@ -483,7 +491,8 @@ void VideoParser::set_frame_info_mpeg2(FrameInfo &frame_info) {}
  * @return false If no frame was parsed (stop parsing)
  */
 bool VideoParser::parse_frame(FrameInfo &frame_info) {
-  if (decoder_finished) {
+  // No more frames after the end of the stream or after close()
+  if (decoder_finished || !codec_context) {
     return false;
   }
 
@@ -563,5 +572,13 @@ bool VideoParser::parse_frame(FrameInfo &frame_info) {
 void VideoParser::close() {
   av_packet_free(&current_packet);
   av_frame_free(&frame);
+  // Also closes the decoder, including its libaom state
+  avcodec_free_context(&codec_context);
+  // Also frees the format context and sets it to nullptr
+  avformat_close_input(&format_context);
+  if (network_initialized) {
+    avformat_network_deinit();
+    network_initialized = false;
+  }
 }
 } // namespace videoparser
