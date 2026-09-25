@@ -1,0 +1,27 @@
+diff --git a/modules/videoio/src/cap_ffmpeg_impl.hpp b/modules/videoio/src/cap_ffmpeg_impl.hpp
+index 442a051e8..5e210cbe3 100644
+--- a/modules/videoio/src/cap_ffmpeg_impl.hpp
++++ b/modules/videoio/src/cap_ffmpeg_impl.hpp
+@@ -2036,7 +2036,21 @@ bool CvCapture_FFMPEG::retrieveFrame(int flag, unsigned char** data, int* step,
+     }
+ 
+ #if LIBSWSCALE_BUILD >= CALC_FFMPEG_VERSION(6, 4, 100)
+-    sws_scale_frame(img_convert_ctx, &rgb_picture, sw_picture);
++#ifdef AV_FRAME_FLAG_INTERLACED
++    // FFmpeg 8+ rejects conversion between interlaced and progressive frames.
++    // Convert the whole frame as progressive, like sws_scale() does.
++    sw_picture->flags &= ~AV_FRAME_FLAG_INTERLACED;
++#endif
++    int sws_ret = sws_scale_frame(img_convert_ctx, &rgb_picture, sw_picture);
++    if (sws_ret < 0)
++    {
++        CV_LOG_ERROR(NULL, "sws_scale_frame() failed: " << sws_ret);
++#if USE_AV_HW_CODECS
++        if (sw_picture != picture)
++            av_frame_free(&sw_picture);
++#endif
++        return false;
++    }
+ #else
+     sws_scale(
+             img_convert_ctx,

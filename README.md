@@ -374,6 +374,25 @@ util/build-ffmpeg.sh --reconfigure
 
 This will rebuild ffmpeg after which you can run the build script for the project again.
 
+### Shared ffmpeg and OpenCV
+
+Other programs, such as video-analyzer, can use the patched ffmpeg as shared libraries. To build them with swscale and swresample into `build/ffmpeg-shared/install`, run:
+
+```bash
+util/build-ffmpeg.sh --shared
+```
+
+On Linux, the libraries find each other through an `$ORIGIN` runpath, so they can be shipped together in one directory. The patched decoders must run single-threaded, so set the thread count to 1 when opening a video.
+
+To build a static OpenCV (core, imgproc, imgcodecs, videoio) against these libraries into `build/opencv/install`, run:
+
+```bash
+git submodule update --init external/opencv
+util/build-opencv.sh
+```
+
+OpenCV is pinned to a commit on its 4.x development branch, since releases up to 4.14 do not compile against the current ffmpeg API. The patches in `util/patches/opencv` are applied before building. They fix black frames for interlaced video with ffmpeg 8 and later. Intel IPP is included by default; build without it with `--without-ipp`. When shipping OpenCV built with IPP, include its license files (`ippicv-*` and `ippiw-*` in `share/licenses/opencv4` of the install directory) with the software and its documentation.
+
 ### Building with Docker
 
 To build the project with Docker, run:

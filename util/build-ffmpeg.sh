@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 #
-# Build ffmpeg in the external/ffmpeg directory
+# Build ffmpeg in the external/ffmpeg directory.
+#
+# With --shared, build shared libraries with swscale and swresample instead,
+# for use by other programs (e.g. OpenCV). The source is copied to
+# build/ffmpeg-shared/src, since ffmpeg cannot be built out of tree once the
+# source directory holds the static build.
 
 set -e
 
@@ -8,11 +13,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="${SCRIPT_DIR}/.."
 LIBAOM_BUILD="${PROJECT_ROOT}/external/libaom/aom_build"
 
-cd "${PROJECT_ROOT}/external/ffmpeg" || (echo "ffmpeg directory not found!" && exit 1)
-
-# Explicitly set SRC_PATH to current directory
-SRC_PATH="$(pwd)"
-export SRC_PATH
+FFMPEG_SRC="${PROJECT_ROOT}/external/ffmpeg"
+SHARED_BUILD="${PROJECT_ROOT}/build/ffmpeg-shared"
 
 # Build libaom if not already built
 if [[ ! -f "${LIBAOM_BUILD}/libaom.a" ]]; then
@@ -24,12 +26,16 @@ usage() {
   echo "Usage: $0 [options]"
   echo "  --reconfigure       reconfigure ffmpeg"
   echo "  --clean             clean ffmpeg build (implies reconfigure)"
+  echo "  --shared            build shared libraries into build/ffmpeg-shared"
+  echo "  --prefix <dir>      install directory for --shared (default: build/ffmpeg-shared/install)"
   echo "  --help              print this message"
   exit 1
 }
 
 reconfigure=false
 clean=false
+shared=false
+prefix="${SHARED_BUILD}/install"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -38,6 +44,13 @@ while [[ $# -gt 0 ]]; do
       ;;
     --clean)
       clean=true
+      ;;
+    --shared)
+      shared=true
+      ;;
+    --prefix)
+      shift
+      prefix="$1"
       ;;
     --help)
       usage
@@ -49,6 +62,22 @@ while [[ $# -gt 0 ]]; do
   esac
   shift
 done
+
+if [[ "$shared" = true ]]; then
+  # Copy tracked and untracked (but not ignored) source files. tar keeps the
+  # modification times, so make only rebuilds what changed.
+  mkdir -p "${SHARED_BUILD}/src"
+  git -C "${FFMPEG_SRC}" ls-files -z --cached --others --exclude-standard |
+    tar -C "${FFMPEG_SRC}" --null -T - -cf - |
+    tar -C "${SHARED_BUILD}/src" -xf -
+  cd "${SHARED_BUILD}/src"
+else
+  cd "${FFMPEG_SRC}" || (echo "ffmpeg directory not found!" && exit 1)
+fi
+
+# Explicitly set SRC_PATH to current directory
+SRC_PATH="$(pwd)"
+export SRC_PATH
 
 startTime=$(date +%s)
 
@@ -83,13 +112,9 @@ if [[ ! -f config.h ]] || [[ "$reconfigure" = true ]]; then
     --disable-programs
     --disable-doc
     --disable-stripping
-    --enable-static
     --enable-pthreads
     --enable-debug=2
-    # disable filters and scaling
     --disable-avfilter
-    --disable-swscale
-    --disable-swresample
     # hardware acceleration
     --disable-audiotoolbox
     --disable-videotoolbox
@@ -143,6 +168,29 @@ if [[ ! -f config.h ]] || [[ "$reconfigure" = true ]]; then
     --disable-inline-asm
   )
 
+  if [[ "$shared" = true ]]; then
+    configureFlags+=(
+      --enable-shared
+      --disable-static
+      "--prefix=${prefix}"
+      # needed by OpenCV's videoio
+      --enable-swscale
+      --enable-swresample
+      --disable-avdevice
+    )
+    # Find the other ffmpeg libraries in the same directory. configure expands
+    # "$" once and make twice, hence the escaping.
+    if [[ "$(uname)" = Linux ]]; then
+      configureFlags+=("--extra-ldsoflags=-Wl,-rpath,'\\\$\\\$\\\$\\\$ORIGIN'")
+    fi
+  else
+    configureFlags+=(
+      --enable-static
+      --disable-swscale
+      --disable-swresample
+    )
+  fi
+
   ./configure "${configureFlags[@]}"
 fi
 
@@ -151,6 +199,11 @@ echo "Building ffmpeg..."
 # Use MAKE_JOBS env var if set, otherwise use nproc
 JOBS="${MAKE_JOBS:-$(nproc)}"
 make "-j${JOBS}"
+
+if [[ "$shared" = true ]]; then
+  make install
+  echo "ffmpeg shared libraries installed to ${prefix}"
+fi
 
 endTime=$(date +%s)
 
