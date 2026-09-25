@@ -257,6 +257,9 @@ if [[ ! -f config.h ]] || [[ "$reconfigure" = true ]]; then
       # audio frame splitting, e.g. for AAC, AC-3 and MPEG audio in MPEG-TS
       --enable-parser=aac,aac_latm,ac3,mpegaudio
       --enable-protocol=pipe
+      # no FMA contraction, which GCC does by default on arm64, so that the
+      # statistics are the same on x86_64 and arm64
+      --extra-cflags=-ffp-contract=off
     )
     # Find the other ffmpeg libraries in the same directory, and the libraries
     # from the programs. configure expands "$" once, and make twice for the
