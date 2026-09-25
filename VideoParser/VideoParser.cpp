@@ -42,15 +42,7 @@ void VideoParser::open(const char *filename) {
   avformat_network_init();
   network_initialized = true;
 
-  // Open the video file
-  if (avformat_open_input(&format_context, filename, nullptr, nullptr) != 0) {
-    throw std::runtime_error("Error opening the file");
-  }
-
-  // Retrieve stream information
-  if (avformat_find_stream_info(format_context, nullptr) < 0) {
-    throw std::runtime_error("Error finding the stream information");
-  }
+  open_input(filename);
 
   // Find the first video stream
   for (unsigned int i = 0; i < format_context->nb_streams; i++) {
@@ -81,8 +73,11 @@ void VideoParser::open(const char *filename) {
     throw std::runtime_error("Error finding the video codec");
   }
 
-  sequence_info.video_duration =
-      format_context->duration / static_cast<double>(AV_TIME_BASE);
+  // Raw bitstreams have no duration; it is then estimated below
+  if (format_context->duration != AV_NOPTS_VALUE) {
+    sequence_info.video_duration =
+        format_context->duration / static_cast<double>(AV_TIME_BASE);
+  }
   strncpy(sequence_info.video_codec, codec->name,
           sizeof(sequence_info.video_codec) - 1);
   sequence_info.video_codec[sizeof(sequence_info.video_codec) - 1] = '\0';
@@ -119,7 +114,9 @@ void VideoParser::open(const char *filename) {
   // frame count, so estimate them from the video packets
   if (sequence_info.video_bitrate == 0 ||
       sequence_info.video_frame_count == 0) {
-    scan_video_packets();
+    scan_video_packets(filename);
+    // The scan may have reopened the file
+    codec_parameters = format_context->streams[video_stream_idx]->codecpar;
   }
 
   // Open codec
@@ -168,6 +165,19 @@ void VideoParser::open(const char *filename) {
   }
 }
 
+/**
+ * @brief Open the file and read its stream information
+ */
+void VideoParser::open_input(const char *filename) {
+  if (avformat_open_input(&format_context, filename, nullptr, nullptr) != 0) {
+    throw std::runtime_error("Error opening the file");
+  }
+
+  if (avformat_find_stream_info(format_context, nullptr) < 0) {
+    throw std::runtime_error("Error finding the stream information");
+  }
+}
+
 namespace {
 /**
  * @brief Time span covered by a sequence of packet timestamps.
@@ -203,9 +213,9 @@ struct TimestampSpan {
 
 /**
  * @brief Estimate bitrate and frame count by reading all video packets without
- * decoding them, then seek back to the start of the file.
+ * decoding them, then go back to the start of the file.
  */
-void VideoParser::scan_video_packets() {
+void VideoParser::scan_video_packets(const char *filename) {
   AVPacket *packet = av_packet_alloc();
   if (!packet) {
     throw std::runtime_error("Error allocating packet");
@@ -240,12 +250,21 @@ void VideoParser::scan_video_packets() {
   // preferred, as PTS starts later with B-frames and is not set for every
   // packet in MPEG-PS.
   double duration = sequence_info.video_duration;
+  bool duration_from_timestamps = false;
   for (const TimestampSpan &span : spans) {
     int64_t length = span.length(frame_period);
     if (length > 0) {
       duration = length * av_q2d(stream->time_base);
+      duration_from_timestamps = true;
       break;
     }
+  }
+  // Without timestamps or a duration (raw bitstreams), use the frame rate
+  if (!duration_from_timestamps && duration <= 0 && frame_period > 0) {
+    duration = packet_count * frame_period * av_q2d(stream->time_base);
+  }
+  if (sequence_info.video_duration <= 0 && duration > 0) {
+    sequence_info.video_duration = duration;
   }
 
   if (sequence_info.video_bitrate == 0 && duration > 0) {
@@ -256,8 +275,21 @@ void VideoParser::scan_video_packets() {
     sequence_info.video_frame_count = packet_count;
   }
 
-  if (av_seek_frame(format_context, -1, 0, AVSEEK_FLAG_BYTE) < 0) {
-    throw std::runtime_error("Error seeking back to the start of the file");
+  // Go back to the start. A byte seek works for formats without reliable
+  // timestamps (MPEG-TS/PS, raw bitstreams). Other demuxers, such as Matroska
+  // and MP4, keep their end-of-file state after a byte seek or do not support
+  // it, so reopen the file for them.
+  const AVInputFormat *input_format = format_context->iformat;
+  bool byte_seek =
+      (input_format->flags & (AVFMT_TS_DISCONT | AVFMT_NOTIMESTAMPS)) &&
+      !(input_format->flags & AVFMT_NO_BYTE_SEEK);
+  if (byte_seek) {
+    if (av_seek_frame(format_context, -1, 0, AVSEEK_FLAG_BYTE) < 0) {
+      throw std::runtime_error("Error seeking back to the start of the file");
+    }
+  } else {
+    avformat_close_input(&format_context);
+    open_input(filename);
   }
 }
 

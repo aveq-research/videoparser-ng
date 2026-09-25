@@ -211,7 +211,8 @@ private:
   bool network_initialized = false; // avformat_network_init() was called
 
   void open(const char *filename);
-  void scan_video_packets();
+  void open_input(const char *filename);
+  void scan_video_packets(const char *filename);
   void print_shared_frame_info(SharedFrameInfo &shared_frame_info);
   void set_frame_info(FrameInfo &frame_info);
   void set_frame_info_h264(FrameInfo &frame_info);
