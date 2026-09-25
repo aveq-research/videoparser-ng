@@ -1,0 +1,23 @@
+diff --git a/modules/videoio/src/cap_ffmpeg_impl.hpp b/modules/videoio/src/cap_ffmpeg_impl.hpp
+--- a/modules/videoio/src/cap_ffmpeg_impl.hpp
++++ b/modules/videoio/src/cap_ffmpeg_impl.hpp
+@@ -1906,6 +1906,19 @@
+         << ", transfer: " << av_color_transfer_name(sw_picture->color_trc)
+     );
+ 
++#if LIBSWSCALE_BUILD >= CALC_FFMPEG_VERSION(6, 4, 100)
++    // sws_scale_frame() converts with the colour properties of the frame
++    // (e.g. the BT.709 matrix), while sws_scale() always uses the defaults
++    // (BT.601, limited range for YUV, default chroma siting). Convert with the
++    // defaults, as with sws_scale(), so that the result does not depend on
++    // whether the container carries these properties.
++    sw_picture->colorspace = AVCOL_SPC_UNSPECIFIED;
++    sw_picture->color_range = AVCOL_RANGE_UNSPECIFIED;
++    sw_picture->color_primaries = AVCOL_PRI_UNSPECIFIED;
++    sw_picture->color_trc = AVCOL_TRC_UNSPECIFIED;
++    sw_picture->chroma_location = AVCHROMA_LOC_UNSPECIFIED;
++#endif
++
+     const AVPixelFormat color_format = enableAlpha ? AV_PIX_FMT_BGRA : AV_PIX_FMT_BGR24;
+     const AVPixelFormat result_format = convertRGB ? color_format : (AVPixelFormat)sw_picture->format;
+     switch (result_format)
