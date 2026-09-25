@@ -6,6 +6,33 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 <!-- insertion marker -->
+## [v0.7.0](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.7.0) - 2026-09-25
+
+<small>[Compare with v0.6.2](https://github.com/aveq-research/videoparser-ng/compare/v0.6.2...v0.7.0)</small>
+
+### Features
+
+- add shared library build ([1430f02](https://github.com/aveq-research/videoparser-ng/commit/1430f02a9fc83a26a648d557c32e4125d5e49f6a) by Werner Robitza).
+- add filters, libvmaf and programs to shared ffmpeg ([6394301](https://github.com/aveq-research/videoparser-ng/commit/639430178e7533a3c437cf52523fa980344428a8) by Werner Robitza).
+
+### Bug Fixes
+
+- continue from the last timestamp for frames without one ([33d3527](https://github.com/aveq-research/videoparser-ng/commit/33d3527ff9839e44c8bb95c101cd0b18d947c3d8) by Werner Robitza).
+- write null timestamps without a frame rate ([d990ee7](https://github.com/aveq-research/videoparser-ng/commit/d990ee7c00f97cb688c9892443e59b75a03e3cc7) by Werner Robitza).
+- time frames without timestamps by index ([43df4c4](https://github.com/aveq-research/videoparser-ng/commit/43df4c47f56ba5d92a0a1ae2f368f2ddf5ce9fb4) by Werner Robitza).
+- turn off FMA contraction in the shared ffmpeg ([1fc6e2d](https://github.com/aveq-research/videoparser-ng/commit/1fc6e2d61c2a469d0b1fb2b5cc9a13efef8359a2) by Werner Robitza).
+- update ffmpeg for H.264 bit counts on arm64 ([35249a7](https://github.com/aveq-research/videoparser-ng/commit/35249a776ae21c800f2412dc16af8ef9e62d37a5) by Werner Robitza).
+- convert OpenCV frames with default colour properties ([807771f](https://github.com/aveq-research/videoparser-ng/commit/807771fe40bda34fc81244729c2dd8b602c2fc6e) by Werner Robitza).
+- use Intel IPP for OpenCV only on x86_64 ([7ab7728](https://github.com/aveq-research/videoparser-ng/commit/7ab772830976d752545b73243244170a20f54e76) by Werner Robitza).
+- update ffmpeg for NaN H.264 legacy motion stats ([30a53e2](https://github.com/aveq-research/videoparser-ng/commit/30a53e2070660344fb9477b9c80b4dd597ac5233) by Werner Robitza).
+- install OpenCV to lib on all systems ([97a4ea4](https://github.com/aveq-research/videoparser-ng/commit/97a4ea492ece93909b52a05805d3ed2aea8fe3f0) by Werner Robitza).
+- exit with an error if no frames were parsed ([9fec0c2](https://github.com/aveq-research/videoparser-ng/commit/9fec0c25ef8b440a0d3f849d4179c4e20cc8161a) by Werner Robitza).
+- read Matroska and raw streams after the packet scan ([2e6c02a](https://github.com/aveq-research/videoparser-ng/commit/2e6c02aff17aa8b7ffaf64d847003f07e8c4ce96) by Werner Robitza).
+
+### Misc
+
+- bump version to 0.7.0 ([07a5e39](https://github.com/aveq-research/videoparser-ng/commit/07a5e39e219a421595633b1783442a592f886dc2) by Werner Robitza).
+
 ## [v0.6.2](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.6.2) - 2026-09-25
 
 <small>[Compare with v0.6.1](https://github.com/aveq-research/videoparser-ng/compare/v0.6.1...v0.6.2)</small>
@@ -21,7 +48,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Misc
 
-- bump version to 0.6.2 ([26bb33b](https://github.com/aveq-research/videoparser-ng/commit/26bb33ba976be83f0cb23ef969768abb1a0b338e) by Werner Robitza).
+- bump version to 0.6.2 ([ea55326](https://github.com/aveq-research/videoparser-ng/commit/ea55326b934595185a847a8395eb9dcfb9b326af) by Werner Robitza).
 
 ## [v0.6.1](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.6.1) - 2026-09-25
 
