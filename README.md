@@ -398,9 +398,27 @@ Other programs, such as video-analyzer, can use the patched ffmpeg as shared lib
 util/build-ffmpeg.sh --shared
 ```
 
+Add `--legacy` to build them in legacy mode into `build/ffmpeg-shared-legacy/install`.
+
 On Linux, the libraries find each other through an `$ORIGIN` runpath, so they can be shipped together in one directory. The patched decoders must run single-threaded, so set the thread count to 1 when opening a video.
 
-To build a static OpenCV (core, imgproc, imgcodecs, videoio) against these libraries into `build/opencv/install`, run:
+The shared build also contains:
+
+- libavfilter with only the filters `scale`, `format`, `fps`, `setpts`, `crop`, `pad`, `bwdif`, `yadif`, `psnr`, `ssim`, `libvmaf`, `aresample`, `aformat`, `split`, `null` and `anull`, plus those the `ffmpeg` program needs.
+- A static [libvmaf](https://github.com/Netflix/vmaf) (BSD-2-Clause-Patent) with its built-in models, including the VMAF v1.0.16 models. `util/build-libvmaf.sh` downloads the pinned release and builds it with meson into `build/libvmaf/install`; `util/build-ffmpeg.sh` calls it when needed. The models are embedded with `xxd`; without it, `util/xxd-fallback.sh` is used.
+- The `ffmpeg` and `ffprobe` programs in `bin/`, with the `null`, `rawvideo` and `yuv4mpegpipe` muxers, the `wrapped_avframe` and `rawvideo` encoders, and the `file` and `pipe` protocols. Their runpath is `$ORIGIN/../lib` (change it with `--exe-rpath`).
+
+All options stay LGPL. For example, to compute VMAF with a v1 model at 10-bit precision:
+
+```bash
+build/ffmpeg-shared/install/bin/ffmpeg -threads 1 -i distorted.mp4 -threads 1 -i reference.mp4 \
+  -lavfi "[0:v]format=yuv420p10le[d];[1:v]format=yuv420p10le[r];[d][r]libvmaf=model=version=vmaf_v1.0.16_3d0h" \
+  -an -f null -
+```
+
+Always pass `-threads 1` before each input. Otherwise ffmpeg decodes with several threads, and the patched decoders lose frames without an error or crash (for example for MPEG-2 and AV1). There are no audio encoders, so map only video outputs (or pass `-an`).
+
+To build a static OpenCV (core, imgproc, imgcodecs, videoio) against these libraries into `build/opencv/install`, run the following (use `--ffmpeg-prefix` and `--build-dir` to build against another shared ffmpeg, such as the legacy one):
 
 ```bash
 git submodule update --init external/opencv
