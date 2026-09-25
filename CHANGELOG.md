@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 <!-- insertion marker -->
+## [v0.6.1](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.6.1) - 2026-09-25
+
+<small>[Compare with v0.6.0](https://github.com/aveq-research/videoparser-ng/compare/v0.6.0...v0.6.1)</small>
+
+### Features
+
+- add shared ffmpeg and static OpenCV builds ([21d9cc8](https://github.com/aveq-research/videoparser-ng/commit/21d9cc81fda112c1afafacafacae2bbc001a152d) by Werner Robitza).
+
+### Code Refactoring
+
+- take SharedFrameInfo from the ffmpeg fork ([fdb72d4](https://github.com/aveq-research/videoparser-ng/commit/fdb72d4a2ed786b28f4cb3989d5f7ff4f68ccd76) by Werner Robitza).
+
+### Code Refactoring
+
+- take SharedFrameInfo from the ffmpeg fork ([fdb72d4](https://github.com/aveq-research/videoparser-ng/commit/fdb72d4a2ed786b28f4cb3989d5f7ff4f68ccd76) by Werner Robitza).
+
+### Misc
+
+- bump version to 0.6.1 ([e23b4ad](https://github.com/aveq-research/videoparser-ng/commit/e23b4adf76877f4816cf80a7e45ea9183d510cd4) by Werner Robitza).
+
 ## [v0.6.0](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.6.0) - 2026-09-25
 
 <small>[Compare with v0.5.7](https://github.com/aveq-research/videoparser-ng/compare/v0.5.7...v0.6.0)</small>
@@ -20,7 +40,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Misc
 
-- bump version to 0.6.0 ([cad27e7](https://github.com/aveq-research/videoparser-ng/commit/cad27e7300605f17d174b0c03f463cdd20d617aa) by Werner Robitza).
+- bump version to 0.6.0 ([6e3200f](https://github.com/aveq-research/videoparser-ng/commit/6e3200ff1faf58d918faf9964179fd5db396709a) by Werner Robitza).
 
 ## [v0.5.7](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.5.7) - 2026-09-21
 
