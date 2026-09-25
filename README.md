@@ -418,6 +418,14 @@ build/ffmpeg-shared/install/bin/ffmpeg -threads 1 -i distorted.mp4 -threads 1 -i
 
 Always pass `-threads 1` before each input. Otherwise ffmpeg decodes with several threads, and the patched decoders lose frames without an error or crash (for example for MPEG-2 and AV1). There are no audio encoders, so map only video outputs (or pass `-an`).
 
+To build libvideoparser as a shared library, and the CLI against it, run:
+
+```bash
+util/build-cmake.sh --shared --legacy
+```
+
+This builds in `build/shared-legacy` (or `build/shared` without `--legacy`) with the CMake option `VIDEOPARSER_SHARED=ON`, and installs an SDK with `lib/libvideoparser.so`, the shared ffmpeg libraries, the headers, and `bin/` with the CLI, `ffmpeg` and `ffprobe` to `build/shared-legacy/sdk`. The library finds the ffmpeg libraries in its own directory, and the CLI finds them in `../lib` (set `-DVIDEOPARSER_CLI_RPATH=<runpath>` after `--` to change it). Its output is identical to the static build.
+
 To build a static OpenCV (core, imgproc, imgcodecs, videoio) against these libraries into `build/opencv/install`, run the following (use `--ffmpeg-prefix` and `--build-dir` to build against another shared ffmpeg, such as the legacy one):
 
 ```bash
