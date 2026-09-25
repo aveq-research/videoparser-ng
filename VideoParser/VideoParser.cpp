@@ -73,7 +73,8 @@ VideoParser::VideoParser(const char *filename) {
     throw std::runtime_error("Error finding the video codec");
   }
 
-  sequence_info.video_duration = format_context->duration / AV_TIME_BASE;
+  sequence_info.video_duration =
+      format_context->duration / static_cast<double>(AV_TIME_BASE);
   strncpy(sequence_info.video_codec, codec->name,
           sizeof(sequence_info.video_codec) - 1);
   sequence_info.video_codec[sizeof(sequence_info.video_codec) - 1] = '\0';
@@ -105,6 +106,13 @@ VideoParser::VideoParser(const char *filename) {
   // Note: the below may be zero if not indicated in the file
   sequence_info.video_frame_count =
       format_context->streams[video_stream_idx]->nb_frames;
+
+  // Containers like MPEG-TS/PS or raw bitstreams signal neither bitrate nor
+  // frame count, so estimate them from the video packets
+  if (sequence_info.video_bitrate == 0 ||
+      sequence_info.video_frame_count == 0) {
+    scan_video_packets();
+  }
 
   // Open codec
   codec_context = avcodec_alloc_context3(codec);
@@ -152,6 +160,99 @@ VideoParser::VideoParser(const char *filename) {
   }
 }
 
+namespace {
+/**
+ * @brief Time span covered by a sequence of packet timestamps.
+ */
+struct TimestampSpan {
+  int64_t min_ts = AV_NOPTS_VALUE;
+  int64_t max_end_ts = AV_NOPTS_VALUE;
+  int64_t packets_without_ts = 0; /**< Packets after the last timestamp */
+
+  void add(int64_t ts, int64_t duration) {
+    if (ts == AV_NOPTS_VALUE) {
+      packets_without_ts++;
+      return;
+    }
+    packets_without_ts = 0;
+    if (min_ts == AV_NOPTS_VALUE || ts < min_ts)
+      min_ts = ts;
+    if (max_end_ts == AV_NOPTS_VALUE || ts + duration > max_end_ts)
+      max_end_ts = ts + duration;
+  }
+
+  /**
+   * @brief Length of the span, extrapolated for trailing packets without a
+   * timestamp. Returns 0 if no timestamp was found.
+   */
+  int64_t length(int64_t frame_period) const {
+    if (min_ts == AV_NOPTS_VALUE || max_end_ts <= min_ts)
+      return 0;
+    return max_end_ts + packets_without_ts * frame_period - min_ts;
+  }
+};
+} // namespace
+
+/**
+ * @brief Estimate bitrate and frame count by reading all video packets without
+ * decoding them, then seek back to the start of the file.
+ */
+void VideoParser::scan_video_packets() {
+  AVPacket *packet = av_packet_alloc();
+  if (!packet) {
+    throw std::runtime_error("Error allocating packet");
+  }
+
+  AVStream *stream = format_context->streams[video_stream_idx];
+  uint64_t size_sum = 0;
+  uint32_t packet_count = 0;
+  // Frame period in stream time base, for packets without a duration
+  int64_t frame_period = 0;
+  if (stream->avg_frame_rate.num > 0 && stream->avg_frame_rate.den > 0) {
+    frame_period =
+        av_rescale_q(1, av_inv_q(stream->avg_frame_rate), stream->time_base);
+  }
+  // Time span of the video packets, by DTS (index 0) and PTS (index 1)
+  TimestampSpan spans[2];
+
+  while (av_read_frame(format_context, packet) == 0) {
+    if (packet->stream_index == video_stream_idx) {
+      size_sum += packet->size;
+      packet_count++;
+      int64_t packet_duration =
+          packet->duration > 0 ? packet->duration : frame_period;
+      spans[0].add(packet->dts, packet_duration);
+      spans[1].add(packet->pts, packet_duration);
+    }
+    av_packet_unref(packet);
+  }
+  av_packet_free(&packet);
+
+  // Duration of the video stream, or of the whole file as fallback. DTS is
+  // preferred, as PTS starts later with B-frames and is not set for every
+  // packet in MPEG-PS.
+  double duration = sequence_info.video_duration;
+  for (const TimestampSpan &span : spans) {
+    int64_t length = span.length(frame_period);
+    if (length > 0) {
+      duration = length * av_q2d(stream->time_base);
+      break;
+    }
+  }
+
+  if (sequence_info.video_bitrate == 0 && duration > 0) {
+    sequence_info.video_bitrate = size_sum * 8 / 1000.0 / duration;
+    bitrate_from_scan = true;
+  }
+  if (sequence_info.video_frame_count == 0) {
+    sequence_info.video_frame_count = packet_count;
+  }
+
+  if (av_seek_frame(format_context, -1, 0, AVSEEK_FLAG_BYTE) < 0) {
+    throw std::runtime_error("Error seeking back to the start of the file");
+  }
+}
+
 /**
  * @brief Get the sequence info. Call this after the frames are parsed, if the
  * video duration is not set yet.
@@ -176,9 +277,12 @@ SequenceInfo VideoParser::get_sequence_info() {
       sequence_info.video_frame_count = frame_idx;
     }
 
-    // convert via packet size sum (in bytes) to kbit/s
-    sequence_info.video_bitrate =
-        packet_size_sum * 8 / 1000 / sequence_info.video_duration;
+    // convert via packet size sum (in bytes) to kbit/s, unless already
+    // estimated from all packets of the file
+    if (!bitrate_from_scan) {
+      sequence_info.video_bitrate =
+          packet_size_sum * 8 / 1000 / sequence_info.video_duration;
+    }
   }
 
   return sequence_info;

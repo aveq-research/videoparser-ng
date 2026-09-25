@@ -64,9 +64,7 @@ class TestCLI:
         assert sequence_info["video_height"] > 0
         assert sequence_info["video_framerate"] > 0
         assert sequence_info["video_duration"] > 0
-        # MPEG-TS/PS do not signal the frame count in the container
-        if not test_file.endswith((".ts", ".mpg")):
-            assert sequence_info["video_frame_count"] > 0
+        assert sequence_info["video_frame_count"] > 0
 
         # Validate frame info for both frames
         for frame in frame_info:

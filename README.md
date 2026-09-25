@@ -194,7 +194,7 @@ The following metadata/metrics are available:
 
 ### Sequence Info
 
-Supported containers are MP4/MOV, Matroska/WebM, AVI, MPEG-TS, MPEG-PS, and raw H.264/HEVC/MPEG-2 bitstreams.
+Supported containers are MP4/MOV, Matroska/WebM, AVI, MPEG-TS, MPEG-PS, and raw H.264/HEVC/MPEG-2 bitstreams. If the container does not signal the bitrate or frame count (for example, MPEG-TS and MPEG-PS), the parser reads all video packets once before parsing, without decoding them, to estimate both values.
 
 | Metric                | Description                       | Unit    |
 | --------------------- | --------------------------------- | ------- |

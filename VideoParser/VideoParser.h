@@ -191,10 +191,12 @@ private:
   SequenceInfo sequence_info;
   double first_pts = 0;
   double last_pts = 0;
-  uint64_t packet_size_sum = 0; // accumulated packet size sum, if not
-                                // available from format context
+  uint64_t packet_size_sum = 0;   // accumulated packet size sum, if not
+                                  // available from format context
+  bool bitrate_from_scan = false; // bitrate estimated by scan_video_packets()
   std::function<void()> close_input;
 
+  void scan_video_packets();
   void print_shared_frame_info(SharedFrameInfo &shared_frame_info);
   void set_frame_info(FrameInfo &frame_info);
   void set_frame_info_h264(FrameInfo &frame_info);
