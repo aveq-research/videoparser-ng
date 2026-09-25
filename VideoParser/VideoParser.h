@@ -27,8 +27,8 @@ extern "C" {
 }
 
 #define VIDEOPARSER_VERSION_MAJOR 0
-#define VIDEOPARSER_VERSION_MINOR 5
-#define VIDEOPARSER_VERSION_PATCH 7
+#define VIDEOPARSER_VERSION_MINOR 6
+#define VIDEOPARSER_VERSION_PATCH 0
 
 namespace videoparser {
 class ScopeExit {

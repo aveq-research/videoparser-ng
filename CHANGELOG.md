@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 <!-- insertion marker -->
+## [v0.6.0](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.6.0) - 2026-09-25
+
+<small>[Compare with v0.5.7](https://github.com/aveq-research/videoparser-ng/compare/v0.5.7...v0.6.0)</small>
+
+### Features
+
+- add MPEG-2 QP and MV stats for MPEG-TS/PS ([61879d9](https://github.com/aveq-research/videoparser-ng/commit/61879d909369c4431a77524e46cee8771b786724) by Werner Robitza).
+
+### Bug Fixes
+
+- estimate bitrate and frame count if missing ([966f324](https://github.com/aveq-research/videoparser-ng/commit/966f324bcf17bb595990705560cabf7c0c20f78d) by Werner Robitza).
+
+### Misc
+
+- bump version to 0.6.0 ([cad27e7](https://github.com/aveq-research/videoparser-ng/commit/cad27e7300605f17d174b0c03f463cdd20d617aa) by Werner Robitza).
+
 ## [v0.5.7](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.5.7) - 2026-09-21
 
 <small>[Compare with v0.5.6](https://github.com/aveq-research/videoparser-ng/compare/v0.5.6...v0.5.7)</small>
@@ -16,7 +32,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Misc
 
-- bump version to 0.5.7 ([775f960](https://github.com/aveq-research/videoparser-ng/commit/775f960e7a79d37cf525293305288fb3b38ac600) by Werner Robitza).
+- bump version to 0.5.7 ([4f7d30f](https://github.com/aveq-research/videoparser-ng/commit/4f7d30f71dc029a3cb901d521838141a3599c8da) by Werner Robitza).
 
 ## [v0.5.6](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.5.6) - 2026-09-18
 
