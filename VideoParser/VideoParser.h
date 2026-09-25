@@ -43,17 +43,17 @@ public:
  * @brief General information about the video sequence.
  */
 struct SequenceInfo {
-  double video_duration = 0.0;  /**< Duration of the file in seconds */
-  char video_codec[8];          /**< Codec used for video stream */
-  double video_bitrate = 0.0;   /**< Bitrate of the video stream in kbps */
-  double video_framerate = 0.0; /**< Framerate of the video stream */
-  int video_width = 0;          /**< Width of the video stream in pixels */
-  int video_height = 0;         /**< Height of the video stream in pixels */
-  int video_codec_profile = 0;  /**< Profile of the video codec */
-  int video_codec_level = 0;    /**< Level of the video codec */
-  int video_bit_depth = 0;      /**< Bit depth of the video stream */
-  char video_pix_fmt[32];       /**< Pixel format of the video stream */
-  uint32_t video_frame_count;   /**< Number of frames in the video stream */
+  double video_duration = 0.0;    /**< Duration of the file in seconds */
+  char video_codec[8] = {};       /**< Codec used for video stream */
+  double video_bitrate = 0.0;     /**< Bitrate of the video stream in kbps */
+  double video_framerate = 0.0;   /**< Framerate of the video stream */
+  int video_width = 0;            /**< Width of the video stream in pixels */
+  int video_height = 0;           /**< Height of the video stream in pixels */
+  int video_codec_profile = 0;    /**< Profile of the video codec */
+  int video_codec_level = 0;      /**< Level of the video codec */
+  int video_bit_depth = 0;        /**< Bit depth of the video stream */
+  char video_pix_fmt[32] = {};    /**< Pixel format of the video stream */
+  uint32_t video_frame_count = 0; /**< Number of frames in the video stream */
 };
 
 enum FrameType {
@@ -68,37 +68,41 @@ enum FrameType {
  */
 struct FrameInfo {
   int32_t frame_idx = 0; /**< Frame number, zero-based */
-  double dts;            /**< Decoding timestamp in seconds */
-  double pts;            /**< Presentation timestamp in seconds */
-  int size;              /**< Frame size in bytes */
-  FrameType frame_type;  /**< Frame type (0 = unknown, 1 = I, 2 = P, 3 = B) */
-  bool is_idr;           /**< Whether the frame is an IDR frame */
+  double dts = 0.0;      /**< Decoding timestamp in seconds */
+  double pts = 0.0;      /**< Presentation timestamp in seconds */
+  int size = 0;          /**< Frame size in bytes */
+  /** Frame type (0 = unknown, 1 = I, 2 = P, 3 = B) */
+  FrameType frame_type = UNKNOWN;
+  bool is_idr = false; /**< Whether the frame is an IDR frame */
 
   // from SharedFrameInfo
-  uint32_t qp_min;  /**< Minimum QP value encountered in this frame */
-  uint32_t qp_max;  /**< Maximum QP value encountered in this frame */
-  uint32_t qp_init; /**< QP Value the frame is starting with (to be found in the
-                       slice- or frame-header) */
-  double qp_avg;    /**< Average QP of the whole frame */
-  double qp_stdev;  /**< Standard deviation of Av_QP */
-  double qp_bb_avg; /**< Average QP without the black border */
-  double qp_bb_stdev; /**< Standard deviation of the average QP */
+  uint32_t qp_min = 0;  /**< Minimum QP value encountered in this frame */
+  uint32_t qp_max = 0;  /**< Maximum QP value encountered in this frame */
+  uint32_t qp_init = 0; /**< QP Value the frame is starting with (to be found in
+                       the slice- or frame-header) */
+  double qp_avg = 0.0;  /**< Average QP of the whole frame */
+  double qp_stdev = 0.0;    /**< Standard deviation of Av_QP */
+  double qp_bb_avg = 0.0;   /**< Average QP without the black border */
+  double qp_bb_stdev = 0.0; /**< Standard deviation of the average QP */
 
   // motion estimation
-  double motion_avg;        /**< Average of Av_Motion */
-  double motion_stdev;      /**< Standard Deviation of Av_Motion */
-  double motion_x_avg;      /**< Average of abs(MotX) */
-  double motion_y_avg;      /**< Average of abs(MotY) */
-  double motion_x_stdev;    /**< Standard deviation of Av_MotionX */
-  double motion_y_stdev;    /**< Standard deviation of Av_MotionY */
-  double motion_diff_avg;   /**< Difference of the motion with its prediction */
-  double motion_diff_stdev; /**< Standard deviation of Av_MotionDif */
-  int current_poc;          /**< Picture Order Count of the current frame */
-  int poc_diff;             /**< Difference to the previous frame's POC */
-  uint32_t motion_bit_count; /**< The number of bits used for coding motion */
-  uint32_t coefs_bit_count /**< The number of bits used for coding coeffs */;
-  int mb_mv_count;    /**< Number of macroblocks with MVs */
-  int mv_coded_count; /**< Number of coded MVs */
+  double motion_avg = 0.0;     /**< Average of Av_Motion */
+  double motion_stdev = 0.0;   /**< Standard Deviation of Av_Motion */
+  double motion_x_avg = 0.0;   /**< Average of abs(MotX) */
+  double motion_y_avg = 0.0;   /**< Average of abs(MotY) */
+  double motion_x_stdev = 0.0; /**< Standard deviation of Av_MotionX */
+  double motion_y_stdev = 0.0; /**< Standard deviation of Av_MotionY */
+  /** Difference of the motion with its prediction */
+  double motion_diff_avg = 0.0;
+  double motion_diff_stdev = 0.0; /**< Standard deviation of Av_MotionDif */
+  int current_poc = 0; /**< Picture Order Count of the current frame */
+  int poc_diff = 0;    /**< Difference to the previous frame's POC */
+  /** The number of bits used for coding motion */
+  uint32_t motion_bit_count = 0;
+  /** The number of bits used for coding coeffs */
+  uint32_t coefs_bit_count = 0;
+  int mb_mv_count = 0;    /**< Number of macroblocks with MVs */
+  int mv_coded_count = 0; /**< Number of coded MVs */
 
   // Adding these to make debugging easier (so that they can be printed in the
   // JSON)
