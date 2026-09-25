@@ -433,7 +433,7 @@ git submodule update --init external/opencv
 util/build-opencv.sh
 ```
 
-OpenCV is pinned to a commit on its 4.x development branch, since releases up to 4.14 do not compile against the current ffmpeg API. The patches in `util/patches/opencv` are applied before building. They fix black frames for interlaced video with ffmpeg 8 and later. Intel IPP is included by default on x86_64 (it does not exist for other architectures); build without it with `--without-ipp`. When shipping OpenCV built with IPP, include its license files (`ippicv-*` and `ippiw-*` in `share/licenses/opencv4` of the install directory) with the software and its documentation.
+OpenCV is pinned to a commit on its 4.x development branch, since releases up to 4.14 do not compile against the current ffmpeg API. The patches in `util/patches/opencv` are applied before building. They fix black frames for interlaced video with ffmpeg 8 and later, and make the conversion to BGR ignore the colour properties of the frames (matrix, range, primaries, transfer, chroma siting) as OpenCV did before it used `sws_scale_frame()`. Otherwise, BT.709-tagged video converts differently from the same video without tags, for example after passing through YUV4MPEG. Intel IPP is included by default on x86_64 (it does not exist for other architectures); build without it with `--without-ipp`. When shipping OpenCV built with IPP, include its license files (`ippicv-*` and `ippiw-*` in `share/licenses/opencv4` of the install directory) with the software and its documentation.
 
 ### Building with Docker
 
