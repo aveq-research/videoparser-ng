@@ -13,6 +13,11 @@
 namespace videoparser {
 static bool verbose = false;
 
+// Largest deviation of a timestamp from the end of the previous frame, forward
+// and backward, in seconds. A larger deviation is a discontinuity.
+constexpr double MAX_TIMESTAMP_GAP = 5.0;
+constexpr double MAX_TIMESTAMP_STEP_BACK = 1.0;
+
 void set_verbose(bool verbose) {
   videoparser::verbose = verbose;
   if (verbose) {
@@ -189,33 +194,60 @@ void VideoParser::open_input(const char *filename) {
 
 namespace {
 /**
- * @brief Time span covered by a sequence of packet timestamps.
+ * @brief Time covered by a sequence of packet timestamps.
+ *
+ * A timestamp that deviates from the end of the previous packet by more than
+ * the thresholds is a discontinuity. It starts a new segment, and the gap
+ * between the segments does not count.
  */
 struct TimestampSpan {
-  int64_t min_ts = AV_NOPTS_VALUE;
-  int64_t max_end_ts = AV_NOPTS_VALUE;
+  int64_t max_gap = 0;                 /**< Largest forward deviation */
+  int64_t max_step_back = 0;           /**< Largest backward deviation */
+  int64_t min_ts = AV_NOPTS_VALUE;     /**< Start of the current segment */
+  int64_t max_end_ts = AV_NOPTS_VALUE; /**< End of the current segment */
+  /** End of the last packet with a timestamp */
+  int64_t next_ts = AV_NOPTS_VALUE;
   int64_t packets_without_ts = 0; /**< Packets after the last timestamp */
+  int64_t closed_length = 0;      /**< Length of the finished segments */
+  uint32_t discontinuities = 0;
 
-  void add(int64_t ts, int64_t duration) {
+  void add(int64_t ts, int64_t duration, int64_t frame_period) {
     if (ts == AV_NOPTS_VALUE) {
       packets_without_ts++;
       return;
+    }
+    if (next_ts != AV_NOPTS_VALUE) {
+      int64_t expected = next_ts + packets_without_ts * frame_period;
+      if (ts > expected + max_gap || ts < expected - max_step_back) {
+        closed_length += segment_length(frame_period);
+        min_ts = AV_NOPTS_VALUE;
+        max_end_ts = AV_NOPTS_VALUE;
+        discontinuities++;
+      }
     }
     packets_without_ts = 0;
     if (min_ts == AV_NOPTS_VALUE || ts < min_ts)
       min_ts = ts;
     if (max_end_ts == AV_NOPTS_VALUE || ts + duration > max_end_ts)
       max_end_ts = ts + duration;
+    next_ts = ts + duration;
   }
 
   /**
-   * @brief Length of the span, extrapolated for trailing packets without a
-   * timestamp. Returns 0 if no timestamp was found.
+   * @brief Length of the current segment, extrapolated for trailing packets
+   * without a timestamp. Returns 0 if no timestamp was found.
    */
-  int64_t length(int64_t frame_period) const {
+  int64_t segment_length(int64_t frame_period) const {
     if (min_ts == AV_NOPTS_VALUE || max_end_ts <= min_ts)
       return 0;
     return max_end_ts + packets_without_ts * frame_period - min_ts;
+  }
+
+  /**
+   * @brief Length of all segments. Returns 0 if no timestamp was found.
+   */
+  int64_t length(int64_t frame_period) const {
+    return closed_length + segment_length(frame_period);
   }
 };
 } // namespace
@@ -241,6 +273,14 @@ void VideoParser::scan_video_packets(const char *filename) {
   }
   // Time span of the video packets, by DTS (index 0) and PTS (index 1)
   TimestampSpan spans[2];
+  for (TimestampSpan &span : spans) {
+    span.max_gap =
+        av_rescale_q(static_cast<int64_t>(MAX_TIMESTAMP_GAP * AV_TIME_BASE),
+                     AV_TIME_BASE_Q, stream->time_base);
+    span.max_step_back = av_rescale_q(
+        static_cast<int64_t>(MAX_TIMESTAMP_STEP_BACK * AV_TIME_BASE),
+        AV_TIME_BASE_Q, stream->time_base);
+  }
 
   while (av_read_frame(format_context, packet) == 0) {
     if (packet->stream_index == video_stream_idx) {
@@ -248,8 +288,8 @@ void VideoParser::scan_video_packets(const char *filename) {
       packet_count++;
       int64_t packet_duration =
           packet->duration > 0 ? packet->duration : frame_period;
-      spans[0].add(packet->dts, packet_duration);
-      spans[1].add(packet->pts, packet_duration);
+      spans[0].add(packet->dts, packet_duration, frame_period);
+      spans[1].add(packet->pts, packet_duration, frame_period);
     }
     av_packet_unref(packet);
   }
@@ -260,11 +300,13 @@ void VideoParser::scan_video_packets(const char *filename) {
   // packet in MPEG-PS.
   double duration = sequence_info.video_duration;
   bool duration_from_timestamps = false;
+  uint32_t discontinuities = 0;
   for (const TimestampSpan &span : spans) {
     int64_t length = span.length(frame_period);
     if (length > 0) {
       duration = length * av_q2d(stream->time_base);
       duration_from_timestamps = true;
+      discontinuities = span.discontinuities;
       break;
     }
   }
@@ -272,7 +314,10 @@ void VideoParser::scan_video_packets(const char *filename) {
   if (!duration_from_timestamps && duration <= 0 && frame_period > 0) {
     duration = packet_count * frame_period * av_q2d(stream->time_base);
   }
-  if (sequence_info.video_duration <= 0 && duration > 0) {
+  // The container duration includes the gaps of discontinuities, so replace
+  // it with the time covered by the packets
+  if ((sequence_info.video_duration <= 0 || discontinuities > 0) &&
+      duration > 0) {
     sequence_info.video_duration = duration;
   }
 
