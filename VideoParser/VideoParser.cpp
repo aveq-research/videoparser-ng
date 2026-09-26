@@ -139,8 +139,16 @@ void VideoParser::open(const char *filename) {
   strncpy(sequence_info.video_pix_fmt, pix_fmt_name ? pix_fmt_name : "",
           sizeof(sequence_info.video_pix_fmt) - 1);
   sequence_info.video_pix_fmt[sizeof(sequence_info.video_pix_fmt) - 1] = '\0';
-  sequence_info.video_bit_depth =
-      av_pix_fmt_desc_get(codec_context->pix_fmt)->comp[0].depth;
+  // Unknown if the stream information could not be read, for example if the
+  // container declares the wrong codec
+  const AVPixFmtDescriptor *pix_fmt_desc =
+      av_pix_fmt_desc_get(codec_context->pix_fmt);
+  if (!pix_fmt_desc) {
+    throw std::runtime_error(
+        "Cannot determine the video format (unknown pixel format); the stream "
+        "may be damaged or declare the wrong codec");
+  }
+  sequence_info.video_bit_depth = pix_fmt_desc->comp[0].depth;
 
   AVDictionary *opts = nullptr;
   // TODO: this is how we can get the motion vectors from ffmpeg, but only for
