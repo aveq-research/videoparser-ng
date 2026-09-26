@@ -163,6 +163,13 @@ void log_trampoline(void *avcl, int level, const char *fmt, va_list vl) {
   callback(log_user_data.load(), level, line);
 }
 
+void parser_log_trampoline(void *user_data, int level, const char *line) {
+  vp_log_callback callback = log_callback.load();
+  if (callback) {
+    callback(user_data, level, line);
+  }
+}
+
 void copy_string(char *out, size_t size, const char *in) {
   std::strncpy(out, in, size - 1);
   out[size - 1] = '\0';
@@ -250,6 +257,8 @@ void vp_set_log_callback(vp_log_callback callback, void *user_data) {
   log_user_data.store(user_data);
   log_callback.store(callback);
   av_log_set_callback(callback ? log_trampoline : av_log_default_callback);
+  videoparser::set_log_callback(callback ? parser_log_trampoline : nullptr,
+                                user_data);
 }
 
 void vp_options_init(vp_options *options) {
