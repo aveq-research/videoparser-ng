@@ -48,6 +48,12 @@ endforeach()
 set(VIDEOPARSER_VERSION
   "${VIDEOPARSER_VERSION_MAJOR}.${VIDEOPARSER_VERSION_MINOR}.${VIDEOPARSER_VERSION_PATCH}")
 
+option(VIDEOPARSER_BUILD_C_API_TEST "Build the C API test program" ON)
+
 # Include the CMakeLists.txt for the subdirectories
 add_subdirectory(VideoParser)
 add_subdirectory(VideoParserCli)
+# The test is not part of the source copied into the Docker images
+if(VIDEOPARSER_BUILD_C_API_TEST AND EXISTS "${CMAKE_SOURCE_DIR}/test/c-api/CMakeLists.txt")
+  add_subdirectory(test/c-api)
+endif()

@@ -12,6 +12,7 @@ Contents:
   - [Regenerating Test Reference Files](#regenerating-test-reference-files)
   - [Legacy Testing](#legacy-testing)
   - [CLI Testing](#cli-testing)
+  - [C API Testing](#c-api-testing)
 - [Debugging](#debugging)
 - [Maintenance](#maintenance)
   - [Generating Docs](#generating-docs)
@@ -260,6 +261,16 @@ uv run test/test-cli.py
 ```
 
 Some CLI tests use damaged MPEG-TS clips (timestamp jumps and wrap-around, bit flips, a PMT with the wrong codec). Regenerate them with `util/generate-damaged-test-videos.py`, which needs ffmpeg with libx264.
+
+### C API Testing
+
+The C API test compares the output of the C test program (`test/c-api/videoparser-c-test`, built with the library) with the CLI, byte by byte, for several ways of opening the input:
+
+```bash
+uv run test/test-c-api.py --build build --clips test
+```
+
+See [docs/c-api.md](docs/c-api.md#tests) for more options, including an AddressSanitizer build.
 
 ## Debugging
 
