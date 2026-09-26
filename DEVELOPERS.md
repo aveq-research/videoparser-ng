@@ -259,6 +259,8 @@ CLI tests validate command-line interface behavior:
 uv run test/test-cli.py
 ```
 
+Some CLI tests use damaged MPEG-TS clips (timestamp jumps and wrap-around, bit flips, a PMT with the wrong codec). Regenerate them with `util/generate-damaged-test-videos.py`, which needs ffmpeg with libx264.
+
 ## Debugging
 
 We have successfully used the following VS Code `launch.json` configuration to debug the CLI – it requires the `CMake Tools` extension:
