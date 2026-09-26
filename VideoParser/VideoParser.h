@@ -16,6 +16,7 @@
 #include <iomanip> // for std::fixed and std::setprecision
 #include <iostream>
 #include <optional>
+#include <stdexcept>
 #include <string>
 extern "C" {
 #include "include/shared.h"
@@ -32,6 +33,61 @@ extern "C" {
 #define VIDEOPARSER_VERSION_PATCH 0
 
 namespace videoparser {
+/**
+ * @brief Error thrown by VideoParser, with a category for the C API
+ */
+class Error : public std::runtime_error {
+public:
+  enum class Code {
+    Open,          /**< The input or its stream information cannot be read */
+    NoVideoStream, /**< No (selected) video stream */
+    Unsupported,   /**< No decoder or unknown pixel format */
+    Decode,        /**< The decoder failed */
+    Io,            /**< Reading or seeking the input failed */
+    OutOfMemory,   /**< An allocation failed */
+    Internal,      /**< Unexpected FFmpeg error */
+  };
+
+  /**
+   * @param code Category of the error
+   * @param message Error message
+   * @param av_error FFmpeg error code, or 0 if there is none
+   */
+  Error(Code code, const std::string &message, int av_error = 0)
+      : std::runtime_error(message), code(code), av_error(av_error) {}
+
+  Code code;
+  int av_error;
+};
+
+/**
+ * @brief Custom input through callbacks, wrapped in an FFmpeg AVIOContext
+ *
+ * The callbacks have the semantics of avio_alloc_context(): read returns the
+ * number of bytes read or a negative AVERROR (AVERROR_EOF at the end), and
+ * seek supports SEEK_SET, SEEK_CUR, SEEK_END and AVSEEK_SIZE.
+ */
+struct CustomInput {
+  int (*read)(void *opaque, uint8_t *buf, int size) = nullptr;
+  /** Seek callback, or nullptr for non-seekable input */
+  int64_t (*seek)(void *opaque, int64_t offset, int whence) = nullptr;
+  void *opaque = nullptr;  /**< Passed to the callbacks */
+  int buffer_size = 32768; /**< Size of the I/O buffer in bytes */
+};
+
+/**
+ * @brief Options for opening an input
+ */
+struct OpenOptions {
+  /** Index of the video stream, or -1 for the first video stream */
+  int stream_index = -1;
+  /** Name of the FFmpeg demuxer, or nullptr to detect the format */
+  const char *input_format = nullptr;
+  /** Read all video packets before decoding to estimate the bitrate and frame
+   * count if the container lacks them (only for seekable input) */
+  bool scan = true;
+};
+
 class ScopeExit {
   std::function<void()> fn;
 
@@ -175,6 +231,28 @@ public:
   VideoParser(const char *filename);
 
   /**
+   * @brief Open a file with options
+   *
+   * @param filename Path to the video file
+   * @param options Options for opening the file
+   * @throws Error If the file cannot be opened or no video stream is found
+   */
+  VideoParser(const char *filename, const OpenOptions &options);
+
+  /**
+   * @brief Open custom input through callbacks
+   *
+   * Without a seek callback, the packet scan is skipped (see
+   * OpenOptions::scan), and formats that need seeking (for example MP4 with
+   * the index at the end) cannot be opened.
+   *
+   * @param input Callbacks and their opaque pointer
+   * @param options Options for opening the input
+   * @throws Error If the input cannot be opened or no video stream is found
+   */
+  VideoParser(const CustomInput &input, const OpenOptions &options);
+
+  /**
    * @brief Destroy the Video Parser object and free all resources not yet
    * freed by close()
    */
@@ -217,6 +295,26 @@ public:
   Summary get_summary() const;
 
   /**
+   * @brief Get the decoded frame of the last successful parse_frame() call
+   *
+   * The frame belongs to the parser and is valid until the next call of
+   * parse_frame() or close().
+   *
+   * @return const AVFrame* The frame, or nullptr before the first frame
+   */
+  const AVFrame *get_frame() const;
+
+  /**
+   * @brief Get the index of the parsed video stream in the container
+   */
+  int get_stream_index() const;
+
+  /**
+   * @brief Get the time base of the parsed video stream
+   */
+  AVRational get_time_base() const;
+
+  /**
    * @brief Close the video file and free resources
    *
    * This method should be called after parsing is complete to properly close
@@ -250,10 +348,15 @@ private:
   double next_pts = std::nan(""); // end of the previous frame, in seconds
   Summary summary;
   bool network_initialized = false; // avformat_network_init() was called
+  std::string filename;             // empty for custom input
+  CustomInput custom_input;
+  AVIOContext *io_context = nullptr; // for custom input
+  OpenOptions options;
+  std::string input_format_name; // copy of options.input_format
 
-  void open(const char *filename);
-  void open_input(const char *filename);
-  void scan_video_packets(const char *filename);
+  void open();
+  void open_input();
+  void scan_video_packets();
   void print_shared_frame_info(SharedFrameInfo &shared_frame_info);
   void set_frame_info(FrameInfo &frame_info);
   void set_frame_info_h264(FrameInfo &frame_info);
