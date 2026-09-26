@@ -311,7 +311,8 @@ VP_EXPORT const char *vp_last_error(void);
 VP_EXPORT void vp_set_log_level(int32_t level);
 
 /**
- * @brief Receive FFmpeg's log lines instead of printing them to stderr
+ * @brief Receive the log lines of FFmpeg and of the parser instead of
+ * printing them to stderr
  *
  * Process-wide. Messages above the log level are not passed on. The callback
  * may be called from any thread that uses a parser. NULL restores the
