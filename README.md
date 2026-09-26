@@ -129,7 +129,7 @@ Add the option `-h` for detailed usage.
 
 ## Output
 
-The tool will print a set of line-delimited JSON records to STDOUT, either for per-sequence statistics (`sequence_info`), or per-frame statistics (`frame_info`). These are denoted with the `type` field.
+The tool will print a set of line-delimited JSON records to STDOUT, either for per-sequence statistics (`sequence_info`, first), per-frame statistics (`frame_info`), or counts over all parsed frames (`summary`, last). These are denoted with the `type` field. Versions before 0.8.0 do not write the `summary` record. Programs that read the output should skip record types they do not know, as new ones may be added.
 
 Here is an example, but formatted with `jq` to make it more readable:
 
@@ -157,6 +157,8 @@ This would print:
 {
   "coefs_bit_count": 1328,
   "current_poc": 0,
+  "decode_error": false,
+  "discontinuity": false,
   "dts": 0.0,
   "frame_idx": 0,
   "frame_type": 1,
@@ -184,6 +186,13 @@ This would print:
   "size": 87,
   "type": "frame_info"
 }
+{
+  "corrupt_packets": 0,
+  "decode_errors": 0,
+  "discontinuities": 0,
+  "frame_count": 1,
+  "type": "summary"
+}
 ```
 
 The tool will also print various logs to STDERR which you can redirect to a file if you want to save them, or ignore with `2>/dev/null`.
@@ -195,6 +204,8 @@ The following metadata/metrics are available:
 ### Sequence Info
 
 Supported containers are MP4/MOV, Matroska/WebM, AVI, MPEG-TS, MPEG-PS, and raw H.264/HEVC/MPEG-2 bitstreams. If the container does not signal the bitrate or frame count (for example, MPEG-TS and MPEG-PS), the parser reads all video packets once before parsing, without decoding them, to estimate both values.
+
+The packet scan also finds timestamp discontinuities: a timestamp that is more than 5 seconds later or more than 1 second earlier than the end of the previous packet. The gaps between the parts do not count, and the duration is then the time covered by the packets instead of the container duration. For example, a 12-second recording whose timestamps jump forward by 100 seconds has a duration of 12 seconds, and the bitrate is computed over 12 seconds.
 
 | Metric                | Description                       | Unit    |
 | --------------------- | --------------------------------- | ------- |
@@ -220,6 +231,8 @@ Supported containers are MP4/MOV, Matroska/WebM, AVI, MPEG-TS, MPEG-PS, and raw 
 | `size`              | Frame size                                | bytes    |
 | `frame_type`        | Frame type (1=I, 2=P, 3=B)                | enum     |
 | `is_idr`            | Whether frame is an IDR/keyframe          | boolean  |
+| `decode_error`      | Whether the decoder reported errors (e.g. concealment) | boolean  |
+| `discontinuity`     | Whether the timestamp jumps before this frame | boolean  |
 | `qp_avg`            | Average QP of all coding units            | QP index |
 | `qp_stdev`          | Standard deviation of QP values           | QP index |
 | `qp_min`            | Minimum QP value in frame                 | QP index |
@@ -241,6 +254,21 @@ Supported containers are MP4/MOV, Matroska/WebM, AVI, MPEG-TS, MPEG-PS, and raw 
 | `coefs_bit_count`   | Bits used for transform coefficients      | bits     |
 | `mb_mv_count`       | Number of blocks with motion vectors      | count    |
 | `mv_coded_count`    | Number of explicitly coded MVs            | count    |
+
+`decode_error` is true if FFmpeg set error flags on the decoded frame (for example, for concealed macroblocks after packet loss) or marked it as corrupt. `discontinuity` is true if the timestamp of the frame is more than 5 seconds later or more than 1 second earlier than the end of the previous frame (its timestamp plus its duration).
+
+### Summary
+
+The `summary` record comes after the last frame. Its counts cover the printed frames (with `-n`, only the first frames).
+
+| Metric            | Description                                                                 | Unit  |
+| ----------------- | --------------------------------------------------------------------------- | ----- |
+| `frame_count`     | Number of parsed frames                                                     | count |
+| `decode_errors`   | Frames with `decode_error`, plus packets and frames the decoder rejected    | count |
+| `corrupt_packets` | Video packets the demuxer marked as corrupt (e.g. MPEG-TS continuity errors) | count |
+| `discontinuities` | Frames with `discontinuity`                                                 | count |
+
+Frames and packets that the decoder rejects are skipped, and parsing continues. A file whose video format cannot be determined (for example, an MPEG-TS stream whose PMT declares the wrong codec) is an error.
 
 QP and motion vector values are in codec-native units:
 
