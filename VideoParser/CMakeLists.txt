@@ -59,11 +59,6 @@ endif()
 # C API test)
 target_include_directories(videoparser INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 
-# Reported by vp_build_flags()
-if(VIDEOPARSER_LEGACY)
-  target_compile_definitions(videoparser PRIVATE VIDEOPARSER_LEGACY_BUILD)
-endif()
-
 # Build FFmpeg (which also builds libaom) if it doesn't exist, or if any of its source files have changed
 if(NOT SKIP_FFMPEG_BUILD)
   add_custom_command(
