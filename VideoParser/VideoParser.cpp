@@ -432,6 +432,21 @@ void VideoParser::set_frame_info(FrameInfo &frame_info) {
   if (dts_ts != AV_NOPTS_VALUE) {
     last_valid_dts = {static_cast<int64_t>(frame_idx), dts};
   }
+  // Compare the timestamp with the end of the previous frame
+  bool discontinuity = false;
+  if (std::isfinite(pts) && std::isfinite(next_pts)) {
+    double deviation = pts - next_pts;
+    discontinuity =
+        deviation > MAX_TIMESTAMP_GAP || deviation < -MAX_TIMESTAMP_STEP_BACK;
+  }
+  double frame_duration = 0.0;
+  if (frame->duration > 0) {
+    frame_duration = frame->duration * time_base;
+  } else if (framerate > 0) {
+    frame_duration = 1.0 / framerate;
+  }
+  next_pts = pts + frame_duration;
+
   // set first and last pts to calculate video duration at the end
   if (frame_idx == 0) {
     first_pts = pts;
@@ -466,6 +481,9 @@ void VideoParser::set_frame_info(FrameInfo &frame_info) {
   frame_info.size = packet_size;
   frame_info.frame_type = frame_type;
   frame_info.is_idr = frame->flags & AV_FRAME_FLAG_KEY;
+  frame_info.decode_error =
+      frame->decode_error_flags != 0 || (frame->flags & AV_FRAME_FLAG_CORRUPT);
+  frame_info.discontinuity = discontinuity;
 
   if (verbose)
     print_shared_frame_info(*shared_frame_info);
@@ -520,7 +538,14 @@ void VideoParser::set_frame_info(FrameInfo &frame_info) {
   }
 
   frame_idx++;
+  summary.frame_count++;
+  if (frame_info.decode_error)
+    summary.decode_errors++;
+  if (frame_info.discontinuity)
+    summary.discontinuities++;
 }
+
+Summary VideoParser::get_summary() const { return summary; }
 
 void VideoParser::print_shared_frame_info(SharedFrameInfo &shared_frame_info) {
   std::cerr << "================ SHARED FRAME INFO ================"
@@ -628,6 +653,12 @@ bool VideoParser::parse_frame(FrameInfo &frame_info) {
       return false;
     }
 
+    // Skip frames the decoder rejects as invalid, as the ffmpeg program does
+    if (receive_result == AVERROR_INVALIDDATA) {
+      summary.decode_errors++;
+      continue;
+    }
+
     if (receive_result != AVERROR(EAGAIN)) {
       throw std::runtime_error("Error receiving a decoded frame");
     }
@@ -652,8 +683,17 @@ bool VideoParser::parse_frame(FrameInfo &frame_info) {
       memcpy(current_packet->opaque_ref->data, &current_packet->size,
              sizeof(current_packet->size));
 
+      if (current_packet->flags & AV_PKT_FLAG_CORRUPT) {
+        summary.corrupt_packets++;
+      }
+
       int send_result = avcodec_send_packet(codec_context, current_packet);
       av_packet_unref(current_packet);
+      // Skip packets the decoder rejects as invalid
+      if (send_result == AVERROR_INVALIDDATA) {
+        summary.decode_errors++;
+        continue;
+      }
       if (send_result < 0) {
         throw std::runtime_error("Error sending a packet for decoding");
       }

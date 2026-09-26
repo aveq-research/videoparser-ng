@@ -74,6 +74,8 @@ void print_frame_info_json(const videoparser::FrameInfo &frame_info) {
   j["size"] = frame_info.size;
   j["frame_type"] = frame_info.frame_type;
   j["is_idr"] = frame_info.is_idr;
+  j["decode_error"] = frame_info.decode_error;
+  j["discontinuity"] = frame_info.discontinuity;
 
   // QP values
   j["qp_min"] = frame_info.qp_min;
@@ -108,6 +110,16 @@ void print_frame_info_json(const videoparser::FrameInfo &frame_info) {
   // j["mv_x_sum_sqr"] = frame_info.mv_x_sum_sqr;
   // j["mv_y_sum_sqr"] = frame_info.mv_y_sum_sqr;
   // j["mv_length_diff"] = frame_info.mv_length_diff;
+  std::cout << j.dump() << std::endl;
+}
+
+void print_summary_json(const videoparser::Summary &summary) {
+  json j;
+  j["type"] = "summary";
+  j["frame_count"] = summary.frame_count;
+  j["decode_errors"] = summary.decode_errors;
+  j["corrupt_packets"] = summary.corrupt_packets;
+  j["discontinuities"] = summary.discontinuities;
   std::cout << j.dump() << std::endl;
 }
 
@@ -185,12 +197,10 @@ int main(int argc, char *argv[]) {
     // track actual frames processed
     int frames_processed = 0;
 
-    while (parser.parse_frame(frame_info)) {
-      // only check num_frames against actual processed frames
-      if (num_frames >= 0 && frames_processed >= num_frames) {
-        break;
-      }
-
+    // Stop before parsing more frames than requested, so that the summary
+    // covers only the printed frames
+    while ((num_frames < 0 || frames_processed < num_frames) &&
+           parser.parse_frame(frame_info)) {
       if (verbose)
         print_general_frame_info(frame_info);
       print_frame_info_json(frame_info);
@@ -198,6 +208,7 @@ int main(int argc, char *argv[]) {
       frames_processed++;
     }
 
+    videoparser::Summary summary = parser.get_summary();
     parser.close();
 
     // A video stream without frames is an error, unless no frames were
@@ -208,6 +219,8 @@ int main(int argc, char *argv[]) {
                 << std::endl;
       return EXIT_FAILURE;
     }
+
+    print_summary_json(summary);
   } catch (const std::exception &e) {
     std::cerr << "Error: " << e.what() << std::endl;
     return EXIT_FAILURE;

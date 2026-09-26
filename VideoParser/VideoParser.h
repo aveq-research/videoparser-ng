@@ -8,6 +8,7 @@
 #ifndef VIDEOPARSER_H
 #define VIDEOPARSER_H
 
+#include <cmath>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -56,6 +57,22 @@ struct SequenceInfo {
   uint32_t video_frame_count = 0; /**< Number of frames in the video stream */
 };
 
+/**
+ * @brief Counts over the frames parsed so far.
+ */
+struct Summary {
+  uint32_t frame_count = 0; /**< Number of frames returned by parse_frame() */
+  /** Number of frames with decode errors, plus packets and frames the decoder
+   * rejected as invalid */
+  uint32_t decode_errors = 0;
+  /** Number of video packets that the demuxer marked as corrupt (for example,
+   * after MPEG-TS continuity counter errors) */
+  uint32_t corrupt_packets = 0;
+  /** Number of frames whose timestamp is more than 5 seconds later or more than
+   * 1 second earlier than the end of the previous frame */
+  uint32_t discontinuities = 0;
+};
+
 enum FrameType {
   UNKNOWN,
   I,
@@ -74,6 +91,12 @@ struct FrameInfo {
   /** Frame type (0 = unknown, 1 = I, 2 = P, 3 = B) */
   FrameType frame_type = UNKNOWN;
   bool is_idr = false; /**< Whether the frame is an IDR frame */
+  /** Whether the decoder reported errors for this frame (for example,
+   * concealed macroblocks or missing references) */
+  bool decode_error = false;
+  /** Whether the timestamp of this frame jumps against the end of the previous
+   * frame (a discontinuity; see Summary::discontinuities) */
+  bool discontinuity = false;
 
   // from SharedFrameInfo
   uint32_t qp_min = 0;  /**< Minimum QP value encountered in this frame */
@@ -185,6 +208,15 @@ public:
   bool parse_frame(FrameInfo &frame_info);
 
   /**
+   * @brief Get counts of decode errors and discontinuities
+   *
+   * Call this after parsing the frames; it covers the frames parsed so far.
+   *
+   * @return Summary Struct with the counts
+   */
+  Summary get_summary() const;
+
+  /**
    * @brief Close the video file and free resources
    *
    * This method should be called after parsing is complete to properly close
@@ -210,11 +242,13 @@ private:
     int64_t frame_idx = -1;
     double time = 0.0;
   };
-  TimestampAnchor last_valid_pts;   // for frames without a pts
-  TimestampAnchor last_valid_dts;   // for frames without a dts
-  uint64_t packet_size_sum = 0;     // accumulated packet size sum, if not
-                                    // available from format context
-  bool bitrate_from_scan = false;   // bitrate estimated by scan_video_packets()
+  TimestampAnchor last_valid_pts; // for frames without a pts
+  TimestampAnchor last_valid_dts; // for frames without a dts
+  uint64_t packet_size_sum = 0;   // accumulated packet size sum, if not
+                                  // available from format context
+  bool bitrate_from_scan = false; // bitrate estimated by scan_video_packets()
+  double next_pts = std::nan(""); // end of the previous frame, in seconds
+  Summary summary;
   bool network_initialized = false; // avformat_network_init() was called
 
   void open(const char *filename);
