@@ -283,6 +283,8 @@ For the implementation notes (i.e., what was modified to extract the metrics), s
 
 The project provides a C++ API in the `libvideoparser` library. See the `VideoParserCli` folder for an example of how to use the API.
 
+The library also has a C API (`videoparser_c.h`) for use from other languages. It gives the same values as the CLI, can read from caller-supplied callbacks instead of a file, and gives access to the decoded pictures. See [docs/c-api.md](docs/c-api.md) and the example program in `test/c-api`.
+
 API documentation is available in the `docs` folder. You can [view it at this location](https://raw.githack.com/aveq-research/videoparser-ng/master/docs/html/index.html).
 
 ## Building Manually
