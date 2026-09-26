@@ -7,11 +7,46 @@
 
 #include "VideoParser.h"
 
+#include <atomic>
 #include <cmath>
 #include <cstring>
+#include <sstream>
 
 namespace videoparser {
 static bool verbose = false;
+
+static std::atomic<LogCallback> log_callback{nullptr};
+static std::atomic<void *> log_user_data{nullptr};
+
+void set_log_callback(LogCallback callback, void *user_data) {
+  log_user_data.store(user_data);
+  log_callback.store(callback);
+}
+
+/**
+ * @brief Write a message of one or more lines to the log callback, line by
+ * line, or to stderr if there is no callback
+ *
+ * @param level FFmpeg log level (AV_LOG_*); messages above av_log_get_level()
+ * do not go to the callback
+ * @param message Message without a trailing newline
+ */
+static void log(int level, const std::string &message) {
+  LogCallback callback = log_callback.load();
+  if (!callback) {
+    std::cerr << message << std::endl;
+    return;
+  }
+  if (level > av_log_get_level()) {
+    return;
+  }
+  std::istringstream lines(message);
+  std::string line;
+  while (std::getline(lines, line)) {
+    line += '\n';
+    callback(log_user_data.load(), level, line.c_str());
+  }
+}
 
 // Largest deviation of a timestamp from the end of the previous frame, forward
 // and backward, in seconds. A larger deviation is a discontinuity.
@@ -96,9 +131,8 @@ void VideoParser::open() {
 
   // Warn if there was more than one video stream
   if (video_stream_idx > 0 && options.stream_index < 0) {
-    std::cerr << "Warning, more than one video stream found, will only "
-                 "consider the first"
-              << std::endl;
+    log(AV_LOG_WARNING, "Warning, more than one video stream found, will only "
+                        "consider the first");
   }
 
   // Add video codec information to struct
@@ -450,8 +484,10 @@ SequenceInfo VideoParser::get_sequence_info() {
   // size sum, if frames were read at all
   if (frame_idx > 0) {
     if (sequence_info.video_duration == 0) {
-      std::cerr << "Warning: video duration not set initially, setting to "
-                << last_pts - first_pts << std::endl;
+      std::ostringstream message;
+      message << "Warning: video duration not set initially, setting to "
+              << last_pts - first_pts;
+      log(AV_LOG_WARNING, message.str());
       sequence_info.video_duration = last_pts - first_pts;
     }
 
@@ -623,10 +659,10 @@ void VideoParser::set_frame_info(FrameInfo &frame_info) {
   } else if (codec_context->codec_id == AV_CODEC_ID_MPEG2VIDEO ||
              codec_context->codec_id == AV_CODEC_ID_MPEG1VIDEO) {
     set_frame_info_mpeg2(frame_info);
-  } else {
-    std::cerr << "Warning: unsupported codec "
-              << avcodec_get_name(codec_context->codec_id)
-              << ", no extra information will be available." << std::endl;
+  } else if (shared_frame_info) {
+    log(AV_LOG_WARNING, std::string("Warning: unsupported codec ") +
+                            avcodec_get_name(codec_context->codec_id) +
+                            ", no extra information will be available.");
   }
 
   frame_idx++;
@@ -653,68 +689,58 @@ AVRational VideoParser::get_time_base() const {
 }
 
 void VideoParser::print_shared_frame_info(SharedFrameInfo &shared_frame_info) {
-  std::cerr << "================ SHARED FRAME INFO ================"
-            << std::endl;
-  std::cerr << "frame_idx      = " << shared_frame_info.frame_idx << std::endl;
-  std::cerr << "qp_sum         = " << shared_frame_info.qp_sum << std::endl;
-  std::cerr << "qp_sum_sqr     = " << shared_frame_info.qp_sum_sqr << std::endl;
-  std::cerr << "qp_cnt         = " << shared_frame_info.qp_cnt << std::endl;
-  std::cerr << "qp_sum_bb      = " << shared_frame_info.qp_sum_bb << std::endl;
-  std::cerr << "qp_sum_sqr_bb  = " << shared_frame_info.qp_sum_sqr_bb
-            << std::endl;
-  std::cerr << "qp_cnt_bb      = " << shared_frame_info.qp_cnt_bb << std::endl;
-  std::cerr << "----------------------------------------------------"
-            << std::endl;
-  std::cerr << "qp_min         = " << shared_frame_info.qp_min << std::endl;
-  std::cerr << "qp_max         = " << shared_frame_info.qp_max << std::endl;
-  std::cerr << "qp_init        = " << shared_frame_info.qp_init << std::endl;
-  std::cerr << "qp_avg         = " << shared_frame_info.qp_avg << std::endl;
-  std::cerr << "qp_stdev       = " << shared_frame_info.qp_stdev << std::endl;
-  std::cerr << "qp_bb_avg      = " << shared_frame_info.qp_bb_avg << std::endl;
-  std::cerr << "qp_bb_stdev    = " << shared_frame_info.qp_bb_stdev
-            << std::endl;
-  std::cerr << "----------------------------------------------------"
-            << std::endl;
-  std::cerr << "motion_avg        = " << shared_frame_info.motion_avg
-            << std::endl;
-  std::cerr << "motion_stdev      = " << shared_frame_info.motion_stdev
-            << std::endl;
-  std::cerr << "motion_x_avg      = " << shared_frame_info.motion_x_avg
-            << std::endl;
-  std::cerr << "motion_y_avg      = " << shared_frame_info.motion_y_avg
-            << std::endl;
-  std::cerr << "motion_x_stdev    = " << shared_frame_info.motion_x_stdev
-            << std::endl;
-  std::cerr << "motion_y_stdev    = " << shared_frame_info.motion_y_stdev
-            << std::endl;
-  std::cerr << "motion_diff_avg   = " << shared_frame_info.motion_diff_avg
-            << std::endl;
-  std::cerr << "motion_diff_stdev = " << shared_frame_info.motion_diff_stdev
-            << std::endl;
-  std::cerr << "current_poc       = " << shared_frame_info.current_poc
-            << std::endl;
-  std::cerr << "poc_diff          = " << shared_frame_info.poc_diff
-            << std::endl;
-  std::cerr << "motion_bit_count  = " << shared_frame_info.motion_bit_count
-            << std::endl;
-  std::cerr << "coefs_bit_count   = " << shared_frame_info.coefs_bit_count
-            << std::endl;
-  std::cerr << "mb_mv_count       = " << shared_frame_info.mb_mv_count
-            << std::endl;
-  std::cerr << "mv_coded_count    = " << shared_frame_info.mv_coded_count
-            << std::endl;
+  std::ostringstream out;
+  out << "================ SHARED FRAME INFO ================" << std::endl;
+  out << "frame_idx      = " << shared_frame_info.frame_idx << std::endl;
+  out << "qp_sum         = " << shared_frame_info.qp_sum << std::endl;
+  out << "qp_sum_sqr     = " << shared_frame_info.qp_sum_sqr << std::endl;
+  out << "qp_cnt         = " << shared_frame_info.qp_cnt << std::endl;
+  out << "qp_sum_bb      = " << shared_frame_info.qp_sum_bb << std::endl;
+  out << "qp_sum_sqr_bb  = " << shared_frame_info.qp_sum_sqr_bb << std::endl;
+  out << "qp_cnt_bb      = " << shared_frame_info.qp_cnt_bb << std::endl;
+  out << "----------------------------------------------------" << std::endl;
+  out << "qp_min         = " << shared_frame_info.qp_min << std::endl;
+  out << "qp_max         = " << shared_frame_info.qp_max << std::endl;
+  out << "qp_init        = " << shared_frame_info.qp_init << std::endl;
+  out << "qp_avg         = " << shared_frame_info.qp_avg << std::endl;
+  out << "qp_stdev       = " << shared_frame_info.qp_stdev << std::endl;
+  out << "qp_bb_avg      = " << shared_frame_info.qp_bb_avg << std::endl;
+  out << "qp_bb_stdev    = " << shared_frame_info.qp_bb_stdev << std::endl;
+  out << "----------------------------------------------------" << std::endl;
+  out << "motion_avg        = " << shared_frame_info.motion_avg << std::endl;
+  out << "motion_stdev      = " << shared_frame_info.motion_stdev << std::endl;
+  out << "motion_x_avg      = " << shared_frame_info.motion_x_avg << std::endl;
+  out << "motion_y_avg      = " << shared_frame_info.motion_y_avg << std::endl;
+  out << "motion_x_stdev    = " << shared_frame_info.motion_x_stdev
+      << std::endl;
+  out << "motion_y_stdev    = " << shared_frame_info.motion_y_stdev
+      << std::endl;
+  out << "motion_diff_avg   = " << shared_frame_info.motion_diff_avg
+      << std::endl;
+  out << "motion_diff_stdev = " << shared_frame_info.motion_diff_stdev
+      << std::endl;
+  out << "current_poc       = " << shared_frame_info.current_poc << std::endl;
+  out << "poc_diff          = " << shared_frame_info.poc_diff << std::endl;
+  out << "motion_bit_count  = " << shared_frame_info.motion_bit_count
+      << std::endl;
+  out << "coefs_bit_count   = " << shared_frame_info.coefs_bit_count
+      << std::endl;
+  out << "mb_mv_count       = " << shared_frame_info.mb_mv_count << std::endl;
+  out << "mv_coded_count    = " << shared_frame_info.mv_coded_count
+      << std::endl;
 
   // adding these to make debugging easier
-  // std::cerr << "mv_length         = " << shared_frame_info.mv_length <<
-  // std::endl; std::cerr << "mv_sum_sqr        = " <<
-  // shared_frame_info.mv_sum_sqr << std::endl; std::cerr << "mv_x_length = " <<
-  // shared_frame_info.mv_x_length << std::endl; std::cerr << "mv_y_length = "
-  // << shared_frame_info.mv_y_length << std::endl; std::cerr << "mv_x_sum_sqr
-  // = " << shared_frame_info.mv_x_sum_sqr << std::endl; std::cerr <<
+  // out << "mv_length         = " << shared_frame_info.mv_length <<
+  // std::endl; out << "mv_sum_sqr        = " <<
+  // shared_frame_info.mv_sum_sqr << std::endl; out << "mv_x_length = " <<
+  // shared_frame_info.mv_x_length << std::endl; out << "mv_y_length = "
+  // << shared_frame_info.mv_y_length << std::endl; out << "mv_x_sum_sqr
+  // = " << shared_frame_info.mv_x_sum_sqr << std::endl; out <<
   // "mv_y_sum_sqr      = " << shared_frame_info.mv_y_sum_sqr << std::endl;
-  // std::cerr << "mv_length_diff    = " << shared_frame_info.mv_length_diff <<
-  // std::endl; std::cerr << "mv_diff_sum_sqr   = " <<
+  // out << "mv_length_diff    = " << shared_frame_info.mv_length_diff <<
+  // std::endl; out << "mv_diff_sum_sqr   = " <<
   // shared_frame_info.mv_diff_sum_sqr << std::endl;
+  log(AV_LOG_DEBUG, out.str().substr(0, out.str().size() - 1));
 }
 
 void VideoParser::set_frame_info_h264(FrameInfo &frame_info) {}
@@ -744,8 +770,9 @@ bool VideoParser::parse_frame(FrameInfo &frame_info) {
         return true;
       } catch (const std::exception &e) {
         if (verbose) {
-          std::cerr << "Warning: Could not set frame info for frame index "
-                    << frame_idx << ": " << e.what() << std::endl;
+          log(AV_LOG_VERBOSE,
+              "Warning: Could not set frame info for frame index " +
+                  std::to_string(frame_idx) + ": " + e.what());
         }
         // Continue to the next decoded frame if this one has no parser data.
         continue;

@@ -206,6 +206,28 @@ struct FrameInfo {
 void set_verbose(bool verbose);
 
 /**
+ * @brief Log callback
+ *
+ * @param user_data Pointer passed to set_log_callback()
+ * @param level FFmpeg log level of the message (AV_LOG_*)
+ * @param line One line with a trailing newline
+ */
+using LogCallback = void (*)(void *user_data, int level, const char *line);
+
+/**
+ * @brief Pass the parser's warnings and verbose output to a callback instead
+ * of writing them to stderr
+ *
+ * Process-wide. With a callback, messages above av_log_get_level() are
+ * dropped. Without one (the default), all messages go to stderr. FFmpeg's own
+ * messages are not affected; use av_log_set_callback() for them.
+ *
+ * @param callback The callback, or nullptr to write to stderr again
+ * @param user_data Passed to the callback
+ */
+void set_log_callback(LogCallback callback, void *user_data);
+
+/**
  * @brief A Video Parser implementation.
  *
  * This class is used to parse video files and extract information about the
