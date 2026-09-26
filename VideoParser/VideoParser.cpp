@@ -27,11 +27,28 @@ void set_verbose(bool verbose) {
   }
 }
 
-VideoParser::VideoParser(const char *filename) {
+VideoParser::VideoParser(const char *filename)
+    : VideoParser(filename, OpenOptions()) {}
+
+VideoParser::VideoParser(const char *filename, const OpenOptions &options)
+    : filename(filename), options(options) {
   // The destructor does not run if the constructor throws, so free what was
   // opened so far
   try {
-    open(filename);
+    open();
+  } catch (...) {
+    close();
+    throw;
+  }
+}
+
+VideoParser::VideoParser(const CustomInput &input, const OpenOptions &options)
+    : custom_input(input), options(options) {
+  if (!input.read) {
+    throw Error(Error::Code::Open, "No read callback given");
+  }
+  try {
+    open();
   } catch (...) {
     close();
     throw;
@@ -43,24 +60,42 @@ VideoParser::~VideoParser() { close(); }
 /**
  * @brief Open the file and the decoder, and fill the sequence info
  */
-void VideoParser::open(const char *filename) {
+void VideoParser::open() {
+  // The strings only need to be valid during the constructor
+  if (options.input_format) {
+    input_format_name = options.input_format;
+    options.input_format = nullptr;
+  }
+
   // Initialize FFmpeg networking
   avformat_network_init();
   network_initialized = true;
 
-  open_input(filename);
+  open_input();
 
-  // Find the first video stream
-  for (unsigned int i = 0; i < format_context->nb_streams; i++) {
-    if (format_context->streams[i]->codecpar->codec_type ==
-        AVMEDIA_TYPE_VIDEO) {
-      video_stream_idx = i;
-      break;
+  if (options.stream_index >= 0) {
+    if (static_cast<unsigned int>(options.stream_index) >=
+            format_context->nb_streams ||
+        format_context->streams[options.stream_index]->codecpar->codec_type !=
+            AVMEDIA_TYPE_VIDEO) {
+      throw Error(Error::Code::NoVideoStream,
+                  "Stream " + std::to_string(options.stream_index) +
+                      " is not a video stream");
+    }
+    video_stream_idx = options.stream_index;
+  } else {
+    // Find the first video stream
+    for (unsigned int i = 0; i < format_context->nb_streams; i++) {
+      if (format_context->streams[i]->codecpar->codec_type ==
+          AVMEDIA_TYPE_VIDEO) {
+        video_stream_idx = i;
+        break;
+      }
     }
   }
 
   // Warn if there was more than one video stream
-  if (video_stream_idx > 0) {
+  if (video_stream_idx > 0 && options.stream_index < 0) {
     std::cerr << "Warning, more than one video stream found, will only "
                  "consider the first"
               << std::endl;
@@ -68,7 +103,7 @@ void VideoParser::open(const char *filename) {
 
   // Add video codec information to struct
   if (video_stream_idx < 0) {
-    throw std::runtime_error("Error finding a video stream");
+    throw Error(Error::Code::NoVideoStream, "Error finding a video stream");
   }
 
   AVCodecParameters *codec_parameters =
@@ -76,7 +111,7 @@ void VideoParser::open(const char *filename) {
 
   const AVCodec *codec = avcodec_find_decoder(codec_parameters->codec_id);
   if (!codec) {
-    throw std::runtime_error("Error finding the video codec");
+    throw Error(Error::Code::Unsupported, "Error finding the video codec");
   }
 
   // Raw bitstreams have no duration; it is then estimated below
@@ -118,9 +153,12 @@ void VideoParser::open(const char *filename) {
 
   // Containers like MPEG-TS/PS or raw bitstreams signal neither bitrate nor
   // frame count, so estimate them from the video packets
-  if (sequence_info.video_bitrate == 0 ||
-      sequence_info.video_frame_count == 0) {
-    scan_video_packets(filename);
+  // The scan needs to go back to the start afterwards
+  bool seekable = !filename.empty() || custom_input.seek;
+  if (options.scan && seekable &&
+      (sequence_info.video_bitrate == 0 ||
+       sequence_info.video_frame_count == 0)) {
+    scan_video_packets();
     // The scan may have reopened the file
     codec_parameters = format_context->streams[video_stream_idx]->codecpar;
   }
@@ -128,12 +166,18 @@ void VideoParser::open(const char *filename) {
   // Open codec
   codec_context = avcodec_alloc_context3(codec);
   if (!codec_context) {
-    throw std::runtime_error("Error allocating codec context");
+    throw Error(Error::Code::OutOfMemory, "Error allocating codec context");
   }
 
-  if (avcodec_parameters_to_context(codec_context, codec_parameters) < 0) {
-    throw std::runtime_error("Error setting codec parameters");
+  int params_result =
+      avcodec_parameters_to_context(codec_context, codec_parameters);
+  if (params_result < 0) {
+    throw Error(Error::Code::Internal, "Error setting codec parameters",
+                params_result);
   }
+
+  // The statistics of the patched decoders are only correct with one thread
+  codec_context->thread_count = 1;
 
   // Preserve packet metadata on the decoded frame. This is needed for codecs
   // with frame reordering, where the packet being read is not necessarily the
@@ -149,7 +193,8 @@ void VideoParser::open(const char *filename) {
   const AVPixFmtDescriptor *pix_fmt_desc =
       av_pix_fmt_desc_get(codec_context->pix_fmt);
   if (!pix_fmt_desc) {
-    throw std::runtime_error(
+    throw Error(
+        Error::Code::Unsupported,
         "Cannot determine the video format (unknown pixel format); the stream "
         "may be damaged or declare the wrong codec");
   }
@@ -164,31 +209,76 @@ void VideoParser::open(const char *filename) {
   int open_result = avcodec_open2(codec_context, codec, &opts);
   av_dict_free(&opts);
   if (open_result < 0) {
-    throw std::runtime_error("Error opening codec");
+    throw Error(Error::Code::Unsupported, "Error opening codec", open_result);
   }
 
   // Allocate packet and frame
   current_packet = av_packet_alloc();
   if (!current_packet) {
-    throw std::runtime_error("Error allocating packet");
+    throw Error(Error::Code::OutOfMemory, "Error allocating packet");
   }
 
   frame = av_frame_alloc();
   if (!frame) {
-    throw std::runtime_error("Error allocating frame");
+    throw Error(Error::Code::OutOfMemory, "Error allocating frame");
   }
 }
 
 /**
- * @brief Open the file and read its stream information
+ * @brief Open the file or custom input and read its stream information. For
+ * custom input that was opened before, start again at the beginning.
  */
-void VideoParser::open_input(const char *filename) {
-  if (avformat_open_input(&format_context, filename, nullptr, nullptr) != 0) {
-    throw std::runtime_error("Error opening the file");
+void VideoParser::open_input() {
+  const AVInputFormat *input_format = nullptr;
+  if (!input_format_name.empty()) {
+    input_format = av_find_input_format(input_format_name.c_str());
+    if (!input_format) {
+      throw Error(Error::Code::Open,
+                  "Unknown input format: " + input_format_name);
+    }
   }
 
-  if (avformat_find_stream_info(format_context, nullptr) < 0) {
-    throw std::runtime_error("Error finding the stream information");
+  if (filename.empty()) {
+    if (!io_context) {
+      int buffer_size =
+          custom_input.buffer_size > 0 ? custom_input.buffer_size : 32768;
+      auto *buffer = static_cast<unsigned char *>(av_malloc(buffer_size));
+      if (!buffer) {
+        throw Error(Error::Code::OutOfMemory, "Error allocating I/O buffer");
+      }
+      io_context =
+          avio_alloc_context(buffer, buffer_size, 0, custom_input.opaque,
+                             custom_input.read, nullptr, custom_input.seek);
+      if (!io_context) {
+        av_free(buffer);
+        throw Error(Error::Code::OutOfMemory, "Error allocating I/O context");
+      }
+    } else {
+      int64_t seek_result = avio_seek(io_context, 0, SEEK_SET);
+      if (seek_result < 0) {
+        throw Error(Error::Code::Io,
+                    "Error seeking back to the start of the input",
+                    static_cast<int>(seek_result));
+      }
+    }
+    format_context = avformat_alloc_context();
+    if (!format_context) {
+      throw Error(Error::Code::OutOfMemory, "Error allocating format context");
+    }
+    format_context->pb = io_context;
+  }
+
+  // On failure, this frees the format context, but not the custom I/O context
+  int open_result = avformat_open_input(&format_context, filename.c_str(),
+                                        input_format, nullptr);
+  if (open_result != 0) {
+    throw Error(Error::Code::Open, "Error opening the file", open_result);
+  }
+
+  int info_result = avformat_find_stream_info(format_context, nullptr);
+  if (info_result < 0) {
+    throw Error(Error::Code::Open, "Error finding the stream information",
+                info_result);
   }
 }
 
@@ -256,10 +346,10 @@ struct TimestampSpan {
  * @brief Estimate bitrate and frame count by reading all video packets without
  * decoding them, then go back to the start of the file.
  */
-void VideoParser::scan_video_packets(const char *filename) {
+void VideoParser::scan_video_packets() {
   AVPacket *packet = av_packet_alloc();
   if (!packet) {
-    throw std::runtime_error("Error allocating packet");
+    throw Error(Error::Code::OutOfMemory, "Error allocating packet");
   }
 
   AVStream *stream = format_context->streams[video_stream_idx];
@@ -338,12 +428,14 @@ void VideoParser::scan_video_packets(const char *filename) {
       (input_format->flags & (AVFMT_TS_DISCONT | AVFMT_NOTIMESTAMPS)) &&
       !(input_format->flags & AVFMT_NO_BYTE_SEEK);
   if (byte_seek) {
-    if (av_seek_frame(format_context, -1, 0, AVSEEK_FLAG_BYTE) < 0) {
-      throw std::runtime_error("Error seeking back to the start of the file");
+    int seek_result = av_seek_frame(format_context, -1, 0, AVSEEK_FLAG_BYTE);
+    if (seek_result < 0) {
+      throw Error(Error::Code::Io,
+                  "Error seeking back to the start of the file", seek_result);
     }
   } else {
     avformat_close_input(&format_context);
-    open_input(filename);
+    open_input();
   }
 }
 
@@ -547,6 +639,19 @@ void VideoParser::set_frame_info(FrameInfo &frame_info) {
 
 Summary VideoParser::get_summary() const { return summary; }
 
+const AVFrame *VideoParser::get_frame() const {
+  return frame && frame->buf[0] ? frame : nullptr;
+}
+
+int VideoParser::get_stream_index() const { return video_stream_idx; }
+
+AVRational VideoParser::get_time_base() const {
+  if (!format_context || video_stream_idx < 0) {
+    return AVRational{0, 1};
+  }
+  return format_context->streams[video_stream_idx]->time_base;
+}
+
 void VideoParser::print_shared_frame_info(SharedFrameInfo &shared_frame_info) {
   std::cerr << "================ SHARED FRAME INFO ================"
             << std::endl;
@@ -660,11 +765,13 @@ bool VideoParser::parse_frame(FrameInfo &frame_info) {
     }
 
     if (receive_result != AVERROR(EAGAIN)) {
-      throw std::runtime_error("Error receiving a decoded frame");
+      throw Error(Error::Code::Decode, "Error receiving a decoded frame",
+                  receive_result);
     }
 
     if (decoder_draining) {
-      throw std::runtime_error("Decoder requested input after end of stream");
+      throw Error(Error::Code::Decode,
+                  "Decoder requested input after end of stream");
     }
 
     bool packet_sent = false;
@@ -678,7 +785,8 @@ bool VideoParser::parse_frame(FrameInfo &frame_info) {
           av_buffer_alloc(sizeof(current_packet->size));
       if (!current_packet->opaque_ref) {
         av_packet_unref(current_packet);
-        throw std::runtime_error("Error allocating packet metadata");
+        throw Error(Error::Code::OutOfMemory,
+                    "Error allocating packet metadata");
       }
       memcpy(current_packet->opaque_ref->data, &current_packet->size,
              sizeof(current_packet->size));
@@ -695,7 +803,8 @@ bool VideoParser::parse_frame(FrameInfo &frame_info) {
         continue;
       }
       if (send_result < 0) {
-        throw std::runtime_error("Error sending a packet for decoding");
+        throw Error(Error::Code::Decode, "Error sending a packet for decoding",
+                    send_result);
       }
 
       packet_sent = true;
@@ -710,7 +819,8 @@ bool VideoParser::parse_frame(FrameInfo &frame_info) {
     // and HEVC with frame reordering). Keep receiving until AVERROR_EOF.
     int send_result = avcodec_send_packet(codec_context, nullptr);
     if (send_result < 0 && send_result != AVERROR_EOF) {
-      throw std::runtime_error("Error flushing the video decoder");
+      throw Error(Error::Code::Decode, "Error flushing the video decoder",
+                  send_result);
     }
     decoder_draining = true;
   }
@@ -726,6 +836,12 @@ void VideoParser::close() {
   avcodec_free_context(&codec_context);
   // Also frees the format context and sets it to nullptr
   avformat_close_input(&format_context);
+  // Custom I/O is not freed by avformat_close_input(). FFmpeg may have
+  // replaced the buffer, so free the current one.
+  if (io_context) {
+    av_freep(&io_context->buffer);
+    avio_context_free(&io_context);
+  }
   if (network_initialized) {
     avformat_network_deinit();
     network_initialized = false;
