@@ -62,6 +62,8 @@ FIXTURES = [
 FRAME_INFO_KEYS = [
     "coefs_bit_count",
     "current_poc",
+    "decode_error",
+    "discontinuity",
     "dts",
     "frame_idx",
     "frame_type",
@@ -104,6 +106,15 @@ SEQUENCE_INFO_KEYS = [
     "video_height",
     "video_pix_fmt",
     "video_width",
+]
+
+# Keys to compare for summary entries
+SUMMARY_KEYS = [
+    "corrupt_packets",
+    "decode_errors",
+    "discontinuities",
+    "frame_count",
+    "type",
 ]
 
 # Tolerance for floating point comparisons
@@ -222,6 +233,9 @@ class TestVideoParser:
             if expected_entry.get("type") == "sequence_info":
                 keys_to_compare = SEQUENCE_INFO_KEYS
                 frame_label = "seq"
+            elif expected_entry.get("type") == "summary":
+                keys_to_compare = SUMMARY_KEYS
+                frame_label = "summary"
             else:
                 keys_to_compare = FRAME_INFO_KEYS
                 frame_label = str(idx - 1)  # -1 because first entry is sequence_info
