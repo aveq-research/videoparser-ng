@@ -86,6 +86,10 @@ struct OpenOptions {
   /** Read all video packets before decoding to estimate the bitrate and frame
    * count if the container lacks them (only for seekable input) */
   bool scan = true;
+  /** Also return frames without statistics (for example of codecs that the
+   * FFmpeg fork does not patch, such as FFV1), with FrameInfo::has_statistics
+   * false and the statistics at their defaults */
+  bool frames_without_statistics = false;
 };
 
 class ScopeExit {
@@ -153,6 +157,9 @@ struct FrameInfo {
   /** Whether the timestamp of this frame jumps against the end of the previous
    * frame (a discontinuity; see Summary::discontinuities) */
   bool discontinuity = false;
+  /** Whether the decoder attached statistics to this frame; false only with
+   * OpenOptions::frames_without_statistics */
+  bool has_statistics = true;
 
   // from SharedFrameInfo
   uint32_t qp_min = 0;  /**< Minimum QP value encountered in this frame */

@@ -511,6 +511,35 @@ SequenceInfo VideoParser::get_sequence_info() {
 }
 
 /**
+ * @brief Reset the statistics of a frame to their defaults (for frames
+ * without statistics)
+ */
+static void clear_statistics(FrameInfo &frame_info) {
+  const FrameInfo empty;
+  frame_info.qp_min = empty.qp_min;
+  frame_info.qp_max = empty.qp_max;
+  frame_info.qp_init = empty.qp_init;
+  frame_info.qp_avg = empty.qp_avg;
+  frame_info.qp_stdev = empty.qp_stdev;
+  frame_info.qp_bb_avg = empty.qp_bb_avg;
+  frame_info.qp_bb_stdev = empty.qp_bb_stdev;
+  frame_info.motion_avg = empty.motion_avg;
+  frame_info.motion_stdev = empty.motion_stdev;
+  frame_info.motion_x_avg = empty.motion_x_avg;
+  frame_info.motion_y_avg = empty.motion_y_avg;
+  frame_info.motion_x_stdev = empty.motion_x_stdev;
+  frame_info.motion_y_stdev = empty.motion_y_stdev;
+  frame_info.motion_diff_avg = empty.motion_diff_avg;
+  frame_info.motion_diff_stdev = empty.motion_diff_stdev;
+  frame_info.current_poc = empty.current_poc;
+  frame_info.poc_diff = empty.poc_diff;
+  frame_info.mb_mv_count = empty.mb_mv_count;
+  frame_info.motion_bit_count = empty.motion_bit_count;
+  frame_info.coefs_bit_count = empty.coefs_bit_count;
+  frame_info.mv_coded_count = empty.mv_coded_count;
+}
+
+/**
  * @brief Set the frame info struct from current ffmpeg frame and packet
  *
  * @param frame_info
@@ -521,10 +550,12 @@ void VideoParser::set_frame_info(FrameInfo &frame_info) {
         "Error setting frame info, did you call parse_frame() before?");
   }
 
-  // get the SharedFrameInfo, sometimes it's empty, so we skip this iteration
+  // get the SharedFrameInfo, sometimes it's empty, so we skip this iteration,
+  // unless frames without statistics are requested (for codecs that the fork
+  // does not patch)
   SharedFrameInfo *shared_frame_info =
       videoparser_get_final_shared_frame_info(frame);
-  if (!shared_frame_info) {
+  if (!shared_frame_info && !options.frames_without_statistics) {
     throw std::runtime_error("No shared frame info found");
   }
 
@@ -613,31 +644,36 @@ void VideoParser::set_frame_info(FrameInfo &frame_info) {
       frame->decode_error_flags != 0 || (frame->flags & AV_FRAME_FLAG_CORRUPT);
   frame_info.discontinuity = discontinuity;
 
-  if (verbose)
-    print_shared_frame_info(*shared_frame_info);
-  frame_info.qp_min = shared_frame_info->qp_min;
-  frame_info.qp_max = shared_frame_info->qp_max;
-  frame_info.qp_init = shared_frame_info->qp_init;
-  frame_info.qp_avg = shared_frame_info->qp_avg;
-  frame_info.qp_stdev = shared_frame_info->qp_stdev;
-  frame_info.qp_bb_avg = shared_frame_info->qp_bb_avg;
-  frame_info.qp_bb_stdev = shared_frame_info->qp_bb_stdev;
+  frame_info.has_statistics = shared_frame_info != nullptr;
+  if (shared_frame_info) {
+    if (verbose)
+      print_shared_frame_info(*shared_frame_info);
+    frame_info.qp_min = shared_frame_info->qp_min;
+    frame_info.qp_max = shared_frame_info->qp_max;
+    frame_info.qp_init = shared_frame_info->qp_init;
+    frame_info.qp_avg = shared_frame_info->qp_avg;
+    frame_info.qp_stdev = shared_frame_info->qp_stdev;
+    frame_info.qp_bb_avg = shared_frame_info->qp_bb_avg;
+    frame_info.qp_bb_stdev = shared_frame_info->qp_bb_stdev;
 
-  // motion estimation
-  frame_info.motion_avg = shared_frame_info->motion_avg;
-  frame_info.motion_stdev = shared_frame_info->motion_stdev;
-  frame_info.motion_x_avg = shared_frame_info->motion_x_avg;
-  frame_info.motion_y_avg = shared_frame_info->motion_y_avg;
-  frame_info.motion_x_stdev = shared_frame_info->motion_x_stdev;
-  frame_info.motion_y_stdev = shared_frame_info->motion_y_stdev;
-  frame_info.motion_diff_avg = shared_frame_info->motion_diff_avg;
-  frame_info.motion_diff_stdev = shared_frame_info->motion_diff_stdev;
-  frame_info.current_poc = shared_frame_info->current_poc;
-  frame_info.poc_diff = shared_frame_info->poc_diff;
-  frame_info.mb_mv_count = shared_frame_info->mb_mv_count;
-  frame_info.motion_bit_count = shared_frame_info->motion_bit_count;
-  frame_info.coefs_bit_count = shared_frame_info->coefs_bit_count;
-  frame_info.mv_coded_count = shared_frame_info->mv_coded_count;
+    // motion estimation
+    frame_info.motion_avg = shared_frame_info->motion_avg;
+    frame_info.motion_stdev = shared_frame_info->motion_stdev;
+    frame_info.motion_x_avg = shared_frame_info->motion_x_avg;
+    frame_info.motion_y_avg = shared_frame_info->motion_y_avg;
+    frame_info.motion_x_stdev = shared_frame_info->motion_x_stdev;
+    frame_info.motion_y_stdev = shared_frame_info->motion_y_stdev;
+    frame_info.motion_diff_avg = shared_frame_info->motion_diff_avg;
+    frame_info.motion_diff_stdev = shared_frame_info->motion_diff_stdev;
+    frame_info.current_poc = shared_frame_info->current_poc;
+    frame_info.poc_diff = shared_frame_info->poc_diff;
+    frame_info.mb_mv_count = shared_frame_info->mb_mv_count;
+    frame_info.motion_bit_count = shared_frame_info->motion_bit_count;
+    frame_info.coefs_bit_count = shared_frame_info->coefs_bit_count;
+    frame_info.mv_coded_count = shared_frame_info->mv_coded_count;
+  } else {
+    clear_statistics(frame_info);
+  }
 
   // Adding these to make debugging easier
   // frame_info.mv_length = shared_frame_info->mv_length;
