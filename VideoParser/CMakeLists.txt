@@ -11,8 +11,14 @@ set(LIBAOM_LIBRARY "${LIBAOM_BUILD_DIR}/libaom.a")
 # fix for ffmpeg's use of register keyword
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-register")
 
+set(VIDEOPARSER_SOURCES
+  VideoParser.cpp VideoParser.h
+  videoparser_c.cpp videoparser_c.h
+)
+
 if(VIDEOPARSER_SHARED)
-  add_library(videoparser SHARED VideoParser.cpp VideoParser.h)
+  add_library(videoparser SHARED ${VIDEOPARSER_SOURCES})
+  target_compile_definitions(videoparser PRIVATE VIDEOPARSER_BUILDING_SHARED)
 
   # Link VideoParser against the shared FFmpeg, which includes libaom
   target_include_directories(videoparser PRIVATE ${FFMPEG_DIR})
@@ -30,7 +36,7 @@ if(VIDEOPARSER_SHARED)
     set_target_properties(videoparser PROPERTIES INSTALL_RPATH "$ORIGIN")
   endif()
 else()
-  add_library(videoparser STATIC VideoParser.cpp VideoParser.h)
+  add_library(videoparser STATIC ${VIDEOPARSER_SOURCES})
 
   # Link VideoParser against FFmpeg and libaom statically
   target_include_directories(videoparser
@@ -49,6 +55,15 @@ else()
   target_link_libraries(videoparser PUBLIC bz2 z)
 endif()
 
+# Header directory for users of the library in this project (the CLI and the
+# C API test)
+target_include_directories(videoparser INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+
+# Reported by vp_build_flags()
+if(VIDEOPARSER_LEGACY)
+  target_compile_definitions(videoparser PRIVATE VIDEOPARSER_LEGACY_BUILD)
+endif()
+
 # Build FFmpeg (which also builds libaom) if it doesn't exist, or if any of its source files have changed
 if(NOT SKIP_FFMPEG_BUILD)
   add_custom_command(
@@ -62,8 +77,16 @@ endif()
 # SDK layout (lib/ and include/), as in the release SDK archives:
 # cmake --install <build dir> --prefix <sdk dir>
 if(VIDEOPARSER_SHARED)
+  set(VIDEOPARSER_PC_LIBS_PRIVATE "")
+else()
+  set(VIDEOPARSER_PC_LIBS_PRIVATE "-lavformat -lavcodec -lavutil -laom -latomic -lbz2 -lz -lm -lpthread -lstdc++")
+endif()
+configure_file(videoparser.pc.in ${CMAKE_CURRENT_BINARY_DIR}/videoparser.pc @ONLY)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/videoparser.pc DESTINATION lib/pkgconfig)
+
+if(VIDEOPARSER_SHARED)
   install(TARGETS videoparser LIBRARY DESTINATION lib)
-  install(FILES VideoParser.h DESTINATION include/VideoParser)
+  install(FILES VideoParser.h videoparser_c.h DESTINATION include/VideoParser)
   install(DIRECTORY include/ DESTINATION include/VideoParser/include)
   # All shared ffmpeg libraries (with their version symlinks), headers and
   # programs, globbed at install time
@@ -78,7 +101,7 @@ if(VIDEOPARSER_SHARED)
 else()
   install(TARGETS videoparser ARCHIVE DESTINATION lib)
   install(FILES ${FFMPEG_LIBRARIES} ${LIBAOM_LIBRARY} DESTINATION lib)
-  install(FILES VideoParser.h DESTINATION include/VideoParser)
+  install(FILES VideoParser.h videoparser_c.h DESTINATION include/VideoParser)
   install(DIRECTORY include/ DESTINATION include/VideoParser/include)
   install(DIRECTORY ${LIBAOM_SRC_DIR}/aom/ DESTINATION include/aom
     FILES_MATCHING PATTERN "*.h" PATTERN "src" EXCLUDE)

@@ -38,6 +38,16 @@ else()
     set(FFMPEG_BUILD_ARGS "")
 endif()
 
+# Version from VideoParser.h, for the pkg-config file
+file(STRINGS "${CMAKE_SOURCE_DIR}/VideoParser/VideoParser.h" VIDEOPARSER_VERSION_DEFINES
+  REGEX "^#define VIDEOPARSER_VERSION_(MAJOR|MINOR|PATCH) ")
+foreach(part MAJOR MINOR PATCH)
+  string(REGEX REPLACE ".*VIDEOPARSER_VERSION_${part} ([0-9]+).*" "\\1"
+    VIDEOPARSER_VERSION_${part} "${VIDEOPARSER_VERSION_DEFINES}")
+endforeach()
+set(VIDEOPARSER_VERSION
+  "${VIDEOPARSER_VERSION_MAJOR}.${VIDEOPARSER_VERSION_MINOR}.${VIDEOPARSER_VERSION_PATCH}")
+
 # Include the CMakeLists.txt for the subdirectories
 add_subdirectory(VideoParser)
 add_subdirectory(VideoParserCli)

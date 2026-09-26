@@ -1,0 +1,10 @@
+prefix=${pcfiledir}/../..
+libdir=${prefix}/lib
+includedir=${prefix}/include
+
+Name: videoparser
+Description: Video bitstream parser (videoparser-ng) with a C and C++ API
+Version: @VIDEOPARSER_VERSION@
+Libs: -L${libdir} -lvideoparser
+Libs.private: @VIDEOPARSER_PC_LIBS_PRIVATE@
+Cflags: -I${includedir}/VideoParser -I${includedir}
