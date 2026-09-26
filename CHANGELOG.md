@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 <!-- insertion marker -->
+## [v0.8.0](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.8.0) - 2026-09-26
+
+<small>[Compare with v0.7.0](https://github.com/aveq-research/videoparser-ng/compare/v0.7.0...v0.8.0)</small>
+
+### Features
+
+- add a summary record and error flags ([3db477a](https://github.com/aveq-research/videoparser-ng/commit/3db477a6f6301c1052de312bc6b5fc20057c1547) by Werner Robitza).
+
+### Bug Fixes
+
+- leave timestamp gaps out of the duration ([489b6f4](https://github.com/aveq-research/videoparser-ng/commit/489b6f4d7b13a9c2164e355f94bdecc0f9f20e2d) by Werner Robitza).
+- fail cleanly on an unknown pixel format ([696f7e2](https://github.com/aveq-research/videoparser-ng/commit/696f7e226f93dcb23343c91dc5ba325196c7f5ed) by Werner Robitza).
+
+### Tests
+
+- add damaged MPEG-TS clips to the CLI tests ([0210f8f](https://github.com/aveq-research/videoparser-ng/commit/0210f8f1e3b0fa244b1b581d10e27e835fca0678) by Werner Robitza).
+
+### Tests
+
+- add damaged MPEG-TS clips to the CLI tests ([0210f8f](https://github.com/aveq-research/videoparser-ng/commit/0210f8f1e3b0fa244b1b581d10e27e835fca0678) by Werner Robitza).
+
+### Misc
+
+- bump version to 0.8.0 ([3c4054d](https://github.com/aveq-research/videoparser-ng/commit/3c4054d2ac2cced0b6da1f201988fa8de9977e1d) by Werner Robitza).
+
 ## [v0.7.0](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.7.0) - 2026-09-25
 
 <small>[Compare with v0.6.2](https://github.com/aveq-research/videoparser-ng/compare/v0.6.2...v0.7.0)</small>
@@ -31,7 +56,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Misc
 
-- bump version to 0.7.0 ([07a5e39](https://github.com/aveq-research/videoparser-ng/commit/07a5e39e219a421595633b1783442a592f886dc2) by Werner Robitza).
+- bump version to 0.7.0 ([1fad62d](https://github.com/aveq-research/videoparser-ng/commit/1fad62dac0331181d72ef1678fef0d0865ef23c9) by Werner Robitza).
 
 ## [v0.6.2](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.6.2) - 2026-09-25
 
