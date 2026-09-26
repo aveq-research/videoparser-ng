@@ -205,9 +205,9 @@ const char *vp_version(void) {
 
 uint32_t vp_build_flags(void) {
   uint32_t flags = 0;
-#ifdef VIDEOPARSER_LEGACY_BUILD
-  flags |= VP_BUILD_LEGACY;
-#endif
+  if (videoparser_legacy_mode()) {
+    flags |= VP_BUILD_LEGACY;
+  }
   return flags;
 }
 
