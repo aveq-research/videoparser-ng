@@ -14,7 +14,8 @@
  *   --stream <index>   index of the video stream
  *   --no-scan          do not read the packets before decoding
  *   --raw <file>       write the decoded pictures as raw video to a file
- *   --log-callback     route FFmpeg's log lines through the log callback
+ *   --log-callback     route the log lines through the log callback
+ *   --all-frames       also return frames without statistics
  *
  * @copyright Copyright (c) 2026, AVEQ GmbH. Copyright (c) 2026,
  * videoparser-ng contributors.
@@ -265,7 +266,8 @@ static void usage(void) {
   fprintf(stderr,
           "Usage: videoparser-c-test [-n <frames>] [--io | --io-no-seek] "
           "[--read-size <n>] [--format <name>] [--stream <index>] "
-          "[--no-scan] [--raw <file>] [--log-callback] <file>\n");
+          "[--no-scan] [--raw <file>] [--log-callback] [--all-frames] "
+          "<file>\n");
 }
 
 int main(int argc, char *argv[]) {
@@ -299,6 +301,8 @@ int main(int argc, char *argv[]) {
       options.scan = VP_SCAN_OFF;
     } else if (strcmp(arg, "--raw") == 0 && has_value) {
       raw_path = argv[++i];
+    } else if (strcmp(arg, "--all-frames") == 0) {
+      options.frames_without_statistics = 1;
     } else if (strcmp(arg, "--log-callback") == 0) {
       log_callback = 1;
     } else if (arg[0] == '-' && arg[1] != '\0') {

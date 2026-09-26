@@ -16,9 +16,12 @@ status, in these modes:
 - io-no-seek: custom input without seek; only the frame and summary records
   are compared, since the sequence information lacks the scan. Inputs that
   cannot be opened without seeking are listed, not counted as failures.
+- all-frames: with frames_without_statistics; the output must be the same
+  where the CLI succeeds. Where it fails (for example FFV1), the number of
+  frames is listed.
 
-With --raw, also compare the decoded pictures (vp_get_picture) with the raw
-video from FFmpeg's ffmpeg program.
+With --raw, also compare the decoded pictures (vp_get_picture, with
+frames_without_statistics) with the raw video from FFmpeg's ffmpeg program.
 
 Usage:
 
@@ -52,7 +55,7 @@ VIDEO_EXTENSIONS = {
     ".ivf",
     ".mov",
 }
-MODES = ["path", "io", "io-small", "n5", "io-no-seek"]
+MODES = ["path", "io", "io-small", "n5", "io-no-seek", "all-frames"]
 
 
 @dataclass
@@ -150,13 +153,20 @@ def check_clip(
                 add(mode, True, "needs seek: " + (note[-1] if note else ""))
             else:
                 add(mode, *compare(cli_full, c, skip_first_line=True))
+        elif mode == "all-frames":
+            c = run([c_bin, "--all-frames", str(clip)], timeout)
+            if cli_full.returncode != 0 and c.returncode == 0:
+                frames = c.stdout.count(b'"frame_info"')
+                add(mode, True, f"{frames} frames without statistics")
+            else:
+                add(mode, *compare(cli_full, c))
     return results
 
 
 def md5_of_raw_c(build: Path, clip: Path, timeout: int) -> tuple[str, int]:
     c_bin = str(build / "test" / "c-api" / "videoparser-c-test")
     with tempfile.NamedTemporaryFile(suffix=".yuv") as tmp:
-        c = run([c_bin, "--raw", tmp.name, str(clip)], timeout)
+        c = run([c_bin, "--all-frames", "--raw", tmp.name, str(clip)], timeout)
         if c.returncode != 0:
             return "", 0
         frames = sum(1 for line in c.stdout.splitlines() if b'"frame_info"' in line)

@@ -31,11 +31,12 @@ extern "C" {
 
 namespace {
 
-constexpr size_t kOptionsSizeV1 = VP_SIZE_V1(vp_options, io_buffer_size);
+constexpr size_t kOptionsSizeV1 =
+    VP_SIZE_V1(vp_options, frames_without_statistics);
 constexpr size_t kIoSizeV1 = VP_SIZE_V1(vp_io, opaque);
 constexpr size_t kSequenceInfoSizeV1 =
     VP_SIZE_V1(vp_sequence_info, time_base_den);
-constexpr size_t kFrameInfoSizeV1 = VP_SIZE_V1(vp_frame_info, mv_coded_count);
+constexpr size_t kFrameInfoSizeV1 = VP_SIZE_V1(vp_frame_info, has_statistics);
 constexpr size_t kSummarySizeV1 = VP_SIZE_V1(vp_summary, discontinuities);
 constexpr size_t kPictureSizeV1 = VP_SIZE_V1(vp_picture, color_transfer);
 
@@ -303,6 +304,8 @@ static vp_status convert_options(const vp_options *in, vp_options &options,
   open_options.stream_index = options.stream_index;
   open_options.input_format = options.input_format;
   open_options.scan = options.scan == VP_SCAN_AUTO;
+  open_options.frames_without_statistics =
+      options.frames_without_statistics != 0;
   return VP_OK;
 }
 
@@ -509,6 +512,7 @@ vp_status vp_next_frame(vp_parser *parser, vp_frame_info *frame) {
   result.coefs_bit_count = in.coefs_bit_count;
   result.mb_mv_count = in.mb_mv_count;
   result.mv_coded_count = in.mv_coded_count;
+  result.has_statistics = in.has_statistics ? 1 : 0;
   copy_out(frame, result);
 
   parser->frames_returned++;

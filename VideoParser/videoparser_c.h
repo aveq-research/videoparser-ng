@@ -122,6 +122,10 @@ typedef struct vp_options {
   const char *input_format;
   /** Size of the buffer for custom input in bytes; 0 for 32768 */
   int32_t io_buffer_size;
+  /** 1 to also return frames without statistics (for example FFV1
+   * references for full-reference metrics), with has_statistics 0 and the
+   * statistics 0; 0 (default) to skip them, as the CLI does */
+  int32_t frames_without_statistics;
 } vp_options;
 
 /**
@@ -224,6 +228,9 @@ typedef struct vp_frame_info {
   uint32_t coefs_bit_count;  /**< Bits used for coding coefficients */
   int32_t mb_mv_count;       /**< Number of blocks with motion vectors */
   int32_t mv_coded_count;    /**< Number of coded motion vectors */
+  /** 1 if the decoder attached statistics to the frame; 0 only with
+   * vp_options.frames_without_statistics */
+  int32_t has_statistics;
 } vp_frame_info;
 
 /**
