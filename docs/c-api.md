@@ -11,7 +11,7 @@ The C++ interface (`VideoParser.h`) stays as it is. The C API is a thin layer ov
 - Custom input: a read callback and an optional seek callback, so that the caller can feed MPEG-TS, segments or elementary streams from memory or the network. FFmpeg's network protocols stay disabled.
 - Decoded pictures: the planes of the decoded frame, without a copy, for pixel metrics and full-reference metrics in the caller's process.
 
-Not included yet: decoded audio, a comparison API with FFmpeg filters, and pictures of frames without statistics (for example FFV1 references). See "Later extensions".
+Not included yet: decoded audio and a comparison API with FFmpeg filters. See "Later extensions".
 
 ## Conventions
 
@@ -27,7 +27,7 @@ Not included yet: decoded audio, a comparison API with FFmpeg filters, and pictu
 
 - `VP_API_VERSION_MAJOR` and `VP_API_VERSION_MINOR` in the header, and `vp_api_version()` at run time, which returns `(major << 16) | minor`. The major version changes on incompatible changes (removed or changed functions, changed struct layouts). The minor version changes when functions, struct fields or status codes are added. A caller compiled against version `M.m` works with a library of the same major version and a minor version of at least `m`.
 - `vp_version()` returns the library version, for example `"0.8.0"`, which is the same as the CLI's `--version`.
-- `vp_build_flags()` returns `VP_BUILD_LEGACY` if the library was built in legacy mode (`VP_MV_POC_NORMALIZATION=1`, `-DVIDEOPARSER_LEGACY=ON`). P.1204.3 needs the legacy build, so callers can check this at run time. The flag comes from the CMake option, so a normal build directory whose FFmpeg was rebuilt in place with `VP_EXTRA_CFLAGS="-DVP_MV_POC_NORMALIZATION=1"` does not report it.
+- `vp_build_flags()` returns `VP_BUILD_LEGACY` if the library was built in legacy mode (`VP_MV_POC_NORMALIZATION=1`). P.1204.3 needs the legacy build, so callers can check this at run time. The flag comes from the FFmpeg fork (`videoparser_legacy_mode()` in libavutil), so it is also correct for an FFmpeg rebuilt in place with `VP_EXTRA_CFLAGS`.
 
 ## Memory
 
@@ -49,7 +49,7 @@ Library information:
 Logging (process-wide, since FFmpeg's logging is global):
 
 - `void vp_set_log_level(int32_t level)`: FFmpeg's log level (`VP_LOG_QUIET`, `VP_LOG_ERROR`, `VP_LOG_WARNING`, `VP_LOG_INFO`, `VP_LOG_DEBUG`; the values are FFmpeg's). The default is FFmpeg's default, `VP_LOG_INFO`, as for the CLI.
-- `void vp_set_log_callback(vp_log_callback callback, void *user_data)`: receive FFmpeg's log lines instead of FFmpeg writing them to stderr. `NULL` restores the default. The callback gets the level and one formatted line, with the component prefix (for example `[h264 @ 0x...] error while decoding MB 0 21`), and may be called from any thread that runs a parser. A few warnings of the C++ layer (more than one video stream, missing duration) still go to stderr.
+- `void vp_set_log_callback(vp_log_callback callback, void *user_data)`: receive the log lines of FFmpeg and of the parser instead of having them written to stderr. `NULL` restores the default. The callback gets the level and one formatted line with a trailing newline: FFmpeg's lines have the component prefix (for example `[h264 @ 0x...] error while decoding MB 0 21`), the parser's warnings come as `VP_LOG_WARNING` (for example `Warning, more than one video stream found, will only consider the first`). Lines above the log level are dropped. The callback may be called from any thread that runs a parser. Without a callback, the parser's warnings go to stderr regardless of the log level, as in the CLI.
 
 Opening:
 
@@ -76,6 +76,7 @@ Parsing:
 - `input_format` (default `NULL`): name of the FFmpeg demuxer (for example `"mpegts"`), or `NULL` to detect the format. Useful for custom input without a seek callback, where probing only sees the first bytes.
 - `scan` (default `VP_SCAN_AUTO`): `VP_SCAN_AUTO` reads all video packets before decoding if the container lacks the bitrate or frame count and the input is seekable. `VP_SCAN_OFF` never does; the duration, bitrate and frame count then come from the parsed frames at the end (as for non-seekable input). Live input should use `VP_SCAN_OFF`.
 - `io_buffer_size` (default 0 = 32768): size of the buffer for custom input, in bytes.
+- `frames_without_statistics` (default 0): with 1, `vp_next_frame()` also returns frames that carry no statistics, with `has_statistics` 0 and all statistics 0. This is for codecs that the FFmpeg fork does not patch (for example FFV1 references for VMAF), whose frames are otherwise skipped, so that the stream ends with `VP_ERROR_NO_FRAMES`. Frame type, size, timestamps, flags and the picture are set as usual. For the patched codecs, the output is the same as without the option on all test clips.
 
 Legacy or normal motion vector statistics are not an option: the mode is compiled into FFmpeg, so there is one library per mode. `vp_build_flags()` tells which one is loaded. Threads are not an option either: the decoder always uses one thread, because the patched statistics are only correct with one decoder thread.
 
@@ -95,6 +96,7 @@ The library wraps the callbacks in an FFmpeg `AVIOContext`. With a seek callback
 
 - `vp_sequence_info.stream_index`: index of the parsed stream in the container.
 - `vp_sequence_info.time_base_num`, `time_base_den`: time base of the stream.
+- `vp_frame_info.has_statistics`: 1 if the frame has statistics; 0 only with `frames_without_statistics`.
 - `vp_frame_info.pts_raw`, `dts_raw`: the timestamps in the stream's time base, or `VP_NOPTS` (`INT64_MIN`) if the frame has none; `pts` and `dts` in seconds are then estimated from the previous timestamp and the frame rate, as in the CLI (and NaN without a frame rate, which the CLI writes as `null`).
 
 `vp_picture`:
@@ -158,8 +160,8 @@ The shared library exports the C functions with default visibility. The C++ API 
 
 ## Tests
 
-- `test/c-api/videoparser-c-test.c` is a C11 program that uses only `videoparser_c.h`. It writes the same NDJSON as the CLI (including nlohmann::json's number formatting), with options to read through the custom input callbacks (`--io`, `--io-no-seek`), to write the decoded pictures as raw video (`--raw <file>`), and to limit the frames (`-n`).
-- `test/test-c-api.py` runs the CLI and the test program on a set of clips and compares their output byte by byte: by path, through custom input with seek (also with reads of at most 1000 bytes), with a frame limit, and through custom input without seek (frame and summary records only). With `--raw`, it also compares the decoded pictures with the raw video of FFmpeg's `ffmpeg` program. On damaged MPEG-2 streams, the concealed pictures of the `ffmpeg` program change from run to run (also with a stock FFmpeg 7.1), so a mismatch there is expected; the test program's pictures are the same in every run.
+- `test/c-api/videoparser-c-test.c` is a C11 program that uses only `videoparser_c.h`. It writes the same NDJSON as the CLI (including nlohmann::json's number formatting), with options to read through the custom input callbacks (`--io`, `--io-no-seek`), to write the decoded pictures as raw video (`--raw <file>`), to limit the frames (`-n`), and to return frames without statistics (`--all-frames`).
+- `test/test-c-api.py` runs the CLI and the test program on a set of clips and compares their output byte by byte: by path, through custom input with seek (also with reads of at most 1000 bytes), with a frame limit, through custom input without seek (frame and summary records only), and with `frames_without_statistics` (same output where the CLI succeeds; for FFV1, the number of frames is listed). With `--raw`, it also compares the decoded pictures, with `frames_without_statistics` so that FFV1 is included, with the raw video of FFmpeg's `ffmpeg` program. On damaged MPEG-2 streams, the concealed pictures of the `ffmpeg` program change from run to run (also with a stock FFmpeg 7.1), so a mismatch there is expected; the test program's pictures are the same in every run.
 
 Run it with the build directories to test, for example:
 
@@ -183,7 +185,6 @@ cmake --build build/asan
 These fit into the design without incompatible changes (new functions, new option fields, and new flags):
 
 - Decoded audio: open the audio streams too (an option), and `vp_next_audio()` or a combined `vp_next_event()` that returns either a video frame or a block of float samples with channel layout and sample rate.
-- Pictures without statistics: an option to return frames of codecs that the fork does not patch (for example FFV1 references for VMAF), with zeroed statistics.
 - Comparison: an API that takes two parsers or two inputs, runs FFmpeg's `libvmaf`, `psnr` and `ssim` filters and returns per-frame scores.
 - Callbacks per stream, as in the toolkit PRD, can be built on top of the pull interface by the caller; the pull interface is simpler to bind and to stop.
 
