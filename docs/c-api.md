@@ -188,3 +188,10 @@ These fit into the design without incompatible changes (new functions, new optio
 - Comparison: an API that takes two parsers or two inputs, runs FFmpeg's `libvmaf`, `psnr` and `ssim` filters and returns per-frame scores.
 - Callbacks per stream can be built on top of the pull interface by the caller; the pull interface is simpler to bind and to stop.
 
+## Binding from other languages
+
+- Check `vp_api_version()` against the major and minimum minor version the binding was written for, and `vp_build_flags()` if the caller needs the legacy statistics.
+- Read and seek callbacks must not let errors or exceptions of the calling language unwind through the library. Catch them in the callback (in Rust, for example, with `std::panic::catch_unwind`) and return a negative value.
+- A picture from `vp_get_picture()` is only valid until the next call on the same parser. A binding can express this with a borrow of the parser.
+- A parser handle can be moved to another thread, but not shared between threads.
+- The library is LGPL. Bindings that only declare and call its functions and link it dynamically contain no videoparser-ng code.
