@@ -22,6 +22,3 @@ external/ffmpeg/**/*.ver
 external/ffmpeg/**/*.pc
 external/ffmpeg/libavutil/avconfig.h
 external/ffmpeg/libavutil/ffversion.h
-
-# OpenCV is not used by the videoparser images
-external/opencv

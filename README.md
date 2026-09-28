@@ -21,7 +21,7 @@ A video bitstream parser with a command-line tool and a C/C++ API, based on FFmp
   - [Installation under Ubuntu](#installation-under-ubuntu)
   - [Building](#building)
   - [Rebuilding ffmpeg](#rebuilding-ffmpeg)
-  - [Shared ffmpeg and OpenCV](#shared-ffmpeg-and-opencv)
+  - [Shared ffmpeg](#shared-ffmpeg)
   - [Building with Docker](#building-with-docker)
 - [Developer Guide](#developer-guide)
 - [Acknowledgements](#acknowledgements)
@@ -425,7 +425,7 @@ util/build-ffmpeg.sh --reconfigure
 
 Then run `util/build-cmake.sh` again.
 
-### Shared ffmpeg and OpenCV
+### Shared ffmpeg
 
 Other programs, such as video-analyzer, can use the patched ffmpeg as shared libraries. To build them with swscale and swresample into `build/ffmpeg-shared/install`, run:
 
@@ -460,15 +460,6 @@ util/build-cmake.sh --shared --legacy
 ```
 
 This builds in `build/shared-legacy` (or `build/shared` without `--legacy`) with the CMake option `VIDEOPARSER_SHARED=ON`, and installs an SDK with `lib/libvideoparser.so`, the shared ffmpeg libraries, the headers, and `bin/` with the CLI, `ffmpeg` and `ffprobe` to `build/shared-legacy/sdk`. The library finds the ffmpeg libraries in its own directory, and the CLI finds them in `../lib` (set `-DVIDEOPARSER_CLI_RPATH=<runpath>` after `--` to change it). Its output is identical to the static build.
-
-To build a static OpenCV (core, imgproc, imgcodecs, videoio) against these libraries into `build/opencv/install`, run the following (use `--ffmpeg-prefix` and `--build-dir` to build against another shared ffmpeg, such as the legacy one):
-
-```bash
-git submodule update --init external/opencv
-util/build-opencv.sh
-```
-
-OpenCV is pinned to a commit on its 4.x development branch, since releases up to 4.14 do not compile against the current ffmpeg API. The patches in `util/patches/opencv` are applied before building. They fix black frames for interlaced video with ffmpeg 8 and later, and make the conversion to BGR ignore the colour properties of the frames (matrix, range, primaries, transfer, chroma siting) as OpenCV did before it used `sws_scale_frame()`. Otherwise, BT.709-tagged video converts differently from the same video without tags, for example after passing through YUV4MPEG. Intel IPP is included by default on x86_64 (it does not exist for other architectures); build without it with `--without-ipp`. When shipping OpenCV built with IPP, include its license files (`ippicv-*` and `ippiw-*` in `share/licenses/opencv4` of the install directory) with the software and its documentation.
 
 ### Building with Docker
 

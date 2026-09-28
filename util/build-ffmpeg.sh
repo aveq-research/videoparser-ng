@@ -3,7 +3,7 @@
 # Build ffmpeg in the external/ffmpeg directory.
 #
 # With --shared, build shared libraries with swscale and swresample instead,
-# for use by other programs (e.g. OpenCV). The source is copied to
+# for use by other programs. The source is copied to
 # build/ffmpeg-shared/src, since ffmpeg cannot be built out of tree once the
 # source directory holds the static build.
 #
@@ -222,7 +222,7 @@ if [[ ! -f config.h ]] || [[ "$reconfigure" = true ]]; then
       --enable-shared
       --disable-static
       "--prefix=${prefix}"
-      # needed by OpenCV's videoio and the scale and aresample filters
+      # needed by the scale and aresample filters
       --enable-swscale
       --enable-swresample
       --disable-avdevice
