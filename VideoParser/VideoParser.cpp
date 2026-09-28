@@ -213,6 +213,13 @@ void VideoParser::open() {
   // The statistics of the patched decoders are only correct with one thread
   codec_context->thread_count = 1;
 
+  // The exact IDCT for MPEG-1/2, so that the pictures are the same on all
+  // architectures (the default picks an optimized IDCT on arm64)
+  if (codec->id == AV_CODEC_ID_MPEG1VIDEO ||
+      codec->id == AV_CODEC_ID_MPEG2VIDEO) {
+    codec_context->idct_algo = FF_IDCT_SIMPLE;
+  }
+
   // Preserve packet metadata on the decoded frame. This is needed for codecs
   // with frame reordering, where the packet being read is not necessarily the
   // packet corresponding to the frame returned by the decoder.
