@@ -7,6 +7,10 @@ Contents:
   - [QP Information](#qp-information)
   - [Motion Vector Information](#motion-vector-information)
   - [AV1 / libaom Specific Changes](#av1--libaom-specific-changes)
+  - [Bit Count Information](#bit-count-information)
+  - [Block Count Information](#block-count-information)
+  - [POC Information](#poc-information)
+  - [Frame Metadata](#frame-metadata)
 - [Testing](#testing)
   - [Feature Testing](#feature-testing)
   - [Regenerating Test Reference Files](#regenerating-test-reference-files)
@@ -264,17 +268,44 @@ Some CLI tests use damaged MPEG-TS clips (timestamp jumps and wrap-around, bit f
 
 ### C API Testing
 
-The C API test compares the output of the C test program (`test/c-api/videoparser-c-test`, built with the library) with the CLI, byte by byte, for several ways of opening the input:
+`test/c-api/videoparser-c-test.c` is a C11 program that uses only `videoparser_c.h`. It writes the same NDJSON as the CLI, including the number format of nlohmann::json. Its options:
+
+- `--io`: read through the custom input callbacks
+- `--io-no-seek`: read through the custom input callbacks, without a seek callback
+- `--raw <file>`: write the decoded pictures as raw video
+- `-n`: limit the number of frames
+- `--all-frames`: also return frames without statistics
+
+`test/test-c-api.py` runs the CLI and the test program on a set of clips and compares their output byte by byte. It checks these cases:
+
+- open by path
+- custom input with seek, also with reads of at most 1000 bytes
+- a frame limit
+- custom input without seek (frame and summary records only)
+- `frames_without_statistics` (for FFV1, where the CLI fails, it lists the number of frames)
+
+With `--raw`, it also compares the decoded pictures with the raw video from the `ffmpeg` program. On damaged MPEG-2 streams, the concealed pictures from `ffmpeg` change from run to run (also with a stock FFmpeg 7.1), so a mismatch there is expected. The test program's pictures are the same in every run.
+
+Pass one or more build directories and clip directories:
 
 ```bash
-uv run test/test-c-api.py --build build --clips test
+uv run test/test-c-api.py --build build --build build/shared-legacy \
+  --clips test/ --clips /path/to/more/clips
 ```
 
-See [docs/c-api.md](docs/c-api.md#tests) for more options, including an AddressSanitizer build.
+To check for memory errors and leaks on damaged input, build with AddressSanitizer:
+
+```bash
+cmake -S . -B build/asan -DSKIP_FFMPEG_BUILD=ON \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DCMAKE_C_FLAGS=-fsanitize=address -DCMAKE_CXX_FLAGS=-fsanitize=address \
+  -DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address
+cmake --build build/asan
+```
 
 ## Debugging
 
-We have successfully used the following VS Code `launch.json` configuration to debug the CLI – it requires the `CMake Tools` extension:
+To debug the CLI in VS Code, install the CMake Tools extension and use this `launch.json`:
 
 ```json
 {
@@ -307,7 +338,7 @@ We have successfully used the following VS Code `launch.json` configuration to d
 }
 ```
 
-Replace the `"${workspaceFolder}/test/test_video_h265.mkv"` with the path to the video you want to debug.
+Replace `"${workspaceFolder}/test/test_video_h265.mkv"` with the path to your video.
 
 ## Maintenance
 

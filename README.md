@@ -1,6 +1,6 @@
 # VideoParser – The Next Generation
 
-A command-line and API-based video bitstream parser, using ffmpeg and other third party libraries.
+A video bitstream parser with a command-line tool and a C/C++ API, based on FFmpeg.
 
 - [Overview](#overview)
 - [History and Goals](#history-and-goals)
@@ -13,6 +13,7 @@ A command-line and API-based video bitstream parser, using ffmpeg and other thir
 - [Available Metrics](#available-metrics)
   - [Sequence Info](#sequence-info)
   - [Frame Info](#frame-info)
+  - [Summary](#summary)
 - [API Integration](#api-integration)
 - [Building Manually](#building-manually)
   - [Requirements](#requirements)
@@ -20,6 +21,7 @@ A command-line and API-based video bitstream parser, using ffmpeg and other thir
   - [Installation under Ubuntu](#installation-under-ubuntu)
   - [Building](#building)
   - [Rebuilding ffmpeg](#rebuilding-ffmpeg)
+  - [Shared ffmpeg and OpenCV](#shared-ffmpeg-and-opencv)
   - [Building with Docker](#building-with-docker)
 - [Developer Guide](#developer-guide)
 - [Acknowledgements](#acknowledgements)
@@ -129,7 +131,13 @@ Add the option `-h` for detailed usage.
 
 ## Output
 
-The tool will print a set of line-delimited JSON records to STDOUT, either for per-sequence statistics (`sequence_info`, first), per-frame statistics (`frame_info`), or counts over all parsed frames (`summary`, last). These are denoted with the `type` field. Versions before 0.8.0 do not write the `summary` record. Programs that read the output should skip record types they do not know, as new ones may be added.
+The tool writes one JSON record per line to stdout. The `type` field tells the kind of record:
+
+- `sequence_info` (first): statistics of the whole sequence
+- `frame_info`: statistics of one frame
+- `summary` (last): counts over all parsed frames (since version 0.8.0)
+
+New record types may be added, so programs that read the output should skip types they do not know.
 
 Here is an example, but formatted with `jq` to make it more readable:
 
@@ -198,8 +206,6 @@ This would print:
 The tool will also print various logs to STDERR which you can redirect to a file if you want to save them, or ignore with `2>/dev/null`.
 
 ## Available Metrics
-
-The following metadata/metrics are available:
 
 ### Sequence Info
 
@@ -281,15 +287,14 @@ For the implementation notes (i.e., what was modified to extract the metrics), s
 
 ## API Integration
 
-The project provides a C++ API in the `libvideoparser` library. See the `VideoParserCli` folder for an example of how to use the API.
+`libvideoparser` has two APIs:
 
-The library also has a C API (`videoparser_c.h`) for use from other languages. It gives the same values as the CLI, can read from caller-supplied callbacks instead of a file, and gives access to the decoded pictures. See [docs/c-api.md](docs/c-api.md) and the example program in `test/c-api`.
+- The C++ API (`VideoParser.h`). The CLI in `VideoParserCli` is an example of how to use it.
+- The C API (`videoparser_c.h`), for use from other languages. It can also read from your own callbacks instead of a file, and it returns the decoded pictures.
 
 API documentation is available in the `docs` folder. You can [view it at this location](https://raw.githack.com/aveq-research/videoparser-ng/master/docs/html/index.html).
 
 ## Building Manually
-
-Follow the instructions below to build the project from source.
 
 ### Requirements
 
@@ -418,7 +423,7 @@ Then run:
 util/build-ffmpeg.sh --reconfigure
 ```
 
-This will rebuild ffmpeg after which you can run the build script for the project again.
+Then run `util/build-cmake.sh` again.
 
 ### Shared ffmpeg and OpenCV
 

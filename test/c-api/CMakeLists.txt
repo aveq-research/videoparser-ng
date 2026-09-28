@@ -1,5 +1,5 @@
 # C API test program: writes the same NDJSON as the CLI, through the C API
-# only (see docs/c-api.md)
+# only (see VideoParser/videoparser_c.h)
 add_executable(videoparser-c-test videoparser-c-test.c json_double.h)
 set_target_properties(videoparser-c-test PROPERTIES
   C_STANDARD 11

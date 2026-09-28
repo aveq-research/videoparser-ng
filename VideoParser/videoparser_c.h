@@ -6,21 +6,248 @@
  *
  * @brief C API of libvideoparser
  *
- * Plain C interface to the video parser, for callers that cannot use the C++
- * API (for example, bindings for other languages). It gives the same values
- * as the video-parser CLI. See docs/c-api.md for the design.
+ * Plain C interface to libvideoparser, for use from other languages such as
+ * Rust, Python or Go. It is a thin layer over the C++ API and is part of the
+ * same library, in the static and the shared build.
  *
- * Conventions:
+ * With the C API, you can:
  *
- * - Functions returning vp_status return VP_OK (0) on success. VP_END (1) is
- *   not an error. On other values, vp_last_error() returns a message for the
- *   last failed call on the calling thread.
- * - Every struct starts with struct_size, which the caller sets to sizeof the
- *   struct. The library fills only the fields that fit. Fields are only ever
- *   appended.
- * - No C++ exceptions cross this interface.
- * - A parser must not be used from several threads at the same time.
- *   Different parsers may be used from different threads.
+ * - get the same sequence, frame and summary values as with the `video-parser`
+ *   CLI
+ * - read from a file, or from your own read and seek callbacks (for example,
+ *   MPEG-TS from memory or from the network)
+ * - access the decoded pictures without a copy, for pixel-based or
+ *   full-reference metrics
+ *
+ * ## Example
+ *
+ * ```c
+ * #include <videoparser_c.h>
+ *
+ * vp_options options;
+ * vp_options_init(&options);
+ * vp_parser *parser = NULL;
+ * if (vp_open_file("input.ts", &options, &parser) != VP_OK) {
+ *   fprintf(stderr, "%s\n", vp_last_error());
+ *   return 1;
+ * }
+ * vp_sequence_info info = {.struct_size = sizeof(info)};
+ * vp_get_sequence_info(parser, &info);
+ * vp_frame_info frame = {.struct_size = sizeof(frame)};
+ * vp_status status;
+ * while ((status = vp_next_frame(parser, &frame)) == VP_OK) {
+ *   printf("%d %f\n", frame.frame_idx, frame.qp_avg);
+ * }
+ * if (status != VP_END)
+ *   fprintf(stderr, "%s\n", vp_last_error());
+ * vp_close(parser);
+ * ```
+ *
+ * `test/c-api/videoparser-c-test.c` is a complete program that writes the same
+ * output as the CLI.
+ *
+ * ## Order of calls
+ *
+ * 1. Set up logging with `vp_set_log_level()` and `vp_set_log_callback()`
+ *    (optional).
+ * 2. Call `vp_options_init()`, change the options, and open the input with
+ *    `vp_open_file()` or `vp_open_io()`.
+ * 3. Get the sequence information with `vp_get_sequence_info()`.
+ * 4. Call `vp_next_frame()` until it returns `VP_END`. After each frame,
+ *    `vp_get_picture()` returns its decoded picture.
+ * 5. Get the counts with `vp_get_summary()`, then free the parser with
+ *    `vp_close()`.
+ *
+ * Opening reads the stream information and opens the decoder. Some containers
+ * do not signal the bitrate or frame count (MPEG-TS, MPEG-PS, raw bitstreams).
+ * For these, the parser first reads all video packets to estimate both values,
+ * and then seeks back to the start, as the CLI does. This needs a seekable
+ * input. To skip this scan, set `scan` to `VP_SCAN_OFF`, for example for live
+ * input. The values then come from the parsed frames: call
+ * `vp_get_sequence_info()` again after the last frame.
+ *
+ * Frames come in presentation order. `vp_next_frame()` returns
+ * `VP_ERROR_NO_FRAMES` if the stream ended without any frame, for example for a
+ * codec without statistics. Damaged data that the decoder conceals is not an
+ * error. It shows up in `decode_error` and in the summary.
+ *
+ * After an error, only `vp_get_sequence_info()`, `vp_get_summary()` and
+ * `vp_close()` are allowed.
+ *
+ * ## Conventions
+ *
+ * - Functions and types start with `vp_`, macros with `VP_`.
+ * - Functions that can fail return a `vp_status`. `VP_OK` (0) is success.
+ *   `VP_END` (1) means that there are no more frames. All other values are
+ *   errors.
+ * - After an error, `vp_last_error()` returns a message for the last failed
+ *   call on the calling thread. The message is valid until the next failed call
+ *   on that thread. `vp_status_string()` returns a short description of a
+ *   status code.
+ * - No C++ exception leaves the library. Allocation failures return
+ *   `VP_ERROR_OUT_OF_MEMORY`, other exceptions `VP_ERROR_INTERNAL`.
+ * - Every struct starts with `uint32_t struct_size`. Set it to `sizeof` the
+ *   struct. The library fills only the fields that fit into this size. New
+ *   fields are only ever appended, so a program built with an older header
+ *   works with a newer library.
+ * - Do not use one parser from several threads at the same time. Different
+ *   parsers can run in parallel.
+ * - Strings are UTF-8 and null-terminated. Paths are passed to FFmpeg
+ *   unchanged.
+ *
+ * ## Versions and build flags
+ *
+ * `vp_api_version()` returns the API version as `(major << 16) | minor`. The
+ * header has the same numbers in `VP_API_VERSION_MAJOR` and
+ * `VP_API_VERSION_MINOR`. The major version changes on incompatible changes.
+ * The minor version changes when functions, struct fields or status codes are
+ * added. A program built with version `M.m` works with a library of version
+ * `M.n` if `n >= m`.
+ *
+ * `vp_version()` returns the library version, which is the same as the CLI's
+ * `--version`.
+ *
+ * `vp_build_flags()` contains `VP_BUILD_LEGACY` if the library was built in
+ * legacy mode (`VP_MV_POC_NORMALIZATION=1`), which P.1204.3 needs. The flag
+ * comes from the FFmpeg fork, so it is also correct if FFmpeg was rebuilt in
+ * place with `VP_EXTRA_CFLAGS`.
+ *
+ * Legacy mode is not an option, because it is compiled into FFmpeg. Each mode
+ * has its own library. The number of decoder threads is not an option either:
+ * the statistics are only correct with one thread.
+ *
+ * ## Memory
+ *
+ * - `vp_open_file()` and `vp_open_io()` allocate the parser. `vp_close()` frees
+ *   it.
+ * - You own all structs that you pass in. The library copies what it needs from
+ *   `vp_options` and `vp_io` when opening, so the strings in `vp_options` only
+ *   need to be valid during that call.
+ * - The plane pointers in `vp_picture` point into the decoder's frame. They are
+ *   valid until the next `vp_next_frame()` or `vp_close()` on the same parser.
+ *   Copy the picture to keep it longer.
+ * - Strings returned by the library, such as `vp_version()`,
+ *   `vp_status_string()` and the names in `vp_picture`, are static.
+ *
+ * ## Custom input
+ *
+ * `vp_open_io()` takes a `vp_io` with a read callback, an optional seek
+ * callback, and an `opaque` pointer for both. The read callback may block until
+ * data is available. The seek callback also handles `whence == VP_SEEK_SIZE`:
+ * it returns the size of the input, or a negative value if the size is unknown.
+ *
+ * With a seek callback, the output is the same as for the same bytes in a file.
+ * Without one:
+ *
+ * - the frame and summary records are the same
+ * - the sequence information before the first frame has no bitrate or frame
+ *   count for MPEG-TS, MPEG-PS and raw bitstreams, since the parser cannot seek
+ *   back after a scan
+ * - MP4 files with the index at the end cannot be opened
+ *
+ * Without a seek callback, set `input_format` (for example `"mpegts"`), because
+ * format detection only sees the first bytes.
+ *
+ * If a read or seek fails, `vp_next_frame()` returns the frames decoded so far
+ * and then `VP_ERROR_IO`. Failures while opening also return `VP_ERROR_IO`.
+ *
+ * FFmpeg's network protocols are disabled. To read from the network, use custom
+ * input.
+ *
+ * ## Frame and sequence fields
+ *
+ * `vp_sequence_info`, `vp_frame_info` and `vp_summary` have the same fields as
+ * the CLI's `sequence_info`, `frame_info` and `summary` records. See the
+ * [README](../README.md) and [METRICS.md](../METRICS.md) for their meaning.
+ * Flags are `int32_t` with 0 or 1. The structs have a few more fields:
+ *
+ * - `vp_sequence_info.stream_index` and `time_base_num`/`time_base_den`: index
+ *   and time base of the parsed stream
+ * - `vp_frame_info.pts_raw` and `dts_raw`: timestamps in the stream's time
+ *   base, or `VP_NOPTS` if the frame has none
+ * - `vp_frame_info.has_statistics`: 0 for frames without statistics (see below)
+ *
+ * If a frame has no timestamp, `pts` and `dts` are estimated from the previous
+ * timestamp and the frame rate, as in the CLI. Without a frame rate, they are
+ * NaN (the CLI writes `null`).
+ *
+ * `stream_index` in `vp_options` selects the video stream. The default, -1,
+ * selects the first video stream, as the CLI does. For MPEG-TS with several
+ * programs, find the index of the stream you want with your own TS parser or
+ * with `ffprobe`.
+ *
+ * ## Frames without statistics
+ *
+ * The FFmpeg fork adds statistics only to the codecs it patches. By default,
+ * `vp_next_frame()` skips frames without statistics, as the CLI does, so a
+ * stream in another codec ends with `VP_ERROR_NO_FRAMES`. With
+ * `frames_without_statistics` set to 1, it returns these frames with
+ * `has_statistics` and all statistics set to 0. Frame type, size, timestamps,
+ * flags and the picture are set as usual. Use this for reference videos of
+ * full-reference metrics, for example FFV1 for VMAF. For patched codecs, the
+ * option does not change the output.
+ *
+ * ## Pictures
+ *
+ * `vp_get_picture()` returns the decoded picture of the current frame, with up
+ * to four planes. Each plane `p` has `plane_height[p]` rows of `row_bytes[p]`
+ * bytes, and the rows start `linesize[p]` bytes apart. `pix_fmt` is FFmpeg's
+ * name of the pixel format, such as `"yuv420p"` or `"yuv420p10le"`. Unlike
+ * FFmpeg's enum values, the names stay the same across FFmpeg versions.
+ *
+ * ## Logging
+ *
+ * Logging applies to the whole process, since FFmpeg's logging is global.
+ *
+ * `vp_set_log_level()` sets FFmpeg's log level. The default is `VP_LOG_INFO`,
+ * as in the CLI.
+ *
+ * `vp_set_log_callback()` sends the log lines of FFmpeg and of the parser to
+ * your function instead of stderr. `NULL` restores stderr. Each call gets the
+ * level and one line with a trailing newline. FFmpeg's lines start with the
+ * component, for example `[h264 @ 0x...] error while decoding MB 0 21`. The
+ * parser's warnings come with `VP_LOG_WARNING`. Lines above the log level are
+ * dropped. The callback can be called from any thread that runs a parser.
+ *
+ * Without a callback, the parser's warnings always go to stderr, whatever the
+ * log level, as in the CLI.
+ *
+ * ## Building and linking
+ *
+ * The SDK contains the header in `include/VideoParser/videoparser_c.h` and a
+ * pkg-config file in `lib/pkgconfig/videoparser.pc`.
+ *
+ * - Shared build (`util/build-cmake.sh --shared [--legacy]`): link with
+ *   `-lvideoparser`. The library finds the FFmpeg libraries in its own
+ *   directory.
+ * - Static build: `pkg-config --static --libs videoparser` also adds FFmpeg,
+ *   libaom and the C++ runtime, since the library is written in C++.
+ *
+ * The shared library exports both the C and the C++ API.
+ *
+ * ## Bindings for other languages
+ *
+ * - Check `vp_api_version()` against the version the binding was written for,
+ *   and `vp_build_flags()` if you need the legacy statistics.
+ * - Do not let errors or exceptions of your language unwind through the
+ *   library. Catch them in the read and seek callbacks (in Rust, for example,
+ *   with `std::panic::catch_unwind`) and return a negative value.
+ * - A picture is only valid until the next call on the same parser. In Rust,
+ *   for example, you can model this as a borrow of the parser.
+ * - A parser can move to another thread, but must not be shared between
+ *   threads.
+ * - The library is LGPL. A binding that only declares and calls its functions
+ *   and links it dynamically contains no videoparser-ng code.
+ *
+ * ## Planned extensions
+ *
+ * These can be added without incompatible changes:
+ *
+ * - Decoded audio: open the audio streams too, and return blocks of float
+ *   samples with channel layout and sample rate, either from a new
+ *   `vp_next_audio()` or together with the video frames.
+ * - Comparison: take two inputs, run FFmpeg's `libvmaf`, `psnr` and `ssim`
+ *   filters, and return scores per frame.
  */
 
 #ifndef VIDEOPARSER_C_H
@@ -186,7 +413,7 @@ typedef struct vp_sequence_info {
 /**
  * @brief Statistics of one frame (the CLI's frame_info)
  *
- * See METRICS.md for the definitions.
+ * See [METRICS.md](../METRICS.md) for the definitions.
  */
 typedef struct vp_frame_info {
   uint32_t struct_size; /**< sizeof(vp_frame_info) */
@@ -359,7 +586,8 @@ VP_EXPORT vp_status vp_get_sequence_info(vp_parser *parser,
  * @brief Decode the next frame and get its statistics
  *
  * @return VP_OK with a frame, VP_END at the end or after max_frames frames,
- * VP_ERROR_NO_FRAMES if the stream ended without any frame, or another error
+ * VP_ERROR_NO_FRAMES if the stream ended without any frame (unless
+ * max_frames is 0), or another error
  */
 VP_EXPORT vp_status vp_next_frame(vp_parser *parser, vp_frame_info *frame);
 

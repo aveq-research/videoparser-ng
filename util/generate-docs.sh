@@ -60,9 +60,9 @@ else
 fi
 
 # Clean previous documentation if it exists
-if [ -d "docs" ]; then
+if [ -d "docs/html" ]; then
     echo "Cleaning previous documentation..."
-    rm -rf docs
+    rm -rf docs/html
 fi
 
 # Generate documentation
