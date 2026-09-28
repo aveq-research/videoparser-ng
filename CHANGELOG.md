@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 <!-- insertion marker -->
+## [v0.10.1](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.10.1) - 2026-09-28
+
+<small>[Compare with v0.10.0](https://github.com/aveq-research/videoparser-ng/compare/v0.10.0...v0.10.1)</small>
+
+### Bug Fixes
+
+- decode MPEG-1/2 with the simple IDCT ([497b5fa](https://github.com/aveq-research/videoparser-ng/commit/497b5fa574274195cd3b3b64ee53aeb745a49806) by Werner Robitza).
+
+### Misc
+
+- bump version to 0.10.1 ([6044f3e](https://github.com/aveq-research/videoparser-ng/commit/6044f3eabefab5e358ab346516a9f50a096c7501) by Werner Robitza).
+
 ## [v0.10.0](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.10.0) - 2026-09-28
 
 <small>[Compare with v0.9.1](https://github.com/aveq-research/videoparser-ng/compare/v0.9.1...v0.10.0)</small>
@@ -24,7 +36,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Misc
 
-- bump version to 0.10.0 ([9f086c2](https://github.com/aveq-research/videoparser-ng/commit/9f086c2a528073bdba633d6daaedb06cf6e6c764) by Werner Robitza).
+- bump version to 0.10.0 ([79b3d8b](https://github.com/aveq-research/videoparser-ng/commit/79b3d8baed1ddcfcddd4c10c712051d01edbc078) by Werner Robitza).
 
 ## [v0.9.1](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.9.1) - 2026-09-27
 
