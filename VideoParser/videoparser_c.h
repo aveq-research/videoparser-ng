@@ -114,7 +114,9 @@
  *
  * Legacy mode is not an option, because it is compiled into FFmpeg. Each mode
  * has its own library. The number of decoder threads is not an option either:
- * the statistics are only correct with one thread.
+ * the statistics are only correct with one thread. Decoders of codecs without
+ * statistics use up to 8 slice threads (if the codec supports them), which
+ * give the same pictures as one thread.
  *
  * ## Memory
  *

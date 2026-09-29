@@ -7,10 +7,15 @@
 
 #include "VideoParser.h"
 
+#include <algorithm>
 #include <atomic>
 #include <cmath>
 #include <cstring>
 #include <sstream>
+
+extern "C" {
+#include <libavutil/cpu.h>
+}
 
 namespace videoparser {
 static bool verbose = false;
@@ -52,6 +57,31 @@ static void log(int level, const std::string &message) {
 // and backward, in seconds. A larger deviation is a discontinuity.
 constexpr double MAX_TIMESTAMP_GAP = 5.0;
 constexpr double MAX_TIMESTAMP_STEP_BACK = 1.0;
+
+// Largest number of slice threads for decoders without statistics
+constexpr int MAX_DECODER_THREADS = 8;
+
+/**
+ * @brief Whether the FFmpeg fork patches the decoder of a codec to compute
+ * statistics
+ *
+ * The statistics of these decoders are only correct with one thread.
+ */
+static bool has_statistics_patch(AVCodecID codec_id) {
+  switch (codec_id) {
+  case AV_CODEC_ID_H264:
+  case AV_CODEC_ID_HEVC:
+  case AV_CODEC_ID_VP9:
+  case AV_CODEC_ID_AV1:
+  case AV_CODEC_ID_MPEG1VIDEO:
+  case AV_CODEC_ID_MPEG2VIDEO:
+  // Shares the patched MPEG-1/2 decoder source
+  case AV_CODEC_ID_IPU:
+    return true;
+  default:
+    return false;
+  }
+}
 
 void set_verbose(bool verbose) {
   videoparser::verbose = verbose;
@@ -210,8 +240,16 @@ void VideoParser::open() {
                 params_result);
   }
 
-  // The statistics of the patched decoders are only correct with one thread
-  codec_context->thread_count = 1;
+  // The statistics of the patched decoders are only correct with one thread.
+  // Other decoders use slice threads. Frame threads are not used, because
+  // their error concealment on damaged input differs from run to run.
+  if (has_statistics_patch(codec->id)) {
+    codec_context->thread_count = 1;
+  } else {
+    codec_context->thread_count =
+        std::clamp(av_cpu_count(), 1, MAX_DECODER_THREADS);
+    codec_context->thread_type = FF_THREAD_SLICE;
+  }
 
   // The exact IDCT for MPEG-1/2, so that the pictures are the same on all
   // architectures (the default picks an optimized IDCT on arm64)
