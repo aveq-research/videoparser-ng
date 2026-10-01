@@ -209,57 +209,57 @@ The tool will also print various logs to STDERR which you can redirect to a file
 
 ### Sequence Info
 
-Supported containers are MP4/MOV, Matroska/WebM, AVI, MPEG-TS, MPEG-PS, and raw H.264/HEVC/MPEG-2 bitstreams. If the container does not signal the bitrate or frame count (for example, MPEG-TS and MPEG-PS), the parser reads all video packets once before parsing, without decoding them, to estimate both values.
+Supported containers are MP4/MOV, Matroska/WebM, AVI, MPEG-TS, MPEG-PS, and raw H.264/HEVC/MPEG-2 bitstreams.
 
-The packet scan also finds timestamp discontinuities: a timestamp that is more than 5 seconds later or more than 1 second earlier than the end of the previous packet. The gaps between the parts do not count, and the duration is then the time covered by the packets instead of the container duration. For example, a 12-second recording whose timestamps jump forward by 100 seconds has a duration of 12 seconds, and the bitrate is computed over 12 seconds.
+Note: If the container does not signal the bitrate or frame count (for example, MPEG-TS and MPEG-PS), the parser reads all video packets once before parsing, without decoding them, to estimate both values. The packet scan also looks for timestamp discontinuities and removes them from the reported duration.
 
-| Metric                | Description                       | Unit    |
-| --------------------- | --------------------------------- | ------- |
-| `video_duration`      | Duration of the video             | seconds |
+| Metric                | Description                              | Unit    |
+| --------------------- | ---------------------------------------- | ------- |
+| `video_duration`      | Duration of the video                    | seconds |
 | `video_codec`         | Codec name (h264, hevc, vp9, av1, mpeg2) | —       |
-| `video_bitrate`       | Average video bitrate             | kbps    |
-| `video_framerate`     | Frame rate                        | fps     |
-| `video_width`         | Frame width                       | pixels  |
-| `video_height`        | Frame height                      | pixels  |
-| `video_codec_profile` | Codec profile ID                  | —       |
-| `video_codec_level`   | Codec level ID                    | —       |
-| `video_bit_depth`     | Bit depth per sample              | bits    |
-| `video_pix_fmt`       | Pixel format (e.g., yuv420p)      | —       |
-| `video_frame_count`   | Total number of frames            | count   |
+| `video_bitrate`       | Average video bitrate                    | kbps    |
+| `video_framerate`     | Frame rate                               | fps     |
+| `video_width`         | Frame width                              | pixels  |
+| `video_height`        | Frame height                             | pixels  |
+| `video_codec_profile` | Codec profile ID                         | —       |
+| `video_codec_level`   | Codec level ID                           | —       |
+| `video_bit_depth`     | Bit depth per sample                     | bits    |
+| `video_pix_fmt`       | Pixel format (e.g., yuv420p)             | —       |
+| `video_frame_count`   | Total number of frames                   | count   |
 
 ### Frame Info
 
-| Metric              | Description                               | Unit     |
-| ------------------- | ----------------------------------------- | -------- |
-| `frame_idx`         | Zero-based frame index in decode order    | count    |
-| `pts`               | Presentation timestamp                    | seconds  |
-| `dts`               | Decoding timestamp                        | seconds  |
-| `size`              | Frame size                                | bytes    |
-| `frame_type`        | Frame type (1=I, 2=P, 3=B)                | enum     |
-| `is_idr`            | Whether frame is an IDR/keyframe          | boolean  |
+| Metric              | Description                                            | Unit     |
+| ------------------- | ------------------------------------------------------ | -------- |
+| `frame_idx`         | Zero-based frame index in decode order                 | count    |
+| `pts`               | Presentation timestamp                                 | seconds  |
+| `dts`               | Decoding timestamp                                     | seconds  |
+| `size`              | Frame size                                             | bytes    |
+| `frame_type`        | Frame type (1=I, 2=P, 3=B)                             | enum     |
+| `is_idr`            | Whether frame is an IDR/keyframe                       | boolean  |
 | `decode_error`      | Whether the decoder reported errors (e.g. concealment) | boolean  |
-| `discontinuity`     | Whether the timestamp jumps before this frame | boolean  |
-| `qp_avg`            | Average QP of all coding units            | QP index |
-| `qp_stdev`          | Standard deviation of QP values           | QP index |
-| `qp_min`            | Minimum QP value in frame                 | QP index |
-| `qp_max`            | Maximum QP value in frame                 | QP index |
-| `qp_init`           | Initial QP from slice/frame header        | QP index |
-| `qp_bb_avg`         | Average QP excluding black borders        | QP index |
-| `qp_bb_stdev`       | Std. dev. of QP excluding black borders   | QP index |
-| `motion_avg`        | Average motion vector length              | sub-pel  |
-| `motion_stdev`      | Std. dev. of motion vector lengths        | sub-pel  |
-| `motion_x_avg`      | Average of absolute X components          | sub-pel  |
-| `motion_y_avg`      | Average of absolute Y components          | sub-pel  |
-| `motion_x_stdev`    | Std. dev. of X components                 | sub-pel  |
-| `motion_y_stdev`    | Std. dev. of Y components                 | sub-pel  |
-| `motion_diff_avg`   | Average motion vector prediction residual | sub-pel  |
-| `motion_diff_stdev` | Std. dev. of motion vector residuals      | sub-pel  |
-| `current_poc`       | Picture Order Count of current frame      | count    |
-| `poc_diff`          | Minimum POC difference between frames     | count    |
-| `motion_bit_count`  | Bits used for motion information          | bits     |
-| `coefs_bit_count`   | Bits used for transform coefficients      | bits     |
-| `mb_mv_count`       | Number of blocks with motion vectors      | count    |
-| `mv_coded_count`    | Number of explicitly coded MVs            | count    |
+| `discontinuity`     | Whether the timestamp jumps before this frame          | boolean  |
+| `qp_avg`            | Average QP of all coding units                         | QP index |
+| `qp_stdev`          | Standard deviation of QP values                        | QP index |
+| `qp_min`            | Minimum QP value in frame                              | QP index |
+| `qp_max`            | Maximum QP value in frame                              | QP index |
+| `qp_init`           | Initial QP from slice/frame header                     | QP index |
+| `qp_bb_avg`         | Average QP excluding black borders                     | QP index |
+| `qp_bb_stdev`       | Std. dev. of QP excluding black borders                | QP index |
+| `motion_avg`        | Average motion vector length                           | sub-pel  |
+| `motion_stdev`      | Std. dev. of motion vector lengths                     | sub-pel  |
+| `motion_x_avg`      | Average of absolute X components                       | sub-pel  |
+| `motion_y_avg`      | Average of absolute Y components                       | sub-pel  |
+| `motion_x_stdev`    | Std. dev. of X components                              | sub-pel  |
+| `motion_y_stdev`    | Std. dev. of Y components                              | sub-pel  |
+| `motion_diff_avg`   | Average motion vector prediction residual              | sub-pel  |
+| `motion_diff_stdev` | Std. dev. of motion vector residuals                   | sub-pel  |
+| `current_poc`       | Picture Order Count of current frame                   | count    |
+| `poc_diff`          | Minimum POC difference between frames                  | count    |
+| `motion_bit_count`  | Bits used for motion information                       | bits     |
+| `coefs_bit_count`   | Bits used for transform coefficients                   | bits     |
+| `mb_mv_count`       | Number of blocks with motion vectors                   | count    |
+| `mv_coded_count`    | Number of explicitly coded MVs                         | count    |
 
 `decode_error` is true if FFmpeg set error flags on the decoded frame (for example, for concealed macroblocks after packet loss) or marked it as corrupt. `discontinuity` is true if the timestamp of the frame is more than 5 seconds later or more than 1 second earlier than the end of the previous frame (its timestamp plus its duration).
 
@@ -267,12 +267,12 @@ The packet scan also finds timestamp discontinuities: a timestamp that is more t
 
 The `summary` record comes after the last frame. Its counts cover the printed frames (with `-n`, only the first frames).
 
-| Metric            | Description                                                                 | Unit  |
-| ----------------- | --------------------------------------------------------------------------- | ----- |
-| `frame_count`     | Number of parsed frames                                                     | count |
-| `decode_errors`   | Frames with `decode_error`, plus packets and frames the decoder rejected    | count |
+| Metric            | Description                                                                  | Unit  |
+| ----------------- | ---------------------------------------------------------------------------- | ----- |
+| `frame_count`     | Number of parsed frames                                                      | count |
+| `decode_errors`   | Frames with `decode_error`, plus packets and frames the decoder rejected     | count |
 | `corrupt_packets` | Video packets the demuxer marked as corrupt (e.g. MPEG-TS continuity errors) | count |
-| `discontinuities` | Frames with `discontinuity`                                                 | count |
+| `discontinuities` | Frames with `discontinuity`                                                  | count |
 
 Frames and packets that the decoder rejects are skipped, and parsing continues. A file whose video format cannot be determined (for example, an MPEG-TS stream whose PMT declares the wrong codec) is an error.
 
