@@ -459,7 +459,11 @@ To build libvideoparser as a shared library, and the CLI against it, run:
 util/build-cmake.sh --shared --legacy
 ```
 
-This builds in `build/shared-legacy` (or `build/shared` without `--legacy`) with the CMake option `VIDEOPARSER_SHARED=ON`, and installs an SDK with `lib/libvideoparser.so`, the shared ffmpeg libraries, the headers, and `bin/` with the CLI, `ffmpeg` and `ffprobe` to `build/shared-legacy/sdk`. The library finds the ffmpeg libraries in its own directory, and the CLI finds them in `../lib` (set `-DVIDEOPARSER_CLI_RPATH=<runpath>` after `--` to change it). Its output is identical to the static build.
+This builds in `build/shared-legacy` (or `build/shared` without `--legacy`) with the CMake option `VIDEOPARSER_SHARED=ON`, and installs an SDK with `lib/libvideoparser.so` (`libvideoparser.dylib` on macOS), the shared ffmpeg libraries, the headers, and `bin/` with the CLI, `ffmpeg` and `ffprobe` to `build/shared-legacy/sdk`. The library finds the ffmpeg libraries in its own directory, and the CLI finds them in `../lib` (set `-DVIDEOPARSER_CLI_RPATH=<runpath>` after `--` to change it). Its output is identical to the static build.
+
+On macOS, the shared FFmpeg libraries use `@rpath` install names and resolve sibling libraries through `@loader_path`. The installed programs find them in `../lib`, so the SDK can be moved without setting `DYLD_LIBRARY_PATH`. `util/build-ffmpeg.sh --exe-rpath <dirs>` changes the FFmpeg programs' relative search paths; separate multiple directories with `:`.
+
+Set `MACOSX_DEPLOYMENT_TARGET` consistently when building libaom, libvmaf, FFmpeg and the parser for an older macOS release. `VP_LIBAOM_BUILD_DIR` selects a separate libaom build directory for `util/build-libaom.sh` and `util/build-ffmpeg.sh`, preserving an existing static build. The shared SDK also contains relocatable FFmpeg pkg-config files in `lib/pkgconfig`.
 
 ### Building with Docker
 

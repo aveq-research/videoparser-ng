@@ -6,7 +6,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 LIBAOM_SRC="${SCRIPT_DIR}/../external/libaom"
-LIBAOM_BUILD="${LIBAOM_SRC}/aom_build"
+LIBAOM_BUILD="${VP_LIBAOM_BUILD_DIR:-${LIBAOM_SRC}/aom_build}"
 
 if [[ ! -d "$LIBAOM_SRC" ]]; then
   echo "libaom source directory not found at: $LIBAOM_SRC"

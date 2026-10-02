@@ -22,7 +22,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="${SCRIPT_DIR}/.."
-LIBAOM_BUILD="${PROJECT_ROOT}/external/libaom/aom_build"
+LIBAOM_BUILD="${VP_LIBAOM_BUILD_DIR:-${PROJECT_ROOT}/external/libaom/aom_build}"
 
 FFMPEG_SRC="${PROJECT_ROOT}/external/ffmpeg"
 
@@ -274,6 +274,19 @@ if [[ ! -f config.h ]] || [[ "$reconfigure" = true ]]; then
         "--extra-ldsoflags=-Wl,-rpath,'\\\$\\\$\\\$\\\$ORIGIN'"
         "--extra-ldexeflags=-Wl,-rpath,'${exeRunpath}'"
       )
+    elif [[ "$(uname)" = Darwin ]]; then
+      # @rpath install names let consumers relocate the SDK. Each library
+      # resolves its siblings through @loader_path, and programs resolve the
+      # requested directories relative to their installed location.
+      configureFlags+=(
+        --install-name-dir=@rpath
+        --extra-ldsoflags=-Wl,-headerpad_max_install_names,-rpath,@loader_path
+        --extra-ldexeflags=-Wl,-headerpad_max_install_names
+      )
+      IFS=: read -r -a exeRpathDirs <<< "${exeRpath}"
+      for dir in "${exeRpathDirs[@]}"; do
+        configureFlags+=("--extra-ldexeflags=-Wl,-rpath,@loader_path/${dir}")
+      done
     fi
   else
     configureFlags+=(
@@ -288,8 +301,8 @@ fi
 
 echo "Building ffmpeg..."
 
-# Use MAKE_JOBS env var if set, otherwise use nproc
-JOBS="${MAKE_JOBS:-$(nproc)}"
+# Use MAKE_JOBS env var if set, otherwise detect the CPU count
+JOBS="${MAKE_JOBS:-$(nproc 2>/dev/null || sysctl -n hw.ncpu)}"
 make "-j${JOBS}"
 
 if [[ "$shared" = true ]]; then
