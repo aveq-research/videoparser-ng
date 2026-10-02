@@ -38,9 +38,12 @@ ffbuild
 # CMake
 build
 
-# Test fixtures
-test/**/*.ldjson
-test/**/*.mkv
+# Downloaded legacy test fixtures
+test/legacy/**/*.ldjson
+test/legacy/**/*.mkv
+test/legacy/test.zip
+
+# Test caches
 test/**/__pycache__
 
 .mypy_cache
