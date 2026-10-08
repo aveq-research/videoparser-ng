@@ -82,12 +82,12 @@ elif [[ "$legacy" = true ]]; then
   prefix="${prefix:-${buildDir}/sdk}"
 fi
 
-# The library is compiled before its pre-build step builds ffmpeg, and the
-# legacy and shared ffmpeg headers only exist after the first build, so build
-# it first
-if [[ ${#ffmpegArgs[@]} -gt 0 ]]; then
-  util/build-ffmpeg.sh "${ffmpegArgs[@]}"
-fi
+# Build libaom and ffmpeg first (both builds are incremental). The pre-build
+# step of the library only runs when the library itself is rebuilt, so changes
+# to libaom or ffmpeg alone would not reach the binaries. Also, the legacy and
+# shared ffmpeg headers only exist after the first build.
+util/build-libaom.sh
+util/build-ffmpeg.sh "${ffmpegArgs[@]}"
 
 mkdir -p "${buildDir}"
 
