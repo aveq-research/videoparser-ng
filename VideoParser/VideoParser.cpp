@@ -582,6 +582,14 @@ static void clear_statistics(FrameInfo &frame_info) {
   frame_info.motion_bit_count = empty.motion_bit_count;
   frame_info.coefs_bit_count = empty.coefs_bit_count;
   frame_info.mv_coded_count = empty.mv_coded_count;
+  frame_info.blocks_total = empty.blocks_total;
+  frame_info.blocks_skipped = empty.blocks_skipped;
+  frame_info.blocks_coded = empty.blocks_coded;
+  frame_info.qp_coded_min = empty.qp_coded_min;
+  frame_info.qp_coded_max = empty.qp_coded_max;
+  frame_info.qp_coded_avg = empty.qp_coded_avg;
+  frame_info.qp_coded_stdev = empty.qp_coded_stdev;
+  frame_info.is_all_skip = empty.is_all_skip;
 }
 
 /**
@@ -716,6 +724,14 @@ void VideoParser::set_frame_info(FrameInfo &frame_info) {
     frame_info.motion_bit_count = shared_frame_info->motion_bit_count;
     frame_info.coefs_bit_count = shared_frame_info->coefs_bit_count;
     frame_info.mv_coded_count = shared_frame_info->mv_coded_count;
+    frame_info.blocks_total = shared_frame_info->blocks_total;
+    frame_info.blocks_skipped = shared_frame_info->blocks_skipped;
+    frame_info.blocks_coded = shared_frame_info->blocks_coded;
+    frame_info.qp_coded_min = shared_frame_info->qp_coded_min;
+    frame_info.qp_coded_max = shared_frame_info->qp_coded_max;
+    frame_info.qp_coded_avg = shared_frame_info->qp_coded_avg;
+    frame_info.qp_coded_stdev = shared_frame_info->qp_coded_stdev;
+    frame_info.is_all_skip = shared_frame_info->is_all_skip != 0;
   } else {
     clear_statistics(frame_info);
   }

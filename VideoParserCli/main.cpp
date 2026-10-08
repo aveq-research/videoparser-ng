@@ -102,6 +102,16 @@ void print_frame_info_json(const videoparser::FrameInfo &frame_info) {
   j["mb_mv_count"] = frame_info.mb_mv_count;
   j["mv_coded_count"] = frame_info.mv_coded_count;
 
+  // Block counts and QP of coded blocks
+  j["blocks_total"] = frame_info.blocks_total;
+  j["blocks_skipped"] = frame_info.blocks_skipped;
+  j["blocks_coded"] = frame_info.blocks_coded;
+  j["qp_coded_min"] = frame_info.qp_coded_min;
+  j["qp_coded_max"] = frame_info.qp_coded_max;
+  j["qp_coded_avg"] = frame_info.qp_coded_avg;
+  j["qp_coded_stdev"] = frame_info.qp_coded_stdev;
+  j["is_all_skip"] = frame_info.is_all_skip;
+
   // Temporary MV values
   // j["mv_length"] = frame_info.mv_length;
   // j["mv_sum_sqr"] = frame_info.mv_sum_sqr;

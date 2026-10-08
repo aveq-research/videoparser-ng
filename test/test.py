@@ -60,6 +60,9 @@ FIXTURES = [
 
 # Keys to compare for frame_info entries
 FRAME_INFO_KEYS = [
+    "blocks_coded",
+    "blocks_skipped",
+    "blocks_total",
     "coefs_bit_count",
     "current_poc",
     "decode_error",
@@ -67,6 +70,7 @@ FRAME_INFO_KEYS = [
     "dts",
     "frame_idx",
     "frame_type",
+    "is_all_skip",
     "is_idr",
     "mb_mv_count",
     "motion_avg",
@@ -84,6 +88,10 @@ FRAME_INFO_KEYS = [
     "qp_avg",
     "qp_bb_avg",
     "qp_bb_stdev",
+    "qp_coded_avg",
+    "qp_coded_max",
+    "qp_coded_min",
+    "qp_coded_stdev",
     "qp_init",
     "qp_max",
     "qp_min",
@@ -248,7 +256,7 @@ class TestVideoParser:
                 expected_value = expected_entry[key]
                 parsed_value = parsed_entry.get(key)
 
-                if parsed_value is None:
+                if key not in parsed_entry:
                     value_errors.append(
                         {
                             "frame_index": frame_label,

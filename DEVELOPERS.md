@@ -9,6 +9,7 @@ Contents:
   - [AV1 / libaom Specific Changes](#av1--libaom-specific-changes)
   - [Bit Count Information](#bit-count-information)
   - [Block Count Information](#block-count-information)
+  - [Skipped and Coded Block Information](#skipped-and-coded-block-information)
   - [POC Information](#poc-information)
   - [Frame Metadata](#frame-metadata)
 - [Testing](#testing)
@@ -160,6 +161,7 @@ To extract motion vector differences (MVD) and bit counts for AV1, additional mo
 - `external/libaom/av1/decoder/decoder.h`: Added `motion_bits` and `coef_bits` accumulators to `AV1Decoder` and `ThreadData` structs
 - `external/libaom/av1/decoder/inspection.h`: Added `mvd[2]` to `insp_mi_data` and `motion_bits`/`coef_bits` to `insp_frame_data`
 - `external/libaom/av1/decoder/inspection.c`: Added copying of MVD and bit counts in `ifd_inspect()`
+- `external/libaom/av1/decoder/inspection.{h,c}`: Added `skip_mode` and `qindex` to `insp_mi_data` and the coded frame size to `insp_frame_data`. Fixed the order of rows and columns in the call to `ifd_init_mi_rc()` (upstream passed them swapped, so the grid was reallocated on every frame)
 - `external/libaom/av1/decoder/decodemv.c`: Store MVD in `mbmi->mvd[]` for all NEWMV modes in `assign_mv()`, and track motion bits using `aom_reader_tell_frac()` around MV decoding
 - `external/libaom/av1/decoder/decodeframe.c`: Track coefficient bits around intra/inter coefficient decoding using `aom_reader_tell_frac()`, reset counters at frame start in `av1_decode_frame_headers_and_setup()`
 
@@ -182,6 +184,18 @@ Block counts track the number of macroblocks/coding units with motion vectors an
 - **VP9**: `mb_mv_count` incremented for each block with non-zero motion (excludes ZEROMV mode). Note: VP9 uses variable block sizes (4x4 to 64x64), so count depends on encoder block size decisions. `mv_coded_count` counts NEWMV mode blocks where motion delta is explicitly coded; NEARESTMV/NEARMV modes use predicted MVs and are not counted.
 - **MPEG-2**: `mb_mv_count` incremented for each non-skipped inter macroblock (16x16), including "no motion compensation" macroblocks in P pictures, which have a zero vector. `mv_coded_count` counts coded motion vectors (up to 4 per macroblock for bi-directional field prediction).
 - **AV1**: `mb_mv_count` incremented for each MI (mode info) block with inter prediction (mode >= NEARESTMV). Note: AV1 uses variable block sizes (4x4 to 128x128), so count is at MI resolution (4x4 units). `mv_coded_count` counts NEWMV mode blocks (including compound variants: NEW_NEWMV, NEAREST_NEWMV, NEW_NEARESTMV, NEAR_NEWMV, NEW_NEARMV).
+
+### Skipped and Coded Block Information
+
+The fields `blocks_total`, `blocks_skipped`, `blocks_coded`, `qp_coded_*` and `is_all_skip` let consumers find frames that code no data (for example, a static picture coded with all-skip P-frames at QP 51) and compute QP statistics over coded blocks only. See [METRICS.md](METRICS.md#block-count-metrics) for the definitions.
+
+The decoders call two helpers from `libavutil/frame.c`: `videoparser_shared_frame_info_update_blocks()` with the block area in 4x4 units and whether the block is skipped or coded, and `videoparser_shared_frame_info_update_qp_coded()` with the QP of each coded block. `videoparser_get_final_shared_frame_info()` computes the coded QP statistics and sets `is_all_skip` for non-I frames with `blocks_skipped == blocks_total`. A decoder may also set `is_all_skip` itself.
+
+- **H.264**: `h264_mb.c`, function `ff_h264_hl_decode_mb`, right after the QP update. Runs for every macroblock with CABAC and CAVLC, including skipped macroblocks and both macroblocks of an MBAFF pair.
+- **HEVC**: `hevcdec.c`, function `hls_coding_unit`, after the transform tree, so `lc->qp_y` includes `cu_qp_delta`. `hls_transform_unit` sets `CodingUnit.has_residual` when any `cbf` is set.
+- **VP9**: `vp9block.c`, function `vp_update_block_stats`, called once per block from `ff_vp9_decode_block` (not in the second pass of two-pass decoding). `ff_vp9_fill_mv` in `vp9mvs.c` sets `VP9Block.vp_mvd_coded` for a non-zero coded motion vector difference. For `show_existing_frame`, `vp_set_repeated_frame_stats` in `vp9.c` gives the output frame its own copy of the statistics of the repeated frame, with the whole area counted as skipped.
+- **AV1**: `libaomdec.c`, function `videoparser_av1_extract_block_stats`, from the inspection data. libaom's `insp_mi_data` has the new fields `skip_mode` and `qindex` (quantizer index with delta-q and segments applied), and `insp_frame_data` has the coded frame size. If a packet contains no decoded shown frame (`show_existing_frame`), the whole area counts as skipped.
+- **MPEG-2**: not implemented; the block counts are 0.
 
 ### POC Information
 

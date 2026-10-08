@@ -187,6 +187,14 @@ static void print_frame_info(const vp_frame_info *frame) {
   add_uint(&obj, "coefs_bit_count", frame->coefs_bit_count);
   add_int(&obj, "mb_mv_count", frame->mb_mv_count);
   add_int(&obj, "mv_coded_count", frame->mv_coded_count);
+  add_int(&obj, "blocks_total", frame->blocks_total);
+  add_int(&obj, "blocks_skipped", frame->blocks_skipped);
+  add_int(&obj, "blocks_coded", frame->blocks_coded);
+  add_uint(&obj, "qp_coded_min", frame->qp_coded_min);
+  add_uint(&obj, "qp_coded_max", frame->qp_coded_max);
+  add_double(&obj, "qp_coded_avg", frame->qp_coded_avg);
+  add_double(&obj, "qp_coded_stdev", frame->qp_coded_stdev);
+  add_bool(&obj, "is_all_skip", frame->is_all_skip);
   print_object(&obj);
 }
 

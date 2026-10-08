@@ -513,6 +513,14 @@ vp_status vp_next_frame(vp_parser *parser, vp_frame_info *frame) {
   result.mb_mv_count = in.mb_mv_count;
   result.mv_coded_count = in.mv_coded_count;
   result.has_statistics = in.has_statistics ? 1 : 0;
+  result.blocks_total = in.blocks_total;
+  result.blocks_skipped = in.blocks_skipped;
+  result.blocks_coded = in.blocks_coded;
+  result.qp_coded_min = in.qp_coded_min;
+  result.qp_coded_max = in.qp_coded_max;
+  result.qp_coded_avg = in.qp_coded_avg;
+  result.qp_coded_stdev = in.qp_coded_stdev;
+  result.is_all_skip = in.is_all_skip ? 1 : 0;
   copy_out(frame, result);
 
   parser->frames_returned++;

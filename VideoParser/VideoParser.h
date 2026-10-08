@@ -15,6 +15,7 @@
 #include <functional>
 #include <iomanip> // for std::fixed and std::setprecision
 #include <iostream>
+#include <limits>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -189,6 +190,26 @@ struct FrameInfo {
   uint32_t coefs_bit_count = 0;
   int mb_mv_count = 0;    /**< Number of macroblocks with MVs */
   int mv_coded_count = 0; /**< Number of coded MVs */
+
+  // block counts and QP of coded blocks
+  /** Area of all blocks, in units of 4x4 luma samples; 0 if the codec does
+   * not report block counts */
+  int blocks_total = 0;
+  /** Area of skipped blocks (no residual and no coded motion vector
+   * difference), in 4x4 units */
+  int blocks_skipped = 0;
+  /** Area of intra blocks and blocks with coded residual, in 4x4 units */
+  int blocks_coded = 0;
+  /** Minimum QP of coded blocks; 0 without coded blocks */
+  uint32_t qp_coded_min = 0;
+  /** Maximum QP of coded blocks; 0 without coded blocks */
+  uint32_t qp_coded_max = 0;
+  /** Average QP of coded blocks; NaN without coded blocks */
+  double qp_coded_avg = std::numeric_limits<double>::quiet_NaN();
+  /** Standard deviation of the QP of coded blocks; NaN without coded blocks */
+  double qp_coded_stdev = std::numeric_limits<double>::quiet_NaN();
+  /** Whether this is a non-I frame in which all blocks are skipped */
+  bool is_all_skip = false;
 
   // Adding these to make debugging easier (so that they can be printed in the
   // JSON)

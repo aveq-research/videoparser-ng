@@ -277,7 +277,7 @@ extern "C" {
 /** Major version of the C API; changes on incompatible changes */
 #define VP_API_VERSION_MAJOR 1
 /** Minor version of the C API; changes when functions or fields are added */
-#define VP_API_VERSION_MINOR 0
+#define VP_API_VERSION_MINOR 1
 /** Version of the C API as returned by vp_api_version() */
 #define VP_API_VERSION ((VP_API_VERSION_MAJOR << 16) | VP_API_VERSION_MINOR)
 
@@ -460,6 +460,26 @@ typedef struct vp_frame_info {
   /** 1 if the decoder attached statistics to the frame; 0 only with
    * vp_options.frames_without_statistics */
   int32_t has_statistics;
+
+  /* Since API version 1.1 */
+  /** Area of all blocks, in units of 4x4 luma samples; 0 if the codec does
+   * not report block counts */
+  int32_t blocks_total;
+  /** Area of skipped blocks (no residual and no coded motion vector
+   * difference), in 4x4 units */
+  int32_t blocks_skipped;
+  /** Area of intra blocks and blocks with coded residual, in 4x4 units */
+  int32_t blocks_coded;
+  uint32_t
+      qp_coded_min; /**< Minimum QP of coded blocks; 0 without coded blocks */
+  uint32_t
+      qp_coded_max; /**< Maximum QP of coded blocks; 0 without coded blocks */
+  double
+      qp_coded_avg; /**< Average QP of coded blocks; NaN without coded blocks */
+  /** Standard deviation of the QP of coded blocks; NaN without coded blocks */
+  double qp_coded_stdev;
+  /** 1 for a non-I frame in which all blocks are skipped */
+  int32_t is_all_skip;
 } vp_frame_info;
 
 /**

@@ -16,6 +16,10 @@ The following table shows which metrics are available for each supported codec.
 | `qp_init`                 |   ✅   |   ✅   |  ✅¹   |   ✅   |   ✅    |
 | `qp_bb_avg`               |   ⏳   |   ⏳   |   ⏳   |   ⏳   |   ⏳    |
 | `qp_bb_stdev`             |   ⏳   |   ⏳   |   ⏳   |   ⏳   |   ⏳    |
+| `qp_coded_avg`            |   ✅   |   ✅   |  ✅³   |  ✅³   |   —    |
+| `qp_coded_stdev`          |   ✅   |   ✅   |  ✅³   |  ✅³   |   —    |
+| `qp_coded_min`            |   ✅   |   ✅   |  ✅³   |  ✅³   |   —    |
+| `qp_coded_max`            |   ✅   |   ✅   |  ✅³   |  ✅³   |   —    |
 | **Motion Vector Metrics** |       |       |       |       |        |
 | `motion_avg`              |   ✅   |   ✅   |   ✅   |   ✅   |   ✅    |
 | `motion_stdev`            |   ✅   |   ✅   |   ✅   |   ✅   |   ✅    |
@@ -31,6 +35,10 @@ The following table shows which metrics are available for each supported codec.
 | **Block Count Metrics**   |       |       |       |       |        |
 | `mb_mv_count`             |   ✅   |   ✅   |   ✅   |   ✅   |   ✅²   |
 | `mv_coded_count`          |   ✅   |   ✅   |   ✅   |   ✅   |   ✅    |
+| `blocks_total`            |   ✅   |   ✅   |   ✅   |   ✅   |   —    |
+| `blocks_skipped`          |   ✅   |   ✅   |   ✅   |   ✅   |   —    |
+| `blocks_coded`            |   ✅   |   ✅   |   ✅   |   ✅   |   —    |
+| `is_all_skip`             |   ✅   |   ✅   |   ✅   |   ✅   |   —    |
 | **POC Metrics**           |       |       |       |       |        |
 | `current_poc`             |   ✅   |   ✅   |   —   |   —   |   —    |
 | `poc_diff`                |   ✅   |   ✅   |   —   |   —   |   —    |
@@ -52,6 +60,9 @@ Notes:
 
 1. VP9 QP metrics are not yet implemented for segmented streams.
 2. For MPEG-2, `mb_mv_count` counts 16x16 macroblocks, and `motion_bit_count` includes concealment motion vectors in intra macroblocks.
+3. For VP9, the coded QP is the QP of each coded block's segment. For AV1, it is the quantizer index of each coded 4x4 block, with delta-q and segments applied. Without segments or delta-q, it equals the frame QP. The existing `qp_*` fields still report the frame QP.
+
+For MPEG-2, the block counts are 0, `is_all_skip` is false, and the coded QP fields are empty.
 
 ## Metric Definitions
 
@@ -70,6 +81,12 @@ QP (Quantization Parameter) values are codec-specific indices that control quant
 | `qp_init` | Initial QP value from slice or frame header. |
 | `qp_bb_avg` | Average QP excluding black border regions (letterbox areas). ⏳ Work in progress. |
 | `qp_bb_stdev` | Standard deviation of QP excluding black border regions. ⏳ Work in progress. |
+| `qp_coded_avg` | Average QP of coded blocks (see `blocks_coded`). `null` if the frame has no coded blocks. |
+| `qp_coded_stdev` | Standard deviation of the QP of coded blocks. `null` if the frame has no coded blocks. |
+| `qp_coded_min` | Minimum QP of coded blocks. 0 if the frame has no coded blocks. |
+| `qp_coded_max` | Maximum QP of coded blocks. 0 if the frame has no coded blocks. |
+
+The QP of skipped blocks is not used by the decoder: H.264 and HEVC carry the slice QP or the predicted QP over to them, and VP9 and AV1 use the frame QP for all blocks. An encoder can code a static picture with skipped frames at any QP, for example 51. The `qp_coded_*` fields leave out these blocks. Like `qp_avg`, they count each block once, in the codec's own unit (H.264: macroblock, HEVC: coding unit).
 
 ### Motion Vector Metrics
 
@@ -103,6 +120,18 @@ Motion vector metrics are in codec-native sub-pel units:
 | ------ | ----------- |
 | `mb_mv_count` | Number of macroblocks/coding units/blocks with motion vectors. For variable block size codecs (VP9, AV1), the count depends on encoder block size decisions. |
 | `mv_coded_count` | Number of explicitly coded motion vectors (excluding predicted/derived MVs). Only counts blocks where motion delta is explicitly coded in the bitstream. |
+| `blocks_total` | Area of all decoded blocks in the frame, in units of 4x4 luma samples. 0 if the codec does not report block counts. |
+| `blocks_skipped` | Area of skipped blocks, in units of 4x4 luma samples. A skipped block has no residual and no coded motion vector difference: it is a copy of its motion-compensated prediction. |
+| `blocks_coded` | Area of intra blocks and blocks with coded residual, in units of 4x4 luma samples. The QP applies only to these blocks. Inter blocks without residual but with a coded motion vector difference are neither skipped nor coded. |
+| `is_all_skip` | Whether this is a non-I frame in which all blocks are skipped (`blocks_skipped == blocks_total`). Such a frame quantizes nothing; its QP fields describe no coded data and should be left out of QP statistics. |
+
+The codecs define skipped and coded blocks as follows:
+
+- H.264: per macroblock (16 units). Skipped: P_Skip and B_Skip, and in B slices also B_Direct_16x16 and B_8x8 with four direct sub-macroblocks if they have no residual (cbp 0). Coded: intra or cbp not 0.
+- HEVC: per coding unit ((size / 4)² units). Skipped: `cu_skip_flag` set. Coded: intra (including PCM), or at least one `cbf` set in the transform tree.
+- VP9: per block, clipped to the picture. Skipped: inter block without non-zero coefficients and without a non-zero coded motion vector difference (NEWMV). The VP9 skip flag alone only means "no residual". Coded: intra or with non-zero coefficients.
+- AV1: per 4x4 mode-info unit, clipped to the picture. Skipped: inter block with `skip_mode`, or with `skip_txfm` and no NEWMV mode. Coded: intra (including intra block copy) or without `skip_txfm`.
+- VP9 and AV1 frames that show an earlier decoded frame (`show_existing_frame`) have no block data. Their whole area counts as skipped, so they are all-skip unless they are I-frames. Such a frame may show a hidden reference frame (alt-ref) that was not displayed before.
 
 ### POC Metrics
 
