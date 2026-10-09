@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 <!-- insertion marker -->
+## [v0.12.0](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.12.0) - 2026-10-09
+
+<small>[Compare with v0.11.0](https://github.com/aveq-research/videoparser-ng/compare/v0.11.0...v0.12.0)</small>
+
+### Features
+
+- build libvideoparser as a Windows DLL ([8aab4bf](https://github.com/aveq-research/videoparser-ng/commit/8aab4bf60a4eee72b348f5b5e1f1e9867662d289) by Werner Robitza).
+- cross-compile FFmpeg for Windows ([5d4a0f2](https://github.com/aveq-research/videoparser-ng/commit/5d4a0f2d7f124436d996d9047c9dfe737489051c) by Werner Robitza).
+
+### Misc
+
+- bump version to 0.12.0 ([3b6f432](https://github.com/aveq-research/videoparser-ng/commit/3b6f432c4cafa0ea8edea13989e3173f4b51b367) by Werner Robitza).
+
 ## [v0.11.0](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.11.0) - 2026-10-08
 
 <small>[Compare with v0.10.3](https://github.com/aveq-research/videoparser-ng/compare/v0.10.3...v0.11.0)</small>
@@ -20,7 +33,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Misc
 
-- bump version to 0.11.0 ([d9b4dec](https://github.com/aveq-research/videoparser-ng/commit/d9b4dec439febd1c5790de455106150535fb4314) by Werner Robitza).
+- bump version to 0.11.0 ([9cbcd75](https://github.com/aveq-research/videoparser-ng/commit/9cbcd7518f3c7b3c952990df829e7bbe21a8a425) by Werner Robitza).
 
 ## [v0.10.3](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.10.3) - 2026-10-02
 

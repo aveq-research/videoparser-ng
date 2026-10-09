@@ -30,7 +30,7 @@ extern "C" {
 }
 
 #define VIDEOPARSER_VERSION_MAJOR 0
-#define VIDEOPARSER_VERSION_MINOR 11
+#define VIDEOPARSER_VERSION_MINOR 12
 #define VIDEOPARSER_VERSION_PATCH 0
 
 namespace videoparser {
