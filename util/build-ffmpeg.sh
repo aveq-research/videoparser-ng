@@ -17,6 +17,12 @@
 # With --legacy, build with VP_MV_POC_NORMALIZATION=1 (legacy mode) in a copy
 # of the source in build/ffmpeg-legacy/src, next to the normal build.
 # Combined with --shared, the build goes to build/ffmpeg-shared-legacy.
+#
+# Set VP_CROSS_HOST to cross-compile, e.g. VP_CROSS_HOST=x86_64-w64-mingw32
+# for Windows x86_64 (with x86_64-w64-mingw32-gcc in PATH). libaom and libvmaf
+# are then cross-compiled too. On Windows, the build uses Win32 threads, and
+# the shared libraries are DLLs in bin/ (next to the programs) with import
+# libraries in lib/.
 
 set -e
 
@@ -84,6 +90,33 @@ while [[ $# -gt 0 ]]; do
   esac
   shift
 done
+
+# Target system and the matching configure options
+targetOs="$(uname)"
+crossFlags=()
+if [[ -n "${VP_CROSS_HOST:-}" ]]; then
+  case "${VP_CROSS_HOST}" in
+    x86_64-w64-mingw32)
+      targetOs=Windows
+      crossFlags=(
+        --enable-cross-compile
+        --target-os=mingw32
+        --arch=x86_64
+        "--cross-prefix=${VP_CROSS_HOST}-"
+        --pkg-config=pkg-config
+      )
+      ;;
+    *)
+      echo "Unsupported VP_CROSS_HOST: ${VP_CROSS_HOST}"
+      exit 1
+      ;;
+  esac
+fi
+if [[ "$targetOs" = Windows ]]; then
+  threadFlags=(--enable-w32threads --disable-pthreads)
+else
+  threadFlags=(--enable-pthreads)
+fi
 
 # Directory for builds outside of external/ffmpeg
 copyBuild="${PROJECT_ROOT}/build/ffmpeg"
@@ -160,7 +193,7 @@ if [[ ! -f config.h ]] || [[ "$reconfigure" = true ]]; then
     --disable-programs
     --disable-doc
     --disable-stripping
-    --enable-pthreads
+    "${threadFlags[@]}"
     --enable-debug=2
     --disable-avfilter
     # hardware acceleration
@@ -231,7 +264,6 @@ if [[ ! -f config.h ]] || [[ "$reconfigure" = true ]]; then
       --disable-autodetect
       --enable-zlib
       --enable-bzlib
-      --enable-pthreads
       # programs, e.g. for VMAF: ffmpeg -i ref -i dist -lavfi libvmaf -f null -
       --enable-ffmpeg
       --enable-ffprobe
@@ -264,7 +296,7 @@ if [[ ! -f config.h ]] || [[ "$reconfigure" = true ]]; then
     # Find the other ffmpeg libraries in the same directory, and the libraries
     # from the programs. configure expands "$" once, and make twice for the
     # libraries and once for the programs, hence the escaping.
-    if [[ "$(uname)" = Linux ]]; then
+    if [[ "$targetOs" = Linux ]]; then
       exeRunpath=""
       IFS=: read -r -a exeRpathDirs <<< "${exeRpath}"
       for dir in "${exeRpathDirs[@]}"; do
@@ -274,7 +306,7 @@ if [[ ! -f config.h ]] || [[ "$reconfigure" = true ]]; then
         "--extra-ldsoflags=-Wl,-rpath,'\\\$\\\$\\\$\\\$ORIGIN'"
         "--extra-ldexeflags=-Wl,-rpath,'${exeRunpath}'"
       )
-    elif [[ "$(uname)" = Darwin ]]; then
+    elif [[ "$targetOs" = Darwin ]]; then
       # @rpath install names let consumers relocate the SDK. Each library
       # resolves its siblings through @loader_path, and programs resolve the
       # requested directories relative to their installed location.
@@ -296,7 +328,7 @@ if [[ ! -f config.h ]] || [[ "$reconfigure" = true ]]; then
     )
   fi
 
-  ./configure "${configureFlags[@]}"
+  ./configure "${crossFlags[@]}" "${configureFlags[@]}"
 fi
 
 echo "Building ffmpeg..."

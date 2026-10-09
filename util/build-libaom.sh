@@ -1,12 +1,25 @@
 #!/usr/bin/env bash
 #
 # Build libaom in the external/libaom directory
+#
+# Set VP_CROSS_HOST to cross-compile with a toolchain file from util/cross,
+# e.g. VP_CROSS_HOST=x86_64-w64-mingw32 for Windows x86_64.
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 LIBAOM_SRC="${SCRIPT_DIR}/../external/libaom"
 LIBAOM_BUILD="${VP_LIBAOM_BUILD_DIR:-${LIBAOM_SRC}/aom_build}"
+
+crossArgs=()
+if [[ -n "${VP_CROSS_HOST:-}" ]]; then
+  toolchain="${SCRIPT_DIR}/cross/${VP_CROSS_HOST}.cmake"
+  if [[ ! -f "$toolchain" ]]; then
+    echo "No CMake toolchain file for VP_CROSS_HOST=${VP_CROSS_HOST} in util/cross"
+    exit 1
+  fi
+  crossArgs=("-DCMAKE_TOOLCHAIN_FILE=${toolchain}")
+fi
 
 if [[ ! -d "$LIBAOM_SRC" ]]; then
   echo "libaom source directory not found at: $LIBAOM_SRC"
@@ -67,7 +80,8 @@ if [[ ! -f "CMakeCache.txt" ]] || [[ "$reconfigure" = true ]] || [[ "$clean" = t
     -DCONFIG_AV1_ENCODER=0 \
     -DCONFIG_MULTITHREAD=1 \
     -DCONFIG_PIC=1 \
-    -DCONFIG_INSPECTION=1
+    -DCONFIG_INSPECTION=1 \
+    "${crossArgs[@]}"
 fi
 
 echo "Building libaom..."

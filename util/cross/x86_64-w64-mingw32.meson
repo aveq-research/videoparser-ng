@@ -1,0 +1,18 @@
+# Meson cross file for Windows x86_64 with a mingw-w64 cross compiler
+# (llvm-mingw or GCC), for example:
+#
+#   meson setup --cross-file util/cross/x86_64-w64-mingw32.meson ...
+
+[binaries]
+c = 'x86_64-w64-mingw32-gcc'
+cpp = 'x86_64-w64-mingw32-g++'
+ar = 'x86_64-w64-mingw32-ar'
+strip = 'x86_64-w64-mingw32-strip'
+windres = 'x86_64-w64-mingw32-windres'
+pkg-config = 'pkg-config'
+
+[host_machine]
+system = 'windows'
+cpu_family = 'x86_64'
+cpu = 'x86_64'
+endian = 'little'

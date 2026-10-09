@@ -12,6 +12,9 @@
 #
 # libvmaf is licensed under BSD-2-Clause-Patent; the license is installed to
 # share/licenses/libvmaf.
+#
+# Set VP_CROSS_HOST to cross-compile with a cross file from util/cross, e.g.
+# VP_CROSS_HOST=x86_64-w64-mingw32 for Windows x86_64.
 
 set -e
 
@@ -101,9 +104,19 @@ if ! command -v xxd >/dev/null; then
   export PATH="${LIBVMAF_DIR}/bin:${PATH}"
 fi
 
+crossArgs=()
+if [[ -n "${VP_CROSS_HOST:-}" ]]; then
+  crossFile="${SCRIPT_DIR}/cross/${VP_CROSS_HOST}.meson"
+  if [[ ! -f "${crossFile}" ]]; then
+    echo "No meson cross file for VP_CROSS_HOST=${VP_CROSS_HOST} in util/cross"
+    exit 1
+  fi
+  crossArgs=(--cross-file "${crossFile}")
+fi
+
 if [[ ! -f "${buildDir}/build.ninja" ]]; then
   echo "Configuring libvmaf..."
-  meson setup "${buildDir}" "${srcDir}/libvmaf" \
+  meson setup "${buildDir}" "${srcDir}/libvmaf" "${crossArgs[@]}" \
     --prefix "${prefix}" \
     --libdir lib \
     --buildtype release \
@@ -132,7 +145,14 @@ meson install -C "${buildDir}" --quiet
 
 # libvmaf contains C++ code (libsvm), which its pkg-config file does not
 # list, so add the C++ runtime for static linking
-if [[ "$(uname)" = Darwin ]]; then
+if [[ -n "${VP_CROSS_HOST:-}" ]]; then
+  # libc++ (llvm-mingw) or libstdc++ (GCC), by the cross compiler's headers
+  if echo '#include <cstddef>' | "${VP_CROSS_HOST}-g++" -x c++ -E -dM - | grep -q _LIBCPP_VERSION; then
+    cxxLib="-lc++ -lunwind"
+  else
+    cxxLib="-lstdc++"
+  fi
+elif [[ "$(uname)" = Darwin ]]; then
   cxxLib="-lc++"
 else
   cxxLib="-lstdc++"
