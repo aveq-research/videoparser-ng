@@ -13,6 +13,9 @@
 #
 # Arguments after -- are passed to CMake, for example
 # -- -DVIDEOPARSER_CLI_RPATH='$ORIGIN/../lib'.
+#
+# Set VP_CROSS_HOST to cross-compile everything with the toolchain files in
+# util/cross, e.g. VP_CROSS_HOST=x86_64-w64-mingw32 for Windows x86_64.
 
 set -e
 
@@ -88,6 +91,10 @@ fi
 # shared ffmpeg headers only exist after the first build.
 util/build-libaom.sh
 util/build-ffmpeg.sh "${ffmpegArgs[@]}"
+
+if [[ -n "${VP_CROSS_HOST:-}" ]]; then
+  cmakeFlags+=("-DCMAKE_TOOLCHAIN_FILE=${PWD}/util/cross/${VP_CROSS_HOST}.cmake")
+fi
 
 mkdir -p "${buildDir}"
 

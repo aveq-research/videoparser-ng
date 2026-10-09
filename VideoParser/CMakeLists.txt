@@ -20,14 +20,29 @@ if(VIDEOPARSER_SHARED)
   add_library(videoparser SHARED ${VIDEOPARSER_SOURCES})
   target_compile_definitions(videoparser PRIVATE VIDEOPARSER_BUILDING_SHARED)
 
-  # Link VideoParser against the shared FFmpeg, which includes libaom
+  # Link VideoParser against the shared FFmpeg, which includes libaom. On
+  # Windows, link the import libraries (libavcodec.dll.a etc.) of the DLLs.
   target_include_directories(videoparser PRIVATE ${FFMPEG_DIR})
+  if(WIN32)
+    set(FFMPEG_LIBRARY_PREFIX ${CMAKE_IMPORT_LIBRARY_PREFIX})
+    set(FFMPEG_LIBRARY_SUFFIX ${CMAKE_IMPORT_LIBRARY_SUFFIX})
+  else()
+    set(FFMPEG_LIBRARY_PREFIX ${CMAKE_SHARED_LIBRARY_PREFIX})
+    set(FFMPEG_LIBRARY_SUFFIX ${CMAKE_SHARED_LIBRARY_SUFFIX})
+  endif()
   set(FFMPEG_LIBRARIES
-    ${FFMPEG_LIB_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}avformat${CMAKE_SHARED_LIBRARY_SUFFIX}
-    ${FFMPEG_LIB_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}avcodec${CMAKE_SHARED_LIBRARY_SUFFIX}
-    ${FFMPEG_LIB_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}avutil${CMAKE_SHARED_LIBRARY_SUFFIX}
+    ${FFMPEG_LIB_DIR}/${FFMPEG_LIBRARY_PREFIX}avformat${FFMPEG_LIBRARY_SUFFIX}
+    ${FFMPEG_LIB_DIR}/${FFMPEG_LIBRARY_PREFIX}avcodec${FFMPEG_LIBRARY_SUFFIX}
+    ${FFMPEG_LIB_DIR}/${FFMPEG_LIBRARY_PREFIX}avutil${FFMPEG_LIBRARY_SUFFIX}
   )
   target_link_libraries(videoparser PUBLIC ${FFMPEG_LIBRARIES})
+
+  # The C++ API (VideoParser.h) has no export attributes, and the C API's
+  # dllexport attributes would turn off MinGW's automatic export of all
+  # symbols. Export all of them, as on Linux and macOS.
+  if(MINGW)
+    target_link_options(videoparser PRIVATE "LINKER:--export-all-symbols")
+  endif()
 
   # Find the FFmpeg libraries in the same directory once installed
   if(APPLE)
@@ -80,14 +95,20 @@ configure_file(videoparser.pc.in ${CMAKE_CURRENT_BINARY_DIR}/videoparser.pc @ONL
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/videoparser.pc DESTINATION lib/pkgconfig)
 
 if(VIDEOPARSER_SHARED)
-  install(TARGETS videoparser LIBRARY DESTINATION lib)
+  install(TARGETS videoparser
+    LIBRARY DESTINATION lib
+    RUNTIME DESTINATION bin
+    ARCHIVE DESTINATION lib)
   install(FILES VideoParser.h videoparser_c.h DESTINATION include/VideoParser)
   install(DIRECTORY include/ DESTINATION include/VideoParser/include)
   # All shared ffmpeg libraries (with their version symlinks), headers and
   # programs, globbed at install time
   install(CODE "set(FFMPEG_SHARED_PREFIX \"${FFMPEG_SHARED_PREFIX}\")")
   install(CODE [[
-    file(GLOB libs "${FFMPEG_SHARED_PREFIX}/lib/lib*.so*" "${FFMPEG_SHARED_PREFIX}/lib/lib*.dylib")
+    # On Windows, the DLLs are in bin/ with the programs, and lib/ has the
+    # import libraries
+    file(GLOB libs "${FFMPEG_SHARED_PREFIX}/lib/lib*.so*" "${FFMPEG_SHARED_PREFIX}/lib/lib*.dylib"
+      "${FFMPEG_SHARED_PREFIX}/lib/lib*.dll.a")
     file(INSTALL ${libs} DESTINATION "${CMAKE_INSTALL_PREFIX}/lib")
     file(INSTALL "${FFMPEG_SHARED_PREFIX}/include/" DESTINATION "${CMAKE_INSTALL_PREFIX}/include")
     file(GLOB programs "${FFMPEG_SHARED_PREFIX}/bin/*")
