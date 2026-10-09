@@ -287,6 +287,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate list of changes
+        run: ./util/release-notes.sh "${GITHUB_REF_NAME}" "${{ github.server_url }}/${{ github.repository }}" > release-body.md
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -359,70 +364,73 @@ jobs:
 
           ls -la release-assets/
 
+      - name: Append binary and SDK tables to release notes
+        run: |
+          cat >> release-body.md <<'EOF_NOTES'
+          ## Binaries
+
+          Pre-built static binaries for command-line video parsing.
+
+          | Platform | Standard | Legacy |
+          |----------|----------|--------|
+          | Linux x86_64 | `video-parser-${{ steps.version.outputs.VERSION }}-linux-x86_64.tar.gz` | `video-parser-${{ steps.version.outputs.VERSION }}-linux-x86_64-legacy.tar.gz` |
+          | Linux ARM64 | `video-parser-${{ steps.version.outputs.VERSION }}-linux-aarch64.tar.gz` | `video-parser-${{ steps.version.outputs.VERSION }}-linux-aarch64-legacy.tar.gz` |
+          | macOS Intel | `video-parser-${{ steps.version.outputs.VERSION }}-darwin-x86_64.tar.gz` | `video-parser-${{ steps.version.outputs.VERSION }}-darwin-x86_64-legacy.tar.gz` |
+          | macOS Apple Silicon | `video-parser-${{ steps.version.outputs.VERSION }}-darwin-arm64.tar.gz` | `video-parser-${{ steps.version.outputs.VERSION }}-darwin-arm64-legacy.tar.gz` |
+
+          ## SDK (Static Libraries + Headers)
+
+          Pre-compiled static libraries and headers for building your own applications on top of the video parser. Includes:
+          - `libvideoparser.a` - VideoParser library
+          - `libaom.a` - AV1 decoder library
+          - `libavcodec.a`, `libavformat.a`, `libavutil.a` - FFmpeg libraries
+          - Headers for VideoParser, libaom, and FFmpeg
+
+          | Platform | Standard | Legacy |
+          |----------|----------|--------|
+          | Linux x86_64 | `videoparser-sdk-${{ steps.version.outputs.VERSION }}-linux-x86_64.tar.gz` | `videoparser-sdk-${{ steps.version.outputs.VERSION }}-linux-x86_64-legacy.tar.gz` |
+          | Linux ARM64 | `videoparser-sdk-${{ steps.version.outputs.VERSION }}-linux-aarch64.tar.gz` | `videoparser-sdk-${{ steps.version.outputs.VERSION }}-linux-aarch64-legacy.tar.gz` |
+          | macOS Intel | `videoparser-sdk-${{ steps.version.outputs.VERSION }}-darwin-x86_64.tar.gz` | `videoparser-sdk-${{ steps.version.outputs.VERSION }}-darwin-x86_64-legacy.tar.gz` |
+          | macOS Apple Silicon | `videoparser-sdk-${{ steps.version.outputs.VERSION }}-darwin-arm64.tar.gz` | `videoparser-sdk-${{ steps.version.outputs.VERSION }}-darwin-arm64-legacy.tar.gz` |
+
+          ## Docker Images
+
+          Multi-architecture Docker images are available on GitHub Container Registry:
+
+          ```bash
+          # Standard (recommended)
+          docker pull ghcr.io/aveq-research/videoparser-ng:${{ steps.version.outputs.VERSION }}
+          docker pull ghcr.io/aveq-research/videoparser-ng:latest
+
+          # Legacy
+          docker pull ghcr.io/aveq-research/videoparser-ng:${{ steps.version.outputs.VERSION }}-legacy
+          docker pull ghcr.io/aveq-research/videoparser-ng:latest-legacy
+          ```
+
+          ## Standard vs Legacy
+
+          Use the **standard** build unless you specifically need to compare results with the original [bitstream_mode3_videoparser](https://github.com/Telecommunication-Telemedia-Assessment/bitstream_mode3_videoparser).
+
+          The **legacy** build replicates known bugs from the original parser (POC-based motion vector normalization) for compatibility testing with H.264 and HEVC. See [DEVELOPERS.md](https://github.com/aveq-research/videoparser-ng/blob/master/DEVELOPERS.md#mv-poc-normalization) for details.
+
+          ## Source Code & Licensing
+
+          This software is licensed under **LGPL 2.1+**. The binaries and SDK include statically linked libraries:
+
+          - **FFmpeg** (LGPL 2.1+): [github.com/aveq-research/ffmpeg](https://github.com/aveq-research/ffmpeg)
+          - **libaom** (BSD 2-clause): [github.com/aveq-research/libaom](https://github.com/aveq-research/libaom)
+
+          Per LGPL 2.1 Section 6, you may obtain the complete source code (including exact library versions as Git submodules) from: [github.com/aveq-research/videoparser-ng/tree/${{ github.ref_name }}](https://github.com/aveq-research/videoparser-ng/tree/${{ github.ref_name }})
+
+          ---
+          EOF_NOTES
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: release-assets/*
-          generate_release_notes: true
           draft: false
           prerelease: ${{ contains(github.ref, '-') }}
-          body: |
-            ## Binaries
-
-            Pre-built static binaries for command-line video parsing.
-
-            | Platform | Standard | Legacy |
-            |----------|----------|--------|
-            | Linux x86_64 | `video-parser-${{ steps.version.outputs.VERSION }}-linux-x86_64.tar.gz` | `video-parser-${{ steps.version.outputs.VERSION }}-linux-x86_64-legacy.tar.gz` |
-            | Linux ARM64 | `video-parser-${{ steps.version.outputs.VERSION }}-linux-aarch64.tar.gz` | `video-parser-${{ steps.version.outputs.VERSION }}-linux-aarch64-legacy.tar.gz` |
-            | macOS Intel | `video-parser-${{ steps.version.outputs.VERSION }}-darwin-x86_64.tar.gz` | `video-parser-${{ steps.version.outputs.VERSION }}-darwin-x86_64-legacy.tar.gz` |
-            | macOS Apple Silicon | `video-parser-${{ steps.version.outputs.VERSION }}-darwin-arm64.tar.gz` | `video-parser-${{ steps.version.outputs.VERSION }}-darwin-arm64-legacy.tar.gz` |
-
-            ## SDK (Static Libraries + Headers)
-
-            Pre-compiled static libraries and headers for building your own applications on top of the video parser. Includes:
-            - `libvideoparser.a` - VideoParser library
-            - `libaom.a` - AV1 decoder library
-            - `libavcodec.a`, `libavformat.a`, `libavutil.a` - FFmpeg libraries
-            - Headers for VideoParser, libaom, and FFmpeg
-
-            | Platform | Standard | Legacy |
-            |----------|----------|--------|
-            | Linux x86_64 | `videoparser-sdk-${{ steps.version.outputs.VERSION }}-linux-x86_64.tar.gz` | `videoparser-sdk-${{ steps.version.outputs.VERSION }}-linux-x86_64-legacy.tar.gz` |
-            | Linux ARM64 | `videoparser-sdk-${{ steps.version.outputs.VERSION }}-linux-aarch64.tar.gz` | `videoparser-sdk-${{ steps.version.outputs.VERSION }}-linux-aarch64-legacy.tar.gz` |
-            | macOS Intel | `videoparser-sdk-${{ steps.version.outputs.VERSION }}-darwin-x86_64.tar.gz` | `videoparser-sdk-${{ steps.version.outputs.VERSION }}-darwin-x86_64-legacy.tar.gz` |
-            | macOS Apple Silicon | `videoparser-sdk-${{ steps.version.outputs.VERSION }}-darwin-arm64.tar.gz` | `videoparser-sdk-${{ steps.version.outputs.VERSION }}-darwin-arm64-legacy.tar.gz` |
-
-            ## Docker Images
-
-            Multi-architecture Docker images are available on GitHub Container Registry:
-
-            ```bash
-            # Standard (recommended)
-            docker pull ghcr.io/aveq-research/videoparser-ng:${{ steps.version.outputs.VERSION }}
-            docker pull ghcr.io/aveq-research/videoparser-ng:latest
-
-            # Legacy
-            docker pull ghcr.io/aveq-research/videoparser-ng:${{ steps.version.outputs.VERSION }}-legacy
-            docker pull ghcr.io/aveq-research/videoparser-ng:latest-legacy
-            ```
-
-            ## Standard vs Legacy
-
-            Use the **standard** build unless you specifically need to compare results with the original [bitstream_mode3_videoparser](https://github.com/Telecommunication-Telemedia-Assessment/bitstream_mode3_videoparser).
-
-            The **legacy** build replicates known bugs from the original parser (POC-based motion vector normalization) for compatibility testing with H.264 and HEVC. See [DEVELOPERS.md](https://github.com/aveq-research/videoparser-ng/blob/master/DEVELOPERS.md#mv-poc-normalization) for details.
-
-            ## Source Code & Licensing
-
-            This software is licensed under **LGPL 2.1+**. The binaries and SDK include statically linked libraries:
-
-            - **FFmpeg** (LGPL 2.1+): [github.com/aveq-research/ffmpeg](https://github.com/aveq-research/ffmpeg)
-            - **libaom** (BSD 2-clause): [github.com/aveq-research/libaom](https://github.com/aveq-research/libaom)
-
-            Per LGPL 2.1 Section 6, you may obtain the complete source code (including exact library versions as Git submodules) from: [github.com/aveq-research/videoparser-ng/tree/${{ github.ref_name }}](https://github.com/aveq-research/videoparser-ng/tree/${{ github.ref_name }})
-
-            ---
-
+          body_path: release-body.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
