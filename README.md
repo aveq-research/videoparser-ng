@@ -377,7 +377,7 @@ VP_EXTRA_CFLAGS="-DVP_MV_POC_NORMALIZATION=1" util/build-ffmpeg.sh --clean && ./
 Legacy mode enables POC-based motion vector normalization and other legacy behaviors. See [DEVELOPERS.md](DEVELOPERS.md#mv-poc-normalization) for details on what this flag changes.
 
 > [!WARNING]
-> Legacy mode is only recommended for H.264 and HEVC compatibility testing. For VP9, the legacy parser had fundamental bugs making its output unreliable. See [VP9_Parsing.md](VP9_Parsing.md) for details.
+> Legacy mode is only recommended for compatibility testing with P.1204.3 frontends. The numbers are technically correct, but the “normal” behavior of `videoparser-ng` is more sensible.
 
 #### Standard Build
 

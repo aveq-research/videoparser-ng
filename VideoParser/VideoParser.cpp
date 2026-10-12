@@ -258,6 +258,20 @@ void VideoParser::open() {
     codec_context->idct_algo = FF_IDCT_SIMPLE;
   }
 
+  // Legacy mode: FFmpeg 3.2 in the legacy parser truncated the default packet
+  // duration of Matroska tracks to the stream time base, while current FFmpeg
+  // rounds it (for example, 16 instead of 17 ms at 60 fps). The legacy VP9
+  // motion statistics divide by this duration.
+  AVStream *stream = format_context->streams[video_stream_idx];
+  if (videoparser_legacy_mode() && codec->id == AV_CODEC_ID_VP9 &&
+      strstr(format_context->iformat->name, "matroska") &&
+      stream->avg_frame_rate.num > 0 && stream->avg_frame_rate.den > 0) {
+    AVRational frame_period = av_inv_q(stream->avg_frame_rate);
+    legacy_rounded_duration = av_rescale_q(1, frame_period, stream->time_base);
+    legacy_truncated_duration =
+        av_rescale_q_rnd(1, frame_period, stream->time_base, AV_ROUND_DOWN);
+  }
+
   // Preserve packet metadata on the decoded frame. This is needed for codecs
   // with frame reordering, where the packet being read is not necessarily the
   // packet corresponding to the frame returned by the decoder.
@@ -917,6 +931,11 @@ bool VideoParser::parse_frame(FrameInfo &frame_info) {
 
       if (current_packet->flags & AV_PKT_FLAG_CORRUPT) {
         summary.corrupt_packets++;
+      }
+
+      // Legacy mode: packet duration of the legacy parser (see open())
+      if (current_packet->duration == legacy_rounded_duration) {
+        current_packet->duration = legacy_truncated_duration;
       }
 
       int send_result = avcodec_send_packet(codec_context, current_packet);

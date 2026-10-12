@@ -82,16 +82,19 @@ H.264, HEVC, and VP9 support an optional compile-time flag `VP_MV_POC_NORMALIZAT
 
 For H.264 and HEVC, this weighs motion vectors by their temporal distance to reference frames, using the formula `1.0 / (2.0 * |temporal_distance| / poc_diff)`. For HEVC, we also determine the coding type (Intra, Skip, Inter) and change the normalization based on that.
 
-For VP9, the legacy mode applies:
+For VP9, the legacy mode applies. This was the behavior of the parser when P.1204.3 was standardized, and we wanted to replicate it exactly:
 
-- Normalization by frame distance: `mv / (8 * FrmDist)` where `FrmDist = max(1, (current_PTS - ref_PTS) / frame_duration)`
+- Normalization by frame distance: `mv / (8 * FrmDist)` where `FrmDist = max(1, (current_PTS - ref_PTS) / frame_duration)`, computed in float
 - A 4x multiplier to MV lengths: `MV_Length = 4.0 * sqrt(mvX² + mvY²)`
-- Only accumulates statistics for NEWMV mode blocks (explicitly coded motion vectors)
-- NEARESTMV and NEARMV modes only increment the block count but don't contribute to MV statistics
+- Only accumulates statistics for NEWMV mode blocks (explicitly coded motion vectors), and only the MVD of the first reference
+- Sums weighted by the legacy block count (the block area in 4x4 units, 4 below 8x8), and squares by the count squared
 - Outlier rejection: Blocks where `(mvX + mvY) > 20 * AvMot` or `(mvdX + mvdY) > 20 * AvDif` are rejected
-- Weighted `mv_coded_count`: In legacy mode, `mv_coded_count` is incremented by the block's 4x4 count (not just 1), and only for non-outlier NEWMV blocks
+- Weighted `mv_coded_count`: In legacy mode, `mv_coded_count` is incremented by the number of non-zero MV joints times the block count, and only for non-outlier NEWMV blocks
+- Skipped blocks: The statistics of a block are added after its coefficients are decoded. Skipped blocks (coded skip flag, or inter blocks of 8x8 and larger without coefficients) add to the sums, but not to `mb_mv_count`, which divides them
+- Frames with less than 100 bytes get the statistics of the last invisible frame, divided by `max(1, FrameDistance - 2)` (zero without an invisible frame), and shown existing frames get zero statistics
+- Timestamps as in FFmpeg 3.2: invisible frames get the end time of the previous packet, and default packet durations of Matroska tracks are truncated instead of rounded
 
-**VP9 Reference Frame Buffer Bug Replication**: The legacy parser had a bug in how it accessed reference frame PTS values. The correct way to get the reference frame is `s->s.refs[s->s.h.refidx[b->ref[0]]]` (mapping reference type through refidx), but the legacy code used `s->s.refs[b->ref[0]]` directly. This bug is replicated for compatibility. In practice, this only affects behavior when refidx mapping is non-identity (which is uncommon).
+**VP9 Reference Frame Buffer Bug Replication**: The legacy parser had a bug in how it accessed reference frame PTS values. The correct way to get the reference frame is `s->s.refs[s->s.h.refidx[b->ref[0]]]` (mapping reference type through refidx), but the legacy code used `s->s.refs[b->ref[0]]` directly. This bug is replicated for compatibility.
 
 **VP9 Outlier Rejection**: The legacy parser (`VideoStatVP9.c`, `ProcessMV` function) rejects motion vectors that exceed 20x the running average. Specifically:
 
@@ -107,12 +110,7 @@ if( !((abs(mvX) + abs(mvY) > 20 * AvMot) || (abs(mvdX) + abs(mvdY) > 20 * AvDif)
 }
 ```
 
-This is now replicated in `mv_statistics_vp9()` when legacy mode is enabled. If `CodedMv` is 0 (first block), the running averages default to 1.0.
-
-**Comparison Status**: With legacy mode enabled (including outlier rejection), the VP9 implementation should closely match the legacy parser. Any remaining differences may be due to:
-
-1. X/Y asymmetry: Minor precision differences in MV component extraction
-2. Frame duration field: Legacy uses `pkt_duration` while we use `duration`
+This is replicated in `vp_legacy_process_mv()` when legacy mode is enabled, including the integer truncation of `AvMot`, `AvDif`, and the `abs()` arguments. If `CodedMv` is 0 (first block), the running averages default to 1.
 
 To build with POC normalization next to the standard build, run:
 

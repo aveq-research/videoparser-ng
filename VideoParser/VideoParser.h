@@ -396,6 +396,10 @@ private:
                                   // available from format context
   bool bitrate_from_scan = false; // bitrate estimated by scan_video_packets()
   double next_pts = std::nan(""); // end of the previous frame, in seconds
+  // Legacy mode: rounded Matroska default packet duration, and the truncated
+  // duration of the legacy parser that replaces it (equal if not used)
+  int64_t legacy_rounded_duration = 0;
+  int64_t legacy_truncated_duration = 0;
   Summary summary;
   bool network_initialized = false; // avformat_network_init() was called
   std::string filename;             // empty for custom input
