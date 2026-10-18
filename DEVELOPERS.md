@@ -212,6 +212,8 @@ Frame metadata is extracted via standard FFmpeg API:
 - `is_idr`: H.264: NAL unit type 5. HEVC: IDR_W_RADL or IDR_N_LP NAL units. VP9/AV1: keyframes.
 - `size`: Extracted from packet size directly in ffmpeg.
 - `pts`/`dts`: Converted from ffmpeg's timestamps using stream time base.
+- `interlaced`, `top_field_first`, `repeated_fields`: the frame flags `AV_FRAME_FLAG_INTERLACED` and `AV_FRAME_FLAG_TOP_FIELD_FIRST`, and `repeat_pict`, as the unmodified decoders set them (see [METRICS.md](METRICS.md#interlacing)).
+- `video_interlaced`, `video_field_order`: from the first decoded frame. `VideoParser::open()` decodes it with `decode_first_frame()`, and `parse_frame()` returns it first. The first `parse_frame()` call throws errors from decoding it.
 
 ## Testing
 
@@ -247,6 +249,9 @@ for video in test/test-lib*.mp4; do
 done
 build/VideoParserCli/video-parser test/test-mpeg2video.ts > test/test-mpeg2video.ldjson
 build/VideoParserCli/video-parser test/test-mpeg2video.mpg > test/test-mpeg2video-ps.ldjson
+for name in mpeg2video-tff mpeg2video-bff mpeg2video-pulldown libx264-tff libx264-bff; do
+    build/VideoParserCli/video-parser "test/test-${name}.ts" > "test/test-${name}.ldjson"
+done
 ```
 
 ### Legacy Testing
@@ -277,6 +282,8 @@ uv run test/test-cli.py
 ```
 
 Some CLI tests use damaged MPEG-TS clips (timestamp jumps and wrap-around, bit flips, a PMT with the wrong codec). Regenerate them with `util/generate-damaged-test-videos.py`, which needs ffmpeg with libx264.
+
+The interlaced (MPEG-2 and H.264, top and bottom field first) and soft-telecine (MPEG-2 with 3:2 pulldown) clips come from `util/generate-interlaced-test-videos.sh`. It needs ffmpeg with libx264, and `mpeg2enc` from mjpegtools (set `MPEG2ENC` to its path if it is not in the `PATH`). The feature tests also compare these clips with their `.ldjson` reference files.
 
 ### C API Testing
 

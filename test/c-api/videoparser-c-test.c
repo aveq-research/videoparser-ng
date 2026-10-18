@@ -35,7 +35,7 @@
 
 /* JSON object with keys sorted as nlohmann::json sorts them */
 
-#define MAX_FIELDS 40
+#define MAX_FIELDS 48
 
 typedef struct json_field {
   const char *key;
@@ -152,6 +152,8 @@ static void print_sequence_info(const vp_sequence_info *info) {
   add_int(&obj, "video_bit_depth", info->video_bit_depth);
   add_string(&obj, "video_pix_fmt", info->video_pix_fmt);
   add_uint(&obj, "video_frame_count", info->video_frame_count);
+  add_bool(&obj, "video_interlaced", info->video_interlaced);
+  add_string(&obj, "video_field_order", info->video_field_order);
   print_object(&obj);
 }
 
@@ -195,6 +197,9 @@ static void print_frame_info(const vp_frame_info *frame) {
   add_double(&obj, "qp_coded_avg", frame->qp_coded_avg);
   add_double(&obj, "qp_coded_stdev", frame->qp_coded_stdev);
   add_bool(&obj, "is_all_skip", frame->is_all_skip);
+  add_bool(&obj, "interlaced", frame->interlaced);
+  add_bool(&obj, "top_field_first", frame->top_field_first);
+  add_int(&obj, "repeated_fields", frame->repeated_fields);
   print_object(&obj);
 }
 
@@ -205,6 +210,8 @@ static void print_summary(const vp_summary *summary) {
   add_uint(&obj, "decode_errors", summary->decode_errors);
   add_uint(&obj, "corrupt_packets", summary->corrupt_packets);
   add_uint(&obj, "discontinuities", summary->discontinuities);
+  add_uint(&obj, "interlaced_frames", summary->interlaced_frames);
+  add_uint(&obj, "repeated_fields", summary->repeated_fields);
   print_object(&obj);
 }
 

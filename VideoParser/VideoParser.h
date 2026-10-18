@@ -10,6 +10,7 @@
 
 #include <cmath>
 #include <cstdlib>
+#include <exception>
 #include <filesystem>
 #include <fstream>
 #include <functional>
@@ -116,6 +117,12 @@ struct SequenceInfo {
   int video_bit_depth = 0;        /**< Bit depth of the video stream */
   char video_pix_fmt[32] = {};    /**< Pixel format of the video stream */
   uint32_t video_frame_count = 0; /**< Number of frames in the video stream */
+  /** Whether the first decoded frame is interlaced */
+  bool video_interlaced = false;
+  /** Field order of the first decoded frame: "progressive", "tt" (top field
+   * first), "bb" (bottom field first), or "unknown" if no frame could be
+   * decoded when opening the input */
+  char video_field_order[16] = "unknown";
 };
 
 /**
@@ -132,6 +139,10 @@ struct Summary {
   /** Number of frames whose timestamp is more than 5 seconds later or more than
    * 1 second earlier than the end of the previous frame */
   uint32_t discontinuities = 0;
+  /** Number of interlaced frames (see FrameInfo::interlaced) */
+  uint32_t interlaced_frames = 0;
+  /** Sum of FrameInfo::repeated_fields over all frames */
+  uint32_t repeated_fields = 0;
 };
 
 enum FrameType {
@@ -211,6 +222,16 @@ struct FrameInfo {
   /** Whether this is a non-I frame in which all blocks are skipped */
   bool is_all_skip = false;
 
+  // interlacing, from the decoded frame
+  /** Whether the frame is interlaced (its two fields show different times) */
+  bool interlaced = false;
+  /** Whether the top field is displayed first */
+  bool top_field_first = false;
+  /** Number of fields to display again after the two fields of the frame
+   * (FFmpeg's repeat_pict): 1 for a repeated first field (soft telecine), 2
+   * for frame doubling, 4 for frame tripling, otherwise 0 */
+  int repeated_fields = 0;
+
   // Adding these to make debugging easier (so that they can be printed in the
   // JSON)
   // double mv_length;       /**< Motion Vector (MV) length, overall */
@@ -270,9 +291,11 @@ public:
   /**
    * @brief Construct a new Video Parser object
    *
-   * Opens the specified video file and initializes the parser. This constructor
-   * will throw exceptions if the file cannot be opened or if no video stream is
-   * found.
+   * Opens the specified video file and initializes the parser. Decodes the
+   * first frame for SequenceInfo::video_interlaced and
+   * SequenceInfo::video_field_order; parse_frame() returns it. This
+   * constructor will throw exceptions if the file cannot be opened or if no
+   * video stream is found.
    *
    * @param filename C-style string path to the video file to parse
    * @throws std::runtime_error If the file cannot be opened or no video stream
@@ -381,6 +404,10 @@ private:
   AVFrame *frame = nullptr;
   bool decoder_draining = false;
   bool decoder_finished = false;
+  // The decoded frame in `frame` is not returned by parse_frame() yet
+  bool frame_pending = false;
+  // Error while decoding the first frame in open(), thrown by parse_frame()
+  std::exception_ptr pending_error;
   uint32_t frame_idx = 0;
   SequenceInfo sequence_info;
   double first_pts = 0;
@@ -411,6 +438,8 @@ private:
   void open();
   void open_input();
   void scan_video_packets();
+  void decode_first_frame();
+  bool receive_frame();
   void print_shared_frame_info(SharedFrameInfo &shared_frame_info);
   void set_frame_info(FrameInfo &frame_info);
   void set_frame_info_h264(FrameInfo &frame_info);

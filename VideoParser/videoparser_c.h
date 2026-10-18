@@ -58,7 +58,8 @@
  * 5. Get the counts with `vp_get_summary()`, then free the parser with
  *    `vp_close()`.
  *
- * Opening reads the stream information and opens the decoder. Some containers
+ * Opening reads the stream information, opens the decoder, and decodes the
+ * first frame for `video_interlaced` and `video_field_order`. Some containers
  * do not signal the bitrate or frame count (MPEG-TS, MPEG-PS, raw bitstreams).
  * For these, the parser first reads all video packets to estimate both values,
  * and then seeks back to the start, as the CLI does. This needs a seekable
@@ -277,7 +278,7 @@ extern "C" {
 /** Major version of the C API; changes on incompatible changes */
 #define VP_API_VERSION_MAJOR 1
 /** Minor version of the C API; changes when functions or fields are added */
-#define VP_API_VERSION_MINOR 1
+#define VP_API_VERSION_MINOR 2
 /** Version of the C API as returned by vp_api_version() */
 #define VP_API_VERSION ((VP_API_VERSION_MAJOR << 16) | VP_API_VERSION_MINOR)
 
@@ -410,6 +411,13 @@ typedef struct vp_sequence_info {
   int32_t stream_index;        /**< Index of the stream in the container */
   int32_t time_base_num;       /**< Time base of the stream (numerator) */
   int32_t time_base_den;       /**< Time base of the stream (denominator) */
+
+  /* Since API version 1.2 */
+  /** 1 if the first decoded frame is interlaced */
+  int32_t video_interlaced;
+  /** Field order of the first decoded frame: "progressive", "tt" (top field
+   * first), "bb" (bottom field first), or "unknown" */
+  char video_field_order[16];
 } vp_sequence_info;
 
 /**
@@ -480,6 +488,14 @@ typedef struct vp_frame_info {
   double qp_coded_stdev;
   /** 1 for a non-I frame in which all blocks are skipped */
   int32_t is_all_skip;
+
+  /* Since API version 1.2 */
+  int32_t interlaced;      /**< 1 if the frame is interlaced */
+  int32_t top_field_first; /**< 1 if the top field is displayed first */
+  /** Number of fields to display again after the two fields of the frame
+   * (FFmpeg's repeat_pict): 1 for a repeated first field, 2 for frame
+   * doubling, 4 for frame tripling, otherwise 0 */
+  int32_t repeated_fields;
 } vp_frame_info;
 
 /**
@@ -492,6 +508,10 @@ typedef struct vp_summary {
                              and frames */
   uint32_t corrupt_packets; /**< Video packets the demuxer marked as corrupt */
   uint32_t discontinuities; /**< Frames with a timestamp jump */
+
+  /* Since API version 1.2 */
+  uint32_t interlaced_frames; /**< Interlaced frames */
+  uint32_t repeated_fields;   /**< Sum of repeated_fields of all frames */
 } vp_summary;
 
 /**

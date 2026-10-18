@@ -414,6 +414,9 @@ vp_status vp_get_sequence_info(vp_parser *parser, vp_sequence_info *info) {
     AVRational time_base = parser->parser->get_time_base();
     result.time_base_num = time_base.num;
     result.time_base_den = time_base.den;
+    result.video_interlaced = in.video_interlaced ? 1 : 0;
+    copy_string(result.video_field_order, sizeof(result.video_field_order),
+                in.video_field_order);
     copy_out(info, result);
     return VP_OK;
   } catch (...) {
@@ -521,6 +524,9 @@ vp_status vp_next_frame(vp_parser *parser, vp_frame_info *frame) {
   result.qp_coded_avg = in.qp_coded_avg;
   result.qp_coded_stdev = in.qp_coded_stdev;
   result.is_all_skip = in.is_all_skip ? 1 : 0;
+  result.interlaced = in.interlaced ? 1 : 0;
+  result.top_field_first = in.top_field_first ? 1 : 0;
+  result.repeated_fields = in.repeated_fields;
   copy_out(frame, result);
 
   parser->frames_returned++;
@@ -603,6 +609,8 @@ vp_status vp_get_summary(vp_parser *parser, vp_summary *summary) {
   result.decode_errors = in.decode_errors;
   result.corrupt_packets = in.corrupt_packets;
   result.discontinuities = in.discontinuities;
+  result.interlaced_frames = in.interlaced_frames;
+  result.repeated_fields = in.repeated_fields;
   copy_out(summary, result);
   return VP_OK;
 }

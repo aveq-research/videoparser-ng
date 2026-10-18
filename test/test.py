@@ -56,6 +56,41 @@ FIXTURES = [
         },
         id="mpeg2video-mpeg2-ps",
     ),
+    pytest.param(
+        {
+            "expected_features": "test-mpeg2video-tff.ldjson",
+            "video": "test-mpeg2video-tff.ts",
+        },
+        id="mpeg2video-mpeg2-tff",
+    ),
+    pytest.param(
+        {
+            "expected_features": "test-mpeg2video-bff.ldjson",
+            "video": "test-mpeg2video-bff.ts",
+        },
+        id="mpeg2video-mpeg2-bff",
+    ),
+    pytest.param(
+        {
+            "expected_features": "test-mpeg2video-pulldown.ldjson",
+            "video": "test-mpeg2video-pulldown.ts",
+        },
+        id="mpeg2video-mpeg2-pulldown",
+    ),
+    pytest.param(
+        {
+            "expected_features": "test-libx264-tff.ldjson",
+            "video": "test-libx264-tff.ts",
+        },
+        id="libx264-h264-tff",
+    ),
+    pytest.param(
+        {
+            "expected_features": "test-libx264-bff.ldjson",
+            "video": "test-libx264-bff.ts",
+        },
+        id="libx264-h264-bff",
+    ),
 ]
 
 # Keys to compare for frame_info entries
@@ -70,6 +105,7 @@ FRAME_INFO_KEYS = [
     "dts",
     "frame_idx",
     "frame_type",
+    "interlaced",
     "is_all_skip",
     "is_idr",
     "mb_mv_count",
@@ -96,7 +132,9 @@ FRAME_INFO_KEYS = [
     "qp_max",
     "qp_min",
     "qp_stdev",
+    "repeated_fields",
     "size",
+    "top_field_first",
     "type",
 ]
 
@@ -109,9 +147,11 @@ SEQUENCE_INFO_KEYS = [
     "video_codec_level",
     "video_codec_profile",
     "video_duration",
+    "video_field_order",
     "video_frame_count",
     "video_framerate",
     "video_height",
+    "video_interlaced",
     "video_pix_fmt",
     "video_width",
 ]
@@ -122,6 +162,8 @@ SUMMARY_KEYS = [
     "decode_errors",
     "discontinuities",
     "frame_count",
+    "interlaced_frames",
+    "repeated_fields",
     "type",
 ]
 

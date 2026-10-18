@@ -315,6 +315,34 @@ void VideoParser::open() {
   if (!frame) {
     throw Error(Error::Code::OutOfMemory, "Error allocating frame");
   }
+
+  decode_first_frame();
+}
+
+/**
+ * @brief Decode the first frame and set the interlacing of the sequence info
+ * from it. parse_frame() returns this frame first, and throws errors of the
+ * decoding.
+ */
+void VideoParser::decode_first_frame() {
+  try {
+    frame_pending = receive_frame();
+  } catch (...) {
+    pending_error = std::current_exception();
+    return;
+  }
+  if (!frame_pending) {
+    return;
+  }
+  const char *field_order = "progressive";
+  if (frame->flags & AV_FRAME_FLAG_INTERLACED) {
+    sequence_info.video_interlaced = true;
+    field_order = (frame->flags & AV_FRAME_FLAG_TOP_FIELD_FIRST) ? "tt" : "bb";
+  }
+  strncpy(sequence_info.video_field_order, field_order,
+          sizeof(sequence_info.video_field_order) - 1);
+  sequence_info.video_field_order[sizeof(sequence_info.video_field_order) - 1] =
+      '\0';
 }
 
 /**
@@ -710,6 +738,9 @@ void VideoParser::set_frame_info(FrameInfo &frame_info) {
   frame_info.decode_error =
       frame->decode_error_flags != 0 || (frame->flags & AV_FRAME_FLAG_CORRUPT);
   frame_info.discontinuity = discontinuity;
+  frame_info.interlaced = frame->flags & AV_FRAME_FLAG_INTERLACED;
+  frame_info.top_field_first = frame->flags & AV_FRAME_FLAG_TOP_FIELD_FIRST;
+  frame_info.repeated_fields = frame->repeat_pict;
 
   frame_info.has_statistics = shared_frame_info != nullptr;
   if (shared_frame_info) {
@@ -782,6 +813,9 @@ void VideoParser::set_frame_info(FrameInfo &frame_info) {
     summary.decode_errors++;
   if (frame_info.discontinuity)
     summary.discontinuities++;
+  if (frame_info.interlaced)
+    summary.interlaced_frames++;
+  summary.repeated_fields += frame_info.repeated_fields;
 }
 
 Summary VideoParser::get_summary() const { return summary; }
@@ -868,6 +902,37 @@ void VideoParser::set_frame_info_mpeg2(FrameInfo &frame_info) {}
  * @return false If no frame was parsed (stop parsing)
  */
 bool VideoParser::parse_frame(FrameInfo &frame_info) {
+  if (pending_error) {
+    std::exception_ptr error = pending_error;
+    pending_error = nullptr;
+    std::rethrow_exception(error);
+  }
+
+  while (frame_pending || receive_frame()) {
+    frame_pending = false;
+    try {
+      set_frame_info(frame_info);
+      return true;
+    } catch (const std::exception &e) {
+      if (verbose) {
+        log(AV_LOG_VERBOSE,
+            "Warning: Could not set frame info for frame index " +
+                std::to_string(frame_idx) + ": " + e.what());
+      }
+      // Continue to the next decoded frame if this one has no parser data.
+    }
+  }
+  return false;
+}
+
+/**
+ * @brief Decode the next frame into `frame`, sending packets to the decoder
+ * as needed
+ *
+ * @return true If a frame was decoded
+ * @return false At the end of the stream or after close()
+ */
+bool VideoParser::receive_frame() {
   // No more frames after the end of the stream or after close()
   if (decoder_finished || !codec_context) {
     return false;
@@ -876,18 +941,7 @@ bool VideoParser::parse_frame(FrameInfo &frame_info) {
   while (true) {
     int receive_result = avcodec_receive_frame(codec_context, frame);
     if (receive_result == 0) {
-      try {
-        set_frame_info(frame_info);
-        return true;
-      } catch (const std::exception &e) {
-        if (verbose) {
-          log(AV_LOG_VERBOSE,
-              "Warning: Could not set frame info for frame index " +
-                  std::to_string(frame_idx) + ": " + e.what());
-        }
-        // Continue to the next decoded frame if this one has no parser data.
-        continue;
-      }
+      return true;
     }
 
     if (receive_result == AVERROR_EOF) {
@@ -973,6 +1027,7 @@ bool VideoParser::parse_frame(FrameInfo &frame_info) {
  * @brief Close the input and free memory
  */
 void VideoParser::close() {
+  frame_pending = false;
   av_packet_free(&current_packet);
   av_frame_free(&frame);
   // Also closes the decoder, including its libaom state

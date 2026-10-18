@@ -156,9 +156,11 @@ This would print:
   "video_codec_level": 13,
   "video_codec_profile": 100,
   "video_duration": 10.0,
+  "video_field_order": "progressive",
   "video_frame_count": 300,
   "video_framerate": 30.0,
   "video_height": 240,
+  "video_interlaced": false,
   "video_pix_fmt": "yuv420p",
   "video_width": 320
 }
@@ -199,6 +201,8 @@ This would print:
   "decode_errors": 0,
   "discontinuities": 0,
   "frame_count": 1,
+  "interlaced_frames": 0,
+  "repeated_fields": 0,
   "type": "summary"
 }
 ```
@@ -213,19 +217,21 @@ Supported containers are MP4/MOV, Matroska/WebM, AVI, MPEG-TS, MPEG-PS, and raw 
 
 Note: If the container does not signal the bitrate or frame count (for example, MPEG-TS and MPEG-PS), the parser reads all video packets once before parsing, without decoding them, to estimate both values. The packet scan also looks for timestamp discontinuities and removes them from the reported duration.
 
-| Metric                | Description                              | Unit    |
-| --------------------- | ---------------------------------------- | ------- |
-| `video_duration`      | Duration of the video                    | seconds |
-| `video_codec`         | Codec name (h264, hevc, vp9, av1, mpeg2) | —       |
-| `video_bitrate`       | Average video bitrate                    | kbps    |
-| `video_framerate`     | Frame rate                               | fps     |
-| `video_width`         | Frame width                              | pixels  |
-| `video_height`        | Frame height                             | pixels  |
-| `video_codec_profile` | Codec profile ID                         | —       |
-| `video_codec_level`   | Codec level ID                           | —       |
-| `video_bit_depth`     | Bit depth per sample                     | bits    |
-| `video_pix_fmt`       | Pixel format (e.g., yuv420p)             | —       |
-| `video_frame_count`   | Total number of frames                   | count   |
+| Metric                | Description                                                   | Unit    |
+| --------------------- | ------------------------------------------------------------- | ------- |
+| `video_duration`      | Duration of the video                                         | seconds |
+| `video_codec`         | Codec name (h264, hevc, vp9, av1, mpeg2)                      | —       |
+| `video_bitrate`       | Average video bitrate                                         | kbps    |
+| `video_framerate`     | Frame rate                                                    | fps     |
+| `video_width`         | Frame width                                                   | pixels  |
+| `video_height`        | Frame height                                                  | pixels  |
+| `video_codec_profile` | Codec profile ID                                              | —       |
+| `video_codec_level`   | Codec level ID                                                | —       |
+| `video_bit_depth`     | Bit depth per sample                                          | bits    |
+| `video_pix_fmt`       | Pixel format (e.g., yuv420p)                                  | —       |
+| `video_frame_count`   | Total number of frames                                        | count   |
+| `video_interlaced`    | Whether the first frame is interlaced                         | boolean |
+| `video_field_order`   | Field order of the first frame (progressive, tt, bb, unknown) | —       |
 
 ### Frame Info
 
@@ -260,19 +266,26 @@ Note: If the container does not signal the bitrate or frame count (for example, 
 | `coefs_bit_count`   | Bits used for transform coefficients                   | bits     |
 | `mb_mv_count`       | Number of blocks with motion vectors                   | count    |
 | `mv_coded_count`    | Number of explicitly coded MVs                         | count    |
+| `interlaced`        | Whether the frame is interlaced                        | boolean  |
+| `top_field_first`   | Whether the top field is displayed first               | boolean  |
+| `repeated_fields`   | Fields displayed again after the frame (soft telecine) | count    |
 
 `decode_error` is true if FFmpeg set error flags on the decoded frame (for example, for concealed macroblocks after packet loss) or marked it as corrupt. `discontinuity` is true if the timestamp of the frame is more than 5 seconds later or more than 1 second earlier than the end of the previous frame (its timestamp plus its duration).
+
+`interlaced`, `top_field_first` and `repeated_fields` come from FFmpeg's decoder. `video_interlaced` and `video_field_order` describe the first frame, which the parser decodes when it opens the input. See [METRICS.md](METRICS.md#interlacing) for the rules per codec and for soft telecine.
 
 ### Summary
 
 The `summary` record comes after the last frame. Its counts cover the printed frames (with `-n`, only the first frames).
 
-| Metric            | Description                                                                  | Unit  |
-| ----------------- | ---------------------------------------------------------------------------- | ----- |
-| `frame_count`     | Number of parsed frames                                                      | count |
-| `decode_errors`   | Frames with `decode_error`, plus packets and frames the decoder rejected     | count |
-| `corrupt_packets` | Video packets the demuxer marked as corrupt (e.g. MPEG-TS continuity errors) | count |
-| `discontinuities` | Frames with `discontinuity`                                                  | count |
+| Metric              | Description                                                                  | Unit  |
+| ------------------- | ---------------------------------------------------------------------------- | ----- |
+| `frame_count`       | Number of parsed frames                                                      | count |
+| `decode_errors`     | Frames with `decode_error`, plus packets and frames the decoder rejected     | count |
+| `corrupt_packets`   | Video packets the demuxer marked as corrupt (e.g. MPEG-TS continuity errors) | count |
+| `discontinuities`   | Frames with `discontinuity`                                                  | count |
+| `interlaced_frames` | Frames with `interlaced`                                                     | count |
+| `repeated_fields`   | Sum of `repeated_fields` of all frames                                       | count |
 
 Frames and packets that the decoder rejects are skipped, and parsing continues. A file whose video format cannot be determined (for example, an MPEG-TS stream whose PMT declares the wrong codec) is an error.
 

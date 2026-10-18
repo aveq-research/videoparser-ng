@@ -33,6 +33,8 @@ void print_sequence_info(const videoparser::SequenceInfo &info) {
   std::cerr << "Video bit depth     = " << info.video_bit_depth << std::endl;
   std::cerr << "Video pixel format  = " << info.video_pix_fmt << std::endl;
   std::cerr << "Video frame count   = " << info.video_frame_count << std::endl;
+  std::cerr << "Video interlaced    = " << info.video_interlaced << std::endl;
+  std::cerr << "Video field order   = " << info.video_field_order << std::endl;
 }
 
 void print_sequence_info_json(const videoparser::SequenceInfo &info) {
@@ -49,6 +51,8 @@ void print_sequence_info_json(const videoparser::SequenceInfo &info) {
   j["video_bit_depth"] = info.video_bit_depth;
   j["video_pix_fmt"] = info.video_pix_fmt;
   j["video_frame_count"] = info.video_frame_count;
+  j["video_interlaced"] = info.video_interlaced;
+  j["video_field_order"] = info.video_field_order;
   std::cout << j.dump() << std::endl;
 }
 
@@ -112,6 +116,11 @@ void print_frame_info_json(const videoparser::FrameInfo &frame_info) {
   j["qp_coded_stdev"] = frame_info.qp_coded_stdev;
   j["is_all_skip"] = frame_info.is_all_skip;
 
+  // Interlacing
+  j["interlaced"] = frame_info.interlaced;
+  j["top_field_first"] = frame_info.top_field_first;
+  j["repeated_fields"] = frame_info.repeated_fields;
+
   // Temporary MV values
   // j["mv_length"] = frame_info.mv_length;
   // j["mv_sum_sqr"] = frame_info.mv_sum_sqr;
@@ -130,6 +139,8 @@ void print_summary_json(const videoparser::Summary &summary) {
   j["decode_errors"] = summary.decode_errors;
   j["corrupt_packets"] = summary.corrupt_packets;
   j["discontinuities"] = summary.discontinuities;
+  j["interlaced_frames"] = summary.interlaced_frames;
+  j["repeated_fields"] = summary.repeated_fields;
   std::cout << j.dump() << std::endl;
 }
 

@@ -49,6 +49,10 @@ The following table shows which metrics are available for each supported codec.
 | `size`                    |   ✅   |   ✅   |   ✅   |   ✅   |   ✅    |
 | `pts`                     |   ✅   |   ✅   |   ✅   |   ✅   |   ✅    |
 | `dts`                     |   ✅   |   ✅   |   ✅   |   ✅   |   ✅    |
+| **Interlacing**           |       |       |       |       |        |
+| `interlaced`              |   ✅   |  ✅⁴   |   —   |   —   |   ✅    |
+| `top_field_first`         |   ✅   |  ✅⁴   |   —   |   —   |   ✅    |
+| `repeated_fields`         |   ✅   |   —   |   —   |   —   |   ✅    |
 
 Legend:
 
@@ -61,6 +65,7 @@ Notes:
 1. VP9 QP metrics are not yet implemented for segmented streams.
 2. For MPEG-2, `mb_mv_count` counts 16x16 macroblocks, and `motion_bit_count` includes concealment motion vectors in intra macroblocks.
 3. For VP9, the coded QP is the QP of each coded block's segment. For AV1, it is the quantizer index of each coded 4x4 block, with delta-q and segments applied. Without segments or delta-q, it equals the frame QP. The existing `qp_*` fields still report the frame QP.
+4. For HEVC, FFmpeg returns each field as its own frame. See [Interlacing](#interlacing).
 
 For MPEG-2, the block counts are 0, `is_all_skip` is false, and the coded QP fields are empty.
 
@@ -152,6 +157,36 @@ POC (Picture Order Count) is a frame ordering mechanism used in H.264 and HEVC t
 | `size` | Frame size in bytes. |
 | `pts` | Presentation timestamp in seconds. |
 | `dts` | Decoding timestamp in seconds. |
+
+### Interlacing
+
+The interlacing fields come from the flags that FFmpeg's decoder sets on each decoded frame (`AV_FRAME_FLAG_INTERLACED`, `AV_FRAME_FLAG_TOP_FIELD_FIRST` and `repeat_pict`), the same values that `ffprobe -show_frames` prints as `interlaced_frame`, `top_field_first` and `repeat_pict`.
+
+| Metric | Description |
+| ------ | ----------- |
+| `interlaced` | Whether the frame is interlaced: its two fields show different times. |
+| `top_field_first` | Whether the top field is displayed first. Only meaningful for interlaced frames and frames with repeated fields. |
+| `repeated_fields` | Number of fields to display again after the two fields of the frame: 1 if the first field is repeated (soft telecine, for example 3:2 pulldown), 2 for frame doubling, 4 for frame tripling, otherwise 0. The frame is displayed for `2 + repeated_fields` field periods. |
+
+The sequence info and the summary have these fields:
+
+| Metric | Description |
+| ------ | ----------- |
+| `video_interlaced` | Whether the first decoded frame is interlaced. |
+| `video_field_order` | Field order of the first decoded frame: `progressive`, `tt` (top field first) or `bb` (bottom field first), as in ffprobe's `field_order`. `unknown` if no frame could be decoded when opening the input. |
+| `interlaced_frames` | Number of interlaced frames (in the summary). |
+| `repeated_fields` | Sum of `repeated_fields` over all frames (in the summary). |
+
+The parser decodes the first frame when it opens the input, so that the sequence info, which comes before the frames, has `video_interlaced` and `video_field_order`. The field order of the container or of FFmpeg's parsers (ffprobe's stream `field_order`) is not used, because it is often wrong. For example, it is `tb` for TFF H.264 that FFmpeg wrote to Matroska, `tt` for BFF H.264 in MPEG-TS, and `progressive` for interlaced HEVC in MPEG-TS. A stream can mix interlaced and progressive frames, so use `interlaced_frames` or the frame fields if the first frame may not be typical.
+
+`video_framerate` does not change for interlaced video: it is the frame rate, which is half the field rate (25 for 1080i with 50 fields per second). For soft telecine, it is the display frame rate. For example, MPEG-2 with 23.976 coded frames per second and 3:2 pulldown has a `video_framerate` of 29.97. The coded frame rate is then `frame_count / video_duration`, and the display frame rate is `(2 * frame_count + repeated_fields) / 2 / video_duration`.
+
+The decoders set the flags as follows:
+
+- MPEG-2: `interlaced` if `progressive_sequence` and `progressive_frame` are both 0. `top_field_first` from the picture coding extension. A pair of field pictures is returned as one frame, with `top_field_first` set if the first field is the top field. `repeated_fields` is 1 for `repeat_first_field` in a progressive frame of an interlaced sequence. In a progressive sequence (`progressive_sequence` 1), `repeat_first_field` means frame doubling (2), or with `top_field_first` frame tripling (4). MPEG-1 is always progressive.
+- H.264: with a picture timing SEI and `pic_struct_present_flag`, `interlaced` for the field `pic_struct` values, and for top-bottom or bottom-top (3, 4) if the picture is a field pair or an MBAFF frame. A set `ct_type` overrides this. `pic_struct` 5 and 6 (top-bottom-top, bottom-top-bottom) give `repeated_fields` 1, frame doubling 2, and frame tripling 4. Without the SEI, `interlaced` if the picture is a field pair (PAFF) or an MBAFF frame. `top_field_first` comes from the field picture order counts, otherwise from `pic_struct`, otherwise it is set for interlaced frames.
+- HEVC: HEVC codes interlaced video as separate field pictures, and FFmpeg returns each field as its own frame (of half height, at the field rate). `interlaced` is set if the `pic_struct` of the picture timing SEI is a field (1, 2, 9–12), and `top_field_first` for top fields. Without this SEI, frames are progressive. `repeated_fields` is always 0.
+- VP9 and AV1 have no interlaced coding; the fields are always false or 0.
 
 ## Differences with Legacy Implementation
 
