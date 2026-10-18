@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 <!-- insertion marker -->
+## [v0.14.0](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.14.0) - 2026-10-18
+
+<small>[Compare with v0.13.0](https://github.com/aveq-research/videoparser-ng/compare/v0.13.0...v0.14.0)</small>
+
+### Features
+
+- report interlacing and repeated fields ([21c3ac0](https://github.com/aveq-research/videoparser-ng/commit/21c3ac0cfe673879f3db17588bdc6a6f7fd4284a) by Werner Robitza).
+
+### Misc
+
+- bump version to 0.14.0 ([3285857](https://github.com/aveq-research/videoparser-ng/commit/3285857284099299fdac9bc7f51636048b643bd8) by Werner Robitza).
+
 ## [v0.13.0](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.13.0) - 2026-10-12
 
 <small>[Compare with v0.12.0](https://github.com/aveq-research/videoparser-ng/compare/v0.12.0...v0.13.0)</small>
@@ -20,7 +32,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Misc
 
-- bump version to 0.13.0 ([728e0ed](https://github.com/aveq-research/videoparser-ng/commit/728e0ed2366fc433cc81e34b4a436c113a80caa0) by Werner Robitza).
+- bump version to 0.13.0 ([6885e36](https://github.com/aveq-research/videoparser-ng/commit/6885e36995d83bbf7a11bea276f83b198a3069ed) by Werner Robitza).
 
 ## [v0.12.0](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.12.0) - 2026-10-09
 
