@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 <!-- insertion marker -->
+## [v0.14.1](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.14.1) - 2026-10-18
+
+<small>[Compare with v0.14.0](https://github.com/aveq-research/videoparser-ng/compare/v0.14.0...v0.14.1)</small>
+
+### Bug Fixes
+
+- count both fields in PAFF frame size ([0988bf8](https://github.com/aveq-research/videoparser-ng/commit/0988bf8d67c38851d866ecbbe20911a12b547f0a) by Werner Robitza).
+
+### Misc
+
+- bump version to 0.14.1 ([e6cc56f](https://github.com/aveq-research/videoparser-ng/commit/e6cc56f99e386202c8c493c8d1c195d5e79178f2) by Werner Robitza).
+
 ## [v0.14.0](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.14.0) - 2026-10-18
 
 <small>[Compare with v0.13.0](https://github.com/aveq-research/videoparser-ng/compare/v0.13.0...v0.14.0)</small>
@@ -16,7 +28,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Misc
 
-- bump version to 0.14.0 ([3285857](https://github.com/aveq-research/videoparser-ng/commit/3285857284099299fdac9bc7f51636048b643bd8) by Werner Robitza).
+- bump version to 0.14.0 ([8b3b3f7](https://github.com/aveq-research/videoparser-ng/commit/8b3b3f79f480c59ec6454309821367c3127916a4) by Werner Robitza).
 
 ## [v0.13.0](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.13.0) - 2026-10-12
 
