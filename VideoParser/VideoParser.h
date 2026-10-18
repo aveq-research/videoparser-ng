@@ -408,6 +408,12 @@ private:
   bool frame_pending = false;
   // Error while decoding the first frame in open(), thrown by parse_frame()
   std::exception_ptr pending_error;
+  // H.264 only: parser for the picture structure of each packet, and the size
+  // of the last unpaired field (shared with its decoded frame)
+  AVCodecParserContext *field_parser = nullptr;
+  AVCodecContext *field_parser_context = nullptr;
+  AVBufferRef *first_field_size = nullptr;
+  int first_field_structure = AV_PICTURE_STRUCTURE_UNKNOWN;
   uint32_t frame_idx = 0;
   SequenceInfo sequence_info;
   double first_pts = 0;
@@ -440,6 +446,7 @@ private:
   void scan_video_packets();
   void decode_first_frame();
   bool receive_frame();
+  void add_second_field_size(const AVPacket *packet);
   void print_shared_frame_info(SharedFrameInfo &shared_frame_info);
   void set_frame_info(FrameInfo &frame_info);
   void set_frame_info_h264(FrameInfo &frame_info);

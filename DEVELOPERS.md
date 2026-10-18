@@ -210,7 +210,7 @@ Frame metadata is extracted via standard FFmpeg API:
 - `frame_type`: Extracted from frame header via ffmpeg's `pict_type` (1=I, 2=P, 3=B).
 - `frame_idx`: Zero-based index tracked by the parser during decoding in `decode.c`.
 - `is_idr`: H.264: NAL unit type 5. HEVC: IDR_W_RADL or IDR_N_LP NAL units. VP9/AV1: keyframes.
-- `size`: Extracted from packet size directly in ffmpeg.
+- `size`: Extracted from packet size directly in ffmpeg. For H.264, `add_second_field_size()` finds the second field of a field pair with the H.264 parser and adds its size to the frame of the first field.
 - `pts`/`dts`: Converted from ffmpeg's timestamps using stream time base.
 - `interlaced`, `top_field_first`, `repeated_fields`: the frame flags `AV_FRAME_FLAG_INTERLACED` and `AV_FRAME_FLAG_TOP_FIELD_FIRST`, and `repeat_pict`, as the unmodified decoders set them (see [METRICS.md](METRICS.md#interlacing)).
 - `video_interlaced`, `video_field_order`: from the first decoded frame. `VideoParser::open()` decodes it with `decode_first_frame()`, and `parse_frame()` returns it first. The first `parse_frame()` call throws errors from decoding it.
@@ -284,6 +284,8 @@ uv run test/test-cli.py
 Some CLI tests use damaged MPEG-TS clips (timestamp jumps and wrap-around, bit flips, a PMT with the wrong codec). Regenerate them with `util/generate-damaged-test-videos.py`, which needs ffmpeg with libx264.
 
 The interlaced (MPEG-2 and H.264, top and bottom field first) and soft-telecine (MPEG-2 with 3:2 pulldown) clips come from `util/generate-interlaced-test-videos.sh`. It needs ffmpeg with libx264, and `mpeg2enc` from mjpegtools (set `MPEG2ENC` to its path if it is not in the `PATH`). The feature tests also compare these clips with their `.ldjson` reference files.
+
+`test/test-h264-paff.264` is the H.264 conformance bitstream `Sharp_MP_Field_1_B.jvt` (field pairs, see `test/README.md`). No encoder in the toolchain writes H.264 field pictures.
 
 ### C API Testing
 

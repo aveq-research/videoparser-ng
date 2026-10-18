@@ -154,7 +154,7 @@ POC (Picture Order Count) is a frame ordering mechanism used in H.264 and HEVC t
 | `frame_type` | Type of the frame: 1 = I (Intra), 2 = P (Predicted), 3 = B (Bi-directional). |
 | `frame_idx` | Zero-based index of the frame in decode order. |
 | `is_idr` | Whether the frame is an IDR (Instantaneous Decoder Refresh) or keyframe. |
-| `size` | Frame size in bytes. |
+| `size` | Frame size in bytes. For an H.264 field pair, the size of both fields. |
 | `pts` | Presentation timestamp in seconds. |
 | `dts` | Decoding timestamp in seconds. |
 
@@ -468,3 +468,9 @@ videoparser-ng uses standard variance accumulation without the extra count multi
 The legacy implementation applied various scaling factors (e.g., `4.0 *` multiplier on MV lengths) that were likely historical artifacts.
 
 videoparser-ng outputs unscaled values in native codec units (1/4 pel for H.264/HEVC, 1/8 pel for VP9/AV1).
+
+### H.264: Size of Field Pairs
+
+The H.264 demuxers return each field of a field pair (PAFF) as its own packet, and the decoder returns the pair as one frame. The legacy implementation reported the size of the first field only, so field-coded H.264 had about half its bitrate.
+
+videoparser-ng adds the size of the second field to the frame, also in legacy mode. The frame sizes then add up to the stream size, as for frame-coded video.

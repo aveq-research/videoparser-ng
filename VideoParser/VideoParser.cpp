@@ -316,6 +316,23 @@ void VideoParser::open() {
     throw Error(Error::Code::OutOfMemory, "Error allocating frame");
   }
 
+  // The H.264 demuxers return each field of a field pair as its own packet
+  // (see add_second_field_size())
+  if (codec->id == AV_CODEC_ID_H264) {
+    field_parser = av_parser_init(AV_CODEC_ID_H264);
+    field_parser_context = avcodec_alloc_context3(nullptr);
+    if (!field_parser || !field_parser_context) {
+      throw Error(Error::Code::OutOfMemory, "Error allocating field parser");
+    }
+    params_result =
+        avcodec_parameters_to_context(field_parser_context, codec_parameters);
+    if (params_result < 0) {
+      throw Error(Error::Code::Internal,
+                  "Error setting field parser parameters", params_result);
+    }
+    field_parser->flags |= PARSER_FLAG_COMPLETE_FRAMES;
+  }
+
   decode_first_frame();
 }
 
@@ -983,6 +1000,10 @@ bool VideoParser::receive_frame() {
       memcpy(current_packet->opaque_ref->data, &current_packet->size,
              sizeof(current_packet->size));
 
+      if (field_parser) {
+        add_second_field_size(current_packet);
+      }
+
       if (current_packet->flags & AV_PKT_FLAG_CORRUPT) {
         summary.corrupt_packets++;
       }
@@ -1024,10 +1045,59 @@ bool VideoParser::receive_frame() {
 }
 
 /**
+ * @brief Add the size of the second field of an H.264 field pair to the size
+ * of the first field
+ *
+ * The decoder returns a field pair as one frame with the metadata of the
+ * packet of the first field. The size of the first field is stored in a
+ * buffer that the decoded frame shares, so the frame gets the size of both
+ * fields. A field is the second field of a pair if it follows an unpaired
+ * field of the opposite parity with the same frame_num, as in the decoder.
+ *
+ * @param packet The packet before it is sent to the decoder
+ */
+void VideoParser::add_second_field_size(const AVPacket *packet) {
+  uint8_t *out_data = nullptr;
+  int out_size = 0;
+  av_parser_parse2(field_parser, field_parser_context, &out_data, &out_size,
+                   packet->data, packet->size, AV_NOPTS_VALUE, AV_NOPTS_VALUE,
+                   0);
+
+  int structure = field_parser->picture_structure;
+  bool is_field = structure == AV_PICTURE_STRUCTURE_TOP_FIELD ||
+                  structure == AV_PICTURE_STRUCTURE_BOTTOM_FIELD;
+  // The parser sets a field order only for a field that follows a field of
+  // the opposite parity with the same frame_num
+  bool is_second_field = is_field && first_field_size &&
+                         structure != first_field_structure &&
+                         field_parser->field_order != AV_FIELD_UNKNOWN;
+
+  if (is_second_field) {
+    int size = 0;
+    memcpy(&size, first_field_size->data, sizeof(size));
+    size += packet->size;
+    memcpy(first_field_size->data, &size, sizeof(size));
+  }
+
+  av_buffer_unref(&first_field_size);
+  if (is_field && !is_second_field) {
+    first_field_size = av_buffer_ref(packet->opaque_ref);
+    if (!first_field_size) {
+      throw Error(Error::Code::OutOfMemory, "Error allocating field metadata");
+    }
+    first_field_structure = structure;
+  }
+}
+
+/**
  * @brief Close the input and free memory
  */
 void VideoParser::close() {
   frame_pending = false;
+  av_buffer_unref(&first_field_size);
+  av_parser_close(field_parser);
+  field_parser = nullptr;
+  avcodec_free_context(&field_parser_context);
   av_packet_free(&current_packet);
   av_frame_free(&frame);
   // Also closes the decoder, including its libaom state

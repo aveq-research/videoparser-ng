@@ -199,6 +199,19 @@ class TestCLI:
         assert summary["repeated_fields"] == 24
         assert 2 * len(frame_info) + summary["repeated_fields"] == 120
 
+    def test_parser_cli_field_pairs(self):
+        video_file = os.path.join(HERE, "test-h264-paff.264")
+        frame_info, sequence_info, summary = run_parser(video_file, num_frames=-1)
+
+        # 30 field pictures, decoded as 15 frames; each frame has the size of
+        # both fields
+        assert len(frame_info) == 15
+        assert sequence_info["video_interlaced"] is True
+        assert sequence_info["video_field_order"] == "tt"
+        assert summary["interlaced_frames"] == 15
+        assert frame_info[0]["size"] == 21791 + 8958
+        assert sum(f["size"] for f in frame_info) == os.path.getsize(video_file)
+
     def test_parser_cli_timestamp_wrap(self):
         frame_info, sequence_info, summary = run_parser(
             os.path.join(HERE, "test-libx264-pts-wrap.ts"), num_frames=-1
