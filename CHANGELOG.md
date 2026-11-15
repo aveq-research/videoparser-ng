@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 <!-- insertion marker -->
+## [v0.15.0](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.15.0) - 2026-11-15
+
+<small>[Compare with v0.14.1](https://github.com/aveq-research/videoparser-ng/compare/v0.14.1...v0.15.0)</small>
+
+### Docs
+
+- add security policy ([5d0149c](https://github.com/aveq-research/videoparser-ng/commit/5d0149c58841ce77bdd07304f2efc7d54441004a) by Werner Robitza).
+
+### Docs
+
+- add security policy ([5d0149c](https://github.com/aveq-research/videoparser-ng/commit/5d0149c58841ce77bdd07304f2efc7d54441004a) by Werner Robitza).
+
+### Features
+
+- build PCM and raw packet outputs ([5a1f5ea](https://github.com/aveq-research/videoparser-ng/commit/5a1f5eac1f0769a7ac221ee0d2810b3b5fb7c0ba) by Werner Robitza).
+
+### Misc
+
+- bump version to 0.15.0 ([d729cd9](https://github.com/aveq-research/videoparser-ng/commit/d729cd96333b78ab75fe1f3cd2820bb9ed863d50) by Werner Robitza).
+
 ## [v0.14.1](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.14.1) - 2026-10-18
 
 <small>[Compare with v0.14.0](https://github.com/aveq-research/videoparser-ng/compare/v0.14.0...v0.14.1)</small>
@@ -16,7 +36,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Misc
 
-- bump version to 0.14.1 ([e6cc56f](https://github.com/aveq-research/videoparser-ng/commit/e6cc56f99e386202c8c493c8d1c195d5e79178f2) by Werner Robitza).
+- bump version to 0.14.1 ([e59ea51](https://github.com/aveq-research/videoparser-ng/commit/e59ea51b71f149f0ab678f2eba390e86492adba9) by Werner Robitza).
 
 ## [v0.14.0](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.14.0) - 2026-10-18
 
