@@ -11,8 +11,9 @@
 # deinterlacing, and the psnr, ssim and libvmaf metrics), a static libvmaf
 # from `util/build-libvmaf.sh`, and the ffmpeg and ffprobe programs. The
 # programs can decode to the null muxer and write raw video (plain or as
-# YUV4MPEG) to a file or pipe. All options stay LGPL. As with the library,
-# the patched decoders need one thread: run `ffmpeg -threads 1 -i <input>`.
+# YUV4MPEG), raw 32-bit float PCM audio or copied packets to a file or pipe.
+# All options stay LGPL. As with the library, the patched decoders need one
+# thread: run `ffmpeg -threads 1 -i <input>`.
 #
 # With --legacy, build with VP_MV_POC_NORMALIZATION=1 (legacy mode) in a copy
 # of the source in build/ffmpeg-legacy/src, next to the normal build.
@@ -284,6 +285,12 @@ if [[ ! -f config.h ]] || [[ "$reconfigure" = true ]]; then
       --enable-muxer=null,yuv4mpegpipe,rawvideo
       --enable-encoder=wrapped_avframe,rawvideo
       --enable-demuxer=yuv4mpegpipe
+      # raw audio, e.g. decoded samples as 32-bit float PCM (-f f32le), and
+      # packets copied without decoding (-c copy -f data), such as AC-3 frames
+      --enable-muxer=pcm_f32le,data
+      --enable-encoder=pcm_f32le,pcm_s16le,pcm_s24le
+      # WAV files and AC-3/E-AC-3 elementary streams
+      --enable-demuxer=wav,ac3,eac3
       # AV1 and VP9 elementary streams (OBU, Annex B, IVF)
       --enable-demuxer=obu,av1,ivf
       # audio frame splitting, e.g. for AAC, AC-3 and MPEG audio in MPEG-TS

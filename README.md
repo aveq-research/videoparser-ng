@@ -454,7 +454,7 @@ The shared build also contains:
 
 - libavfilter with only the filters `scale`, `format`, `fps`, `setpts`, `crop`, `pad`, `bwdif`, `yadif`, `psnr`, `ssim`, `libvmaf`, `aresample`, `aformat`, `split`, `null` and `anull`, plus those the `ffmpeg` program needs.
 - A static [libvmaf](https://github.com/Netflix/vmaf) (BSD-2-Clause-Patent) with its built-in models, including the VMAF v1.0.16 models. `util/build-libvmaf.sh` downloads the pinned release and builds it with meson into `build/libvmaf/install`; `util/build-ffmpeg.sh` calls it when needed. The models are embedded with `xxd`; without it, `util/xxd-fallback.sh` is used.
-- The `ffmpeg` and `ffprobe` programs in `bin/`, with the `null`, `rawvideo` and `yuv4mpegpipe` muxers, the `wrapped_avframe` and `rawvideo` encoders, and the `file` and `pipe` protocols. Their runpath is `$ORIGIN/../lib` (change it with `--exe-rpath`).
+- The `ffmpeg` and `ffprobe` programs in `bin/`, with the `null`, `rawvideo`, `yuv4mpegpipe`, `f32le` and `data` muxers, the `wrapped_avframe`, `rawvideo`, `pcm_f32le`, `pcm_s16le` and `pcm_s24le` encoders, the `wav`, `ac3` and `eac3` demuxers in addition to those of the static build, and the `file` and `pipe` protocols. For example, `ffmpeg -i input.ts -map 0:a:0 -c:a pcm_f32le -f f32le -` writes the decoded samples of the first audio stream as 32-bit float, and `ffmpeg -i input.ts -map 0:a:0 -c copy -f data -` writes its packets without decoding. Their runpath is `$ORIGIN/../lib` (change it with `--exe-rpath`).
 
 All options stay LGPL. For example, to compute VMAF with a v1 model at 10-bit precision:
 
