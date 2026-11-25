@@ -455,6 +455,8 @@ The shared build also contains:
 - libavfilter with only the filters `scale`, `format`, `fps`, `setpts`, `crop`, `pad`, `bwdif`, `yadif`, `psnr`, `ssim`, `libvmaf`, `aresample`, `aformat`, `split`, `null` and `anull`, plus those the `ffmpeg` program needs.
 - A static [libvmaf](https://github.com/Netflix/vmaf) (BSD-2-Clause-Patent) with its built-in models, including the VMAF v1.0.16 models. `util/build-libvmaf.sh` downloads the pinned release and builds it with meson into `build/libvmaf/install`; `util/build-ffmpeg.sh` calls it when needed. The models are embedded with `xxd`; without it, `util/xxd-fallback.sh` is used.
 - The `ffmpeg` and `ffprobe` programs in `bin/`, with the `null`, `rawvideo`, `yuv4mpegpipe`, `f32le` and `data` muxers, the `wrapped_avframe`, `rawvideo`, `pcm_f32le`, `pcm_s16le` and `pcm_s24le` encoders, the `wav`, `ac3` and `eac3` demuxers in addition to those of the static build, and the `file` and `pipe` protocols. For example, `ffmpeg -i input.ts -map 0:a:0 -c:a pcm_f32le -f f32le -` writes the decoded samples of the first audio stream as 32-bit float, and `ffmpeg -i input.ts -map 0:a:0 -c copy -f data -` writes its packets without decoding. Their runpath is `$ORIGIN/../lib` (change it with `--exe-rpath`).
+- Preview and transcoding support in the `ffmpeg` program: the `libvpx-vp9`, `libopus` and `aac` encoders, the `mp4`, `mov`, `ipod`, `webm`, `matroska`, `mpegts`, `adts`, `segment`, `hls` and `dash` muxers, the `aac_adtstoasc`, `h264_mp4toannexb`, `hevc_mp4toannexb`, `vp9_superframe`, `vp9_superframe_split`, `dump_extra`, `remove_extra`, `setts` and `null` bitstream filters, the `opus` parser, and the `pan`, `trim`, `atrim` and `asetpts` filters. No demuxers are added, so format detection is the same as before.
+- A static [libvpx](https://chromium.googlesource.com/webm/libvpx) (BSD-3-Clause with a patent grant) with only the VP9 encoder, and a static [libopus](https://opus-codec.org/) (BSD-3-Clause). `util/build-libvpx.sh` and `util/build-libopus.sh` download the pinned releases, check their SHA-256 sums and build them into `build/libvpx/install` and `build/libopus/install`; `util/build-ffmpeg.sh` calls them when needed. libvpx needs perl, GNU diffutils and, on x86_64, nasm or yasm. Their licenses are installed to `share/licenses/` of each install directory. VP9 and Opus are still decoded by ffmpeg's own decoders.
 
 All options stay LGPL. For example, to compute VMAF with a v1 model at 10-bit precision:
 
@@ -464,7 +466,27 @@ build/ffmpeg-shared/install/bin/ffmpeg -threads 1 -i distorted.mp4 -threads 1 -i
   -an -f null -
 ```
 
-Always pass `-threads 1` before each input. Otherwise ffmpeg decodes with several threads, and the patched decoders lose frames without an error or crash (for example for MPEG-2 and AV1). There are no audio encoders, so map only video outputs (or pass `-an`).
+Always pass `-threads 1` before each input. Otherwise ffmpeg decodes with several threads, and the patched decoders lose frames without an error or crash (for example for MPEG-2 and AV1). The encoders can still use several threads (`-threads` after the input).
+
+To make a preview that browsers can play with Media Source Extensions, for example from interlaced MPEG-2 with AC-3 audio, deinterlace with one frame per frame, keep every frame, and write HLS with fragmented MP4 segments, VP9 video and Opus audio:
+
+```bash
+build/ffmpeg-shared/install/bin/ffmpeg -threads 1 -i input.ts -map 0:v:0 -map 0:a:0 \
+  -vf "bwdif=mode=send_frame,scale=-2:'min(1080,ih)',format=yuv420p" -fps_mode passthrough \
+  -c:v libvpx-vp9 -deadline realtime -cpu-used 8 -row-mt 1 -tile-columns 2 -threads 4 \
+  -crf 36 -b:v 0 -force_key_frames "expr:gte(t,n_forced*1)" \
+  -c:a libopus -b:a 128k -ac 2 \
+  -f hls -hls_segment_type fmp4 -hls_time 4 -hls_playlist_type vod preview/index.m3u8
+```
+
+Streams that browsers already play, such as H.264 and AAC from MPEG-TS, can be copied instead. ADTS AAC needs `-bsf:a aac_adtstoasc`, and a fragmented MP4 needs `delay_moov`, since the build does not set the stream parameters (`extradata`) of H.264 and HEVC in MPEG-TS when it opens a file:
+
+```bash
+build/ffmpeg-shared/install/bin/ffmpeg -i input.ts -map 0:v:0 -map 0:a:0 -c copy -bsf:a aac_adtstoasc \
+  -movflags +frag_keyframe+empty_moov+delay_moov+default_base_moof output.mp4
+```
+
+libopus rejects the `5.1(side)` layout of AC-3 and E-AC-3, so add `-ac 2` (stereo) or `-af aformat=channel_layouts=5.1` for Opus.
 
 To build libvideoparser as a shared library, and the CLI against it, run:
 
