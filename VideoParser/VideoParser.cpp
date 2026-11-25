@@ -1235,10 +1235,20 @@ void VideoParser::reset_for_seek() {
   // may send only once at the start.
   if (strcmp(codec_context->codec->name, "libaom-av1") == 0) {
     avcodec_free_context(&codec_context);
-    open_decoder();
+    // Decode, not Unsupported: the parser was reset already
+    try {
+      open_decoder();
+    } catch (const Error &e) {
+      if (e.code != Error::Code::Unsupported) {
+        throw;
+      }
+      throw Error(Error::Code::Decode,
+                  std::string("Error opening the decoder again: ") + e.what());
+    }
     int open_result = avcodec_open2(codec_context, nullptr, nullptr);
     if (open_result < 0) {
-      throw Error(Error::Code::Unsupported, "Error opening codec", open_result);
+      throw Error(Error::Code::Decode, "Error opening the decoder again",
+                  open_result);
     }
   } else {
     avcodec_flush_buffers(codec_context);
