@@ -12,8 +12,12 @@
 # from `util/build-libvmaf.sh`, and the ffmpeg and ffprobe programs. The
 # programs can decode to the null muxer and write raw video (plain or as
 # YUV4MPEG), raw 32-bit float PCM audio or copied packets to a file or pipe.
-# All options stay LGPL. As with the library, the patched decoders need one
-# thread: run `ffmpeg -threads 1 -i <input>`.
+# For previews and transcoding, they can also encode VP9 (static libvpx from
+# `util/build-libvpx.sh`), Opus (static libopus from `util/build-libopus.sh`)
+# and AAC, and write MP4 (also fragmented), WebM, Matroska, MPEG-TS, HLS and
+# DASH, with or without re-encoding. All options stay LGPL. As with the
+# library, the patched decoders need one thread: run
+# `ffmpeg -threads 1 -i <input>`.
 #
 # With --legacy, build with VP_MV_POC_NORMALIZATION=1 (legacy mode) in a copy
 # of the source in build/ffmpeg-legacy/src, next to the normal build.
@@ -126,11 +130,23 @@ copyBuild="${PROJECT_ROOT}/build/ffmpeg"
 prefix="${prefix:-${copyBuild}/install}"
 
 LIBVMAF_PREFIX="${PROJECT_ROOT}/build/libvmaf/install"
+LIBVPX_PREFIX="${PROJECT_ROOT}/build/libvpx/install"
+LIBOPUS_PREFIX="${PROJECT_ROOT}/build/libopus/install"
 
-# Build libvmaf for the shared build if not already built
-if [[ "$shared" = true ]] && [[ ! -f "${LIBVMAF_PREFIX}/lib/libvmaf.a" ]]; then
-  echo "Building libvmaf first..."
-  "${SCRIPT_DIR}/build-libvmaf.sh" --prefix "${LIBVMAF_PREFIX}"
+# Build libvmaf, libvpx and libopus for the shared build if not already built
+if [[ "$shared" = true ]]; then
+  if [[ ! -f "${LIBVMAF_PREFIX}/lib/libvmaf.a" ]]; then
+    echo "Building libvmaf first..."
+    "${SCRIPT_DIR}/build-libvmaf.sh" --prefix "${LIBVMAF_PREFIX}"
+  fi
+  if [[ ! -f "${LIBVPX_PREFIX}/lib/libvpx.a" ]]; then
+    echo "Building libvpx first..."
+    "${SCRIPT_DIR}/build-libvpx.sh" --prefix "${LIBVPX_PREFIX}"
+  fi
+  if [[ ! -f "${LIBOPUS_PREFIX}/lib/libopus.a" ]]; then
+    echo "Building libopus first..."
+    "${SCRIPT_DIR}/build-libopus.sh" --prefix "${LIBOPUS_PREFIX}"
+  fi
 fi
 
 if [[ "$legacy" = true ]]; then
@@ -251,7 +267,7 @@ if [[ ! -f config.h ]] || [[ "$reconfigure" = true ]]; then
   )
 
   if [[ "$shared" = true ]]; then
-    export PKG_CONFIG_PATH="${LIBVMAF_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH}"
+    export PKG_CONFIG_PATH="${LIBVMAF_PREFIX}/lib/pkgconfig:${LIBVPX_PREFIX}/lib/pkgconfig:${LIBOPUS_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH}"
     configureFlags+=(
       --enable-shared
       --disable-static
@@ -296,6 +312,26 @@ if [[ ! -f config.h ]] || [[ "$reconfigure" = true ]]; then
       # audio frame splitting, e.g. for AAC, AC-3 and MPEG audio in MPEG-TS
       --enable-parser=aac,aac_latm,ac3,mpegaudio
       --enable-protocol=pipe
+      # previews and transcoding: VP9 (libvpx), Opus (libopus) and AAC
+      # encoders. Only the encoders of libvpx and libopus are used, so that
+      # VP9 and Opus are still decoded by ffmpeg's own decoders.
+      --enable-libvpx
+      --enable-libopus
+      --enable-encoder=libvpx_vp9,libopus,aac
+      --disable-decoder=libvpx_vp8,libvpx_vp9,libopus
+      # MP4 (also fragmented, for Media Source Extensions), WebM, Matroska
+      # and MPEG-TS, also as segments, HLS or DASH. No demuxers are added,
+      # so that format probing stays the same.
+      --enable-muxer=mov,mp4,ipod,webm,matroska,mpegts,adts,segment,hls,dash
+      # bitstream conversions for copying streams between containers
+      # (-c copy), e.g. MPEG-TS to MP4; extract_extradata is left out, since
+      # it would change the stream parameters that the demuxers report
+      --enable-bsf=aac_adtstoasc,h264_mp4toannexb,hevc_mp4toannexb
+      --enable-bsf=vp9_superframe,vp9_superframe_split,dump_extradata,remove_extradata
+      --enable-bsf=setts,null
+      --enable-parser=opus
+      # audio channel mixing, and trimming for previews of a section
+      --enable-filter=pan,trim,atrim,asetpts
       # no FMA contraction, which GCC does by default on arm64, so that the
       # statistics are the same on x86_64 and arm64
       --extra-cflags=-ffp-contract=off
