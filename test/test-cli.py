@@ -8,6 +8,10 @@ from typing import Dict, List
 import pytest
 
 HERE = os.path.dirname(os.path.realpath(__file__))
+# The CLI to test; set VIDEOPARSER_CLI to test another build
+CLI = os.environ.get(
+    "VIDEOPARSER_CLI", os.path.join(HERE, "..", "build", "VideoParserCli", "video-parser")
+)
 
 # test files and their expected codecs
 TEST_FILES = [
@@ -26,7 +30,7 @@ def run_parser(video_file: str, num_frames: int = 2) -> tuple[List[Dict], Dict, 
     # get stdout only
     output = subprocess.check_output(
         [
-            "../build/VideoParserCli/video-parser",
+            CLI,
             video_file,
             "-n",  # number of frames to parse
             str(num_frames),
@@ -235,7 +239,7 @@ class TestCLI:
         # The PMT declares the H.264 stream as MPEG-2
         result = subprocess.run(
             [
-                "../build/VideoParserCli/video-parser",
+                CLI,
                 os.path.join(HERE, "test-libx264-pmt-mpeg2.ts"),
             ],
             cwd=HERE,
