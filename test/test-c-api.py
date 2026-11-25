@@ -73,6 +73,7 @@ class Result:
     mode: str
     ok: bool
     note: str = ""
+    skipped: bool = False
 
 
 @dataclass
@@ -129,22 +130,33 @@ def compare(cli: Run, c: Run, skip_first_line: bool = False) -> tuple[bool, str]
     return True, ""
 
 
-def seek_note(summary: str) -> str:
-    """The parts of a seek test summary worth listing: notes other than the
-    expected ones, concealed pictures, timestamps not known after a seek"""
+def check_seek_summary(summary: str) -> tuple[bool, str]:
+    """Check a seek test summary: it must have decoded frames and done seeks.
+    Returns whether it passed and the parts worth listing (notes other than
+    the expected ones, and the counts of tolerated differences)."""
     try:
         d = json.loads(summary)
     except json.JSONDecodeError:
-        return summary
+        return False, f"no summary: {summary}"
+    if not d.get("frames"):
+        return False, "no frames decoded"
+    if not d.get("pts_seeks") and not d.get("byte_seeks"):
+        return False, "no seeks done"
     notes = [
         d[k]
         for k in ["pts_seek_note", "byte_seek_note"]
         if d.get(k) and "(as expected)" not in d[k]
     ]
-    for k in ["pts_unsupported", "concealed", "pts_unknown", "scan_unknown_idx"]:
+    for k in [
+        "pts_passed_over",
+        "byte_unreachable",
+        "concealed",
+        "pts_unknown",
+        "scan_unknown_idx",
+    ]:
         if d.get(k):
             notes.append(f"{k}={d[k]}")
-    return "; ".join(notes)
+    return True, "; ".join(notes)
 
 
 def check_clip(
@@ -155,8 +167,8 @@ def check_clip(
     results = []
     cli_full = run([cli_bin, str(clip)], timeout)
 
-    def add(mode: str, ok: bool, note: str = ""):
-        results.append(Result(str(build), clip, group, mode, ok, note))
+    def add(mode: str, ok: bool, note: str = "", skipped: bool = False):
+        results.append(Result(str(build), clip, group, mode, ok, note, skipped))
 
     for mode in modes:
         if mode == "path":
@@ -180,7 +192,7 @@ def check_clip(
                 add(mode, *compare(cli_full, c, skip_first_line=True))
         elif mode in ("seek", "seek-io"):
             if cli_full.returncode != 0:
-                add(mode, True, "the CLI cannot open it (skipped)")
+                add(mode, True, "the CLI cannot open it", skipped=True)
                 continue
             seek_bin = str(build / "test" / "c-api" / "videoparser-seek-test")
             cmd = [seek_bin] + (["--io"] if mode == "seek-io" else []) + [str(clip)]
@@ -196,7 +208,7 @@ def check_clip(
                     ).strip(),
                 )
             else:
-                add(mode, True, seek_note(summary))
+                add(mode, *check_seek_summary(summary))
         elif mode == "all-frames":
             c = run([c_bin, "--all-frames", str(clip)], timeout)
             if cli_full.returncode != 0 and c.returncode == 0:
@@ -318,10 +330,10 @@ def main() -> int:
             r = job.result()
             results.extend(r if isinstance(r, list) else [r])
 
-    # Counts per build, group and mode
-    table: dict[tuple[str, str, str], list[int]] = defaultdict(lambda: [0, 0])
+    # Counts per build, group and mode: passed, failed, skipped
+    table: dict[tuple[str, str, str], list[int]] = defaultdict(lambda: [0, 0, 0])
     for r in results:
-        table[(r.build, r.group, r.mode)][0 if r.ok else 1] += 1
+        table[(r.build, r.group, r.mode)][2 if r.skipped else 0 if r.ok else 1] += 1
     all_modes = modes + (["raw"] if args.raw else [])
     for build in builds:
         print(f"\n{build}")
@@ -330,12 +342,23 @@ def main() -> int:
         for group in groups:
             cells = []
             for mode in all_modes:
-                passed, failed = table[(str(build), group, mode)]
-                cells.append(f"{passed}/{passed + failed}")
+                passed, failed, skipped = table[(str(build), group, mode)]
+                cells.append(
+                    f"{passed}/{passed + failed}"
+                    + (f" ({skipped}s)" if skipped else "")
+                )
             print(f"  {group:<12}" + "".join(f"{c:>14}" for c in cells))
 
+    skips = [r for r in results if r.skipped]
+    if skips:
+        print("\nSkipped (not counted, shown as (ns)):")
+        for r in skips:
+            print(f"  {r.build} {r.clip} [{r.mode}]: {r.note}")
+
     notes = [
-        r for r in results if r.ok and r.note and (args.verbose or r.mode != "raw")
+        r
+        for r in results
+        if r.ok and not r.skipped and r.note and (args.verbose or r.mode != "raw")
     ]
     if notes:
         print("\nNotes:")

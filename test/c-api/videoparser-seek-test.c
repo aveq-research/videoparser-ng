@@ -10,9 +10,12 @@
  * 3. Runs the key frame scan and compares its key frames (timestamp and
  *    index) with the key frames of the first pass.
  * 4. Seeks by timestamp to the key frames, in random order, and also to
- *    timestamps of later frames in the same GOP, then decodes at least up to
- *    the next key frame and compares index, timestamp and MD5 of each frame.
+ *    timestamps of later frames in the same GOP, then decodes up to and
+ *    including the next key frame and compares index, timestamp, type and
+ *    MD5 of each frame. A seek to the time of a key frame without a packet
+ *    timestamp (see the scan) must go to the key frame before it.
  * 5. Does the same with byte positions from the scan.
+ * 6. Repeats 4 and 5 on a parser in decode-only mode.
  *
  * Prints one JSON line with the counts and exits with 1 on any mismatch.
  *
@@ -47,6 +50,9 @@ typedef struct frame_record {
   int32_t is_idr;
   int32_t frame_type;
   int32_t decode_error;
+  /* A key frame whose packet has a timestamp, which a seek by timestamp can
+   * go to (see "Seeking" in videoparser_c.h) */
+  int seekable;
   uint8_t md5[16];
 } frame_record;
 
@@ -75,7 +81,9 @@ typedef struct counts {
   int scan_unknown_idx;
   int pts_seeks;
   int pts_frames;
-  int pts_unsupported;
+  int decode_only_seeks;
+  int pts_passed_over;
+  int byte_unreachable;
   int concealed;
   int pts_unknown;
   int byte_seeks;
@@ -88,13 +96,15 @@ static const test_options *opts;
 static counts result;
 /* Whether the input has no timestamps of its own (raw bitstreams) */
 static int no_timestamps;
+/* Whether the seeks run on a parser in decode-only mode */
+static int seek_decode_only;
 
 static void mismatch(const char *format, ...) {
   result.mismatches++;
   if (opts->verbose || result.mismatches <= 10) {
     va_list args;
     va_start(args, format);
-    fprintf(stderr, "mismatch: ");
+    fprintf(stderr, "mismatch: %s", seek_decode_only ? "decode-only " : "");
     vfprintf(stderr, format, args);
     fprintf(stderr, "\n");
     va_end(args);
@@ -301,6 +311,17 @@ static int check_after_seek(vp_parser *parser, const frame_list *full,
   return compared;
 }
 
+/* Index of the first key frame after `idx` that a seek by timestamp can go
+ * to, or the frame count */
+static size_t next_seekable_after(const frame_list *full, size_t idx) {
+  for (size_t i = idx + 1; i < full->count; i++) {
+    if (full->frames[i].is_idr && full->frames[i].seekable) {
+      return i;
+    }
+  }
+  return full->count;
+}
+
 static void shuffle(size_t *values, size_t count) {
   for (size_t i = count; i > 1; i--) {
     size_t j = (size_t)rand() % i;
@@ -316,7 +337,7 @@ static int keyframe_pts_increase(const frame_list *full) {
   int64_t last = VP_NOPTS;
   for (size_t i = 0; i < full->count; i++) {
     const frame_record *f = &full->frames[i];
-    if (!f->is_idr || f->pts_raw == VP_NOPTS) {
+    if (!f->is_idr || !f->seekable) {
       continue;
     }
     if (last != VP_NOPTS && f->pts_raw <= last) {
@@ -327,11 +348,11 @@ static int keyframe_pts_increase(const frame_list *full) {
   return 1;
 }
 
-/* Whether all frame timestamps of the GOP after the key frame `key` are later
- * than its own and earlier than that of the next key frame, so that they
- * select this key frame */
+/* Whether the timestamp of frame `i` is not earlier than that of the key
+ * frame `key` and earlier than that of the next key frame that a seek can go
+ * to, so that it selects this key frame */
 static int frame_selects_key(const frame_list *full, size_t key, size_t i) {
-  size_t next = next_keyframe_after(full, key);
+  size_t next = next_seekable_after(full, key);
   int64_t pts = full->frames[i].pts_raw;
   if (pts == VP_NOPTS || pts < full->frames[key].pts_raw) {
     return 0;
@@ -342,7 +363,7 @@ static int frame_selects_key(const frame_list *full, size_t key, size_t i) {
 static void test_pts_seeks(const frame_list *full, size_t *keys,
                            size_t key_count) {
   opened in;
-  open_input(&in, 0, 0);
+  open_input(&in, seek_decode_only, 0);
   vp_parser *parser = in.parser;
   /* Seeking after the end of the stream must work */
   frame_list ignored = {0};
@@ -374,16 +395,34 @@ static void test_pts_seeks(const frame_list *full, size_t *keys,
     return;
   }
 
-  /* Key frames without a timestamp cannot be targets, and may make a seek
-   * ambiguous, which the parser reports as unsupported */
-  int keys_without_pts = 0;
-  for (size_t k = 0; k < key_count; k++) {
-    keys_without_pts += full->frames[keys[k]].pts_raw == VP_NOPTS;
-  }
   size_t seeks = 0;
   for (size_t k = 0; k < key_count && seeks < (size_t)opts->max_seeks; k++) {
     size_t key = keys[k];
-    if (full->frames[key].pts_raw == VP_NOPTS) {
+    if (!full->frames[key].seekable) {
+      /* A seek to the time of a key frame without a packet timestamp goes to
+       * the key frame before it that has one */
+      size_t before = key;
+      while (before > 0 && !(full->frames[before - 1].is_idr &&
+                             full->frames[before - 1].seekable)) {
+        before--;
+      }
+      int64_t target = full->frames[key].pts_raw;
+      if (before == 0 || target == VP_NOPTS) {
+        continue;
+      }
+      before--;
+      seeks++;
+      vp_status status =
+          vp_seek(parser, target, full->frames[before].frame_idx);
+      if (status != VP_OK) {
+        mismatch("seek to timestamp %lld failed: %s (%s)", (long long)target,
+                 vp_last_error(), vp_status_string(status));
+        continue;
+      }
+      result.pts_seeks++;
+      result.pts_passed_over++;
+      result.pts_frames +=
+          check_after_seek(parser, full, before, "pts", target);
       continue;
     }
     seeks++;
@@ -392,7 +431,7 @@ static void test_pts_seeks(const frame_list *full, size_t *keys,
      * GOP */
     int64_t target = full->frames[key].pts_raw;
     if (s % 2 == 1) {
-      size_t next = next_keyframe_after(full, key);
+      size_t next = next_seekable_after(full, key);
       if (next > key + 1) {
         size_t i = key + 1 + (size_t)rand() % (next - key - 1);
         if (frame_selects_key(full, key, i)) {
@@ -401,10 +440,6 @@ static void test_pts_seeks(const frame_list *full, size_t *keys,
       }
     }
     vp_status status = vp_seek(parser, target, full->frames[key].frame_idx);
-    if (status == VP_ERROR_UNSUPPORTED && keys_without_pts > 0) {
-      result.pts_unsupported++;
-      continue;
-    }
     if (status != VP_OK) {
       mismatch("seek to timestamp %lld failed: %s (%s)", (long long)target,
                vp_last_error(), vp_status_string(status));
@@ -418,7 +453,7 @@ static void test_pts_seeks(const frame_list *full, size_t *keys,
   {
     int64_t first = INT64_MAX;
     for (size_t k = 0; k < key_count; k++) {
-      if (full->frames[keys[k]].pts_raw != VP_NOPTS &&
+      if (full->frames[keys[k]].seekable &&
           full->frames[keys[k]].pts_raw < first) {
         first = full->frames[keys[k]].pts_raw;
       }
@@ -448,7 +483,7 @@ typedef struct scan_entry {
 static void test_byte_seeks(const frame_list *full, const scan_entry *scan,
                             size_t scan_count) {
   opened in;
-  open_input(&in, 0, 0);
+  open_input(&in, seek_decode_only, 0);
   vp_parser *parser = in.parser;
   if (scan_count == 0) {
     close_input(&in);
@@ -465,6 +500,12 @@ static void test_byte_seeks(const frame_list *full, const scan_entry *scan,
   for (size_t s = 0; s < seeks; s++) {
     const scan_entry *entry = &scan[order[s]];
     if (entry->full_index >= full->count) {
+      continue;
+    }
+    /* In MPEG-PS, a key frame that follows another in the same PES packet
+     * has no position of its own */
+    if (entry->keyframe.pos < 0) {
+      result.byte_unreachable++;
       continue;
     }
     int64_t frame_idx = entry->keyframe.frame_idx >= 0
@@ -625,23 +666,42 @@ int main(int argc, char *argv[]) {
                (long long)k->pts_raw, (long long)f->pts_raw);
     }
   }
+  /* A seek by timestamp can go to the key frames with a packet timestamp,
+   * which the scan returns */
+  for (size_t i = 0; i < key_count; i++) {
+    frame_record *f = &full.frames[keys[i]];
+    f->seekable = scan_count == key_count ? scan[i].keyframe.pts_raw != VP_NOPTS
+                                          : f->pts_raw != VP_NOPTS;
+  }
 
   /* 4. Seeks by timestamp, 5. by byte position */
   if (key_count > 0) {
+    size_t byte_keys = scan_count < key_count ? scan_count : key_count;
     shuffle(keys, key_count);
     test_pts_seeks(&full, keys, key_count);
-    test_byte_seeks(&full, scan,
-                    scan_count < key_count ? scan_count : key_count);
+    test_byte_seeks(&full, scan, byte_keys);
+    /* The same on a parser in decode-only mode */
+    int seeks_before = result.pts_seeks + result.byte_seeks;
+    seek_decode_only = 1;
+    shuffle(keys, key_count);
+    test_pts_seeks(&full, keys, key_count);
+    test_byte_seeks(&full, scan, byte_keys);
+    seek_decode_only = 0;
+    result.decode_only_seeks =
+        result.pts_seeks + result.byte_seeks - seeks_before;
   }
 
   printf("{\"file\":\"%s\",\"frames\":%d,\"keyframes\":%d,"
          "\"decode_only_frames\":%d,\"scan_keyframes\":%d,"
          "\"scan_unknown_idx\":%d,\"pts_seeks\":%d,\"pts_frames\":%d,"
-         "\"pts_unsupported\":%d,\"byte_seeks\":%d,\"byte_frames\":%d",
+         "\"decode_only_seeks\":%d,\"pts_passed_over\":%d,\"byte_unreachable\":"
+         "%d,\"byte_seeks\":%d,"
+         "\"byte_frames\":%d",
          options.filename, result.frames, result.keyframes,
          result.decode_only_frames, result.scan_keyframes,
          result.scan_unknown_idx, result.pts_seeks, result.pts_frames,
-         result.pts_unsupported, result.byte_seeks, result.byte_frames);
+         result.decode_only_seeks, result.pts_passed_over,
+         result.byte_unreachable, result.byte_seeks, result.byte_frames);
   print_json_string("pts_seek_note", result.pts_seek_note);
   print_json_string("byte_seek_note", result.byte_seek_note);
   printf(",\"concealed\":%d,\"pts_unknown\":%d,\"mismatches\":%d}\n",
