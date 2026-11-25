@@ -241,8 +241,9 @@
  * after it count up from there. The parser cannot know the index of a frame
  * without counting all frames before it, so pass the index that the key frame
  * had in a pass from the start, or that `vp_keyframe_scan_next()` returns.
- * The timestamps of frames without one (raw bitstreams) are estimated from
- * the index, so they match the pass from the start too.
+ * The timestamps of frames without one (H.264 and HEVC bitstreams) are
+ * estimated from the index, so they match the pass from the start too (but
+ * see `vp_seek_byte()` below for timestamps that the demuxer generates).
  *
  * Statistics: the pictures, indices, timestamps, frame types, sizes and flags
  * are the same as in a pass from the start, but values that depend on earlier
@@ -253,12 +254,17 @@
  *
  * `vp_seek()` takes a presentation timestamp in the stream's time base
  * (`vp_sequence_info.time_base_num`/`time_base_den`, as `pts_raw`). It goes to
- * the last key frame, in file order, whose timestamp is at or before it. It
- * needs timestamps that increase with the position in the file: on inputs
- * where they jump back (an MPEG-TS that was cut together, or with a
- * timestamp wrap-around in a long recording), a timestamp can be ambiguous, and
- * the search can take long. Raw bitstreams have no timestamps; there it
- * returns `VP_ERROR_UNSUPPORTED`.
+ * the last key frame, in file order, whose timestamp is at or before it.
+ * Key frames whose packet has no timestamp are passed over, since their
+ * presentation time is only known after decoding; the key frame scan returns
+ * `VP_NOPTS` for them. In MPEG-PS, this is common: only frames that start in
+ * a PES packet have a timestamp. A seek to such a key frame's time then goes
+ * to an earlier key frame and decodes more frames; `vp_seek_byte()` reaches
+ * it directly. It needs timestamps that increase with the position in the
+ * file: on inputs where they jump back (an MPEG-TS that was cut together, or
+ * with a timestamp wrap-around in a long recording), a timestamp can be
+ * ambiguous, and the search can take long. Raw bitstreams have no timestamps;
+ * there it returns `VP_ERROR_UNSUPPORTED`.
  *
  * `vp_seek_byte()` takes a byte position in the input and goes to the first
  * key frame whose packet starts at or after it. Use the positions of

@@ -1292,22 +1292,17 @@ bool VideoParser::find_keyframe_by_pts(int64_t pts) {
   }
   ScopeExit free_packet([&packet]() { av_packet_free(&packet); });
   bool found = false;
-  // A key frame without a timestamp after the last one found may be the one
-  // to return (MPEG-PS gives a timestamp only to the first frame that starts
-  // in a PES packet)
-  bool ambiguous = false;
   while (read_video_packet(packet)) {
-    if (packet->flags & AV_PKT_FLAG_KEY) {
-      if (packet->pts == AV_NOPTS_VALUE) {
-        ambiguous = true;
-      } else if (packet->pts <= pts) {
-        for (AVPacket *queued : queued_packets) {
-          av_packet_free(&queued);
-        }
-        queued_packets.clear();
-        found = true;
-        ambiguous = false;
+    // Key frames without a timestamp of their own (in MPEG-PS, those that do
+    // not start a PES packet) are passed over: their presentation time is
+    // only known after decoding. The key frame scan gives them none either.
+    if ((packet->flags & AV_PKT_FLAG_KEY) && packet->pts != AV_NOPTS_VALUE &&
+        packet->pts <= pts) {
+      for (AVPacket *queued : queued_packets) {
+        av_packet_free(&queued);
       }
+      queued_packets.clear();
+      found = true;
     }
     int64_t decoding_time = packet->dts;
     if (decoding_time == AV_NOPTS_VALUE && (packet->flags & AV_PKT_FLAG_KEY)) {
@@ -1328,10 +1323,6 @@ bool VideoParser::find_keyframe_by_pts(int64_t pts) {
     if (past_target) {
       break;
     }
-  }
-  if (ambiguous) {
-    throw Error(Error::Code::Unsupported,
-                "Key frames without timestamps; seek by byte position instead");
   }
   return found;
 }
