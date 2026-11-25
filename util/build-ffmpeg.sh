@@ -329,7 +329,6 @@ if [[ ! -f config.h ]] || [[ "$reconfigure" = true ]]; then
       --enable-bsf=aac_adtstoasc,h264_mp4toannexb,hevc_mp4toannexb
       --enable-bsf=vp9_superframe,vp9_superframe_split,dump_extradata,remove_extradata
       --enable-bsf=setts,null
-      --enable-parser=opus
       # audio channel mixing, and trimming for previews of a section
       --enable-filter=pan,trim,atrim,asetpts
       # no FMA contraction, which GCC does by default on arm64, so that the
