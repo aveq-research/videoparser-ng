@@ -281,6 +281,7 @@
  * timestamp of their own have none until the next frame with one.
  *
  * Both need a seekable input: a file, or custom input with a seek callback.
+ * Otherwise they return `VP_ERROR_UNSUPPORTED`.
  * Both read only as much of the input as needed: `vp_seek()` reads from the
  * position that the demuxer finds for the timestamp (with an index, the key
  * frame itself) up to the timestamp, and starts earlier if it does not find a
@@ -421,10 +422,11 @@ typedef int32_t vp_status;
 #define VP_ERROR_OPEN 4 /**< Input or its stream information cannot be read */
 #define VP_ERROR_NO_VIDEO_STREAM                                               \
   5 /**< No video stream, or stream_index is not one */
-#define VP_ERROR_UNSUPPORTED 6 /**< No decoder or unknown pixel format */
-#define VP_ERROR_DECODE 7      /**< The decoder failed */
-#define VP_ERROR_IO 8          /**< Read or seek callback or seeking failed */
-#define VP_ERROR_NO_FRAMES 9   /**< The stream ended without any frame */
+#define VP_ERROR_UNSUPPORTED                                                   \
+  6 /**< No decoder, unknown pixel format, or unsupported seek */
+#define VP_ERROR_DECODE 7    /**< The decoder failed */
+#define VP_ERROR_IO 8        /**< Read or seek callback or seeking failed */
+#define VP_ERROR_NO_FRAMES 9 /**< The stream ended without any frame */
 #define VP_ERROR_OUT_OF_MEMORY 10 /**< Allocation failed */
 #define VP_ERROR_INTERNAL 11      /**< Unexpected internal error */
 
@@ -831,12 +833,15 @@ VP_EXPORT vp_status vp_get_summary(vp_parser *parser, vp_summary *summary);
  * @param pts Presentation timestamp in the stream's time base
  * @param frame_idx Index of the key frame (0 to INT32_MAX); the frames after
  * it count up from there
- * @return VP_OK; VP_ERROR_UNSUPPORTED for raw bitstreams (the parser is
- * unchanged); VP_ERROR_INVALID_ARGUMENT if there is no key frame at or before
- * `pts`; VP_ERROR_IO if reading or seeking the input fails;
- * VP_ERROR_DECODE if the decoder cannot be reset. After an error other than
- * VP_ERROR_UNSUPPORTED, vp_next_frame() returns VP_ERROR_INVALID_STATE until
- * a seek succeeds.
+ * @return VP_OK; VP_ERROR_UNSUPPORTED for raw bitstreams and inputs that
+ * are not seekable; VP_ERROR_INVALID_ARGUMENT for a NULL parser or a
+ * `frame_idx` out of range; VP_ERROR_INVALID_ARGUMENT if there is no key
+ * frame at or before `pts`; VP_ERROR_IO if reading or seeking the input
+ * fails; VP_ERROR_DECODE if the decoder cannot be reset. After
+ * VP_ERROR_UNSUPPORTED or a bad argument (NULL parser, `frame_idx` out of
+ * range), the parser is unchanged and continues where it was. After all
+ * other errors, the position is lost: vp_next_frame() returns
+ * VP_ERROR_INVALID_STATE until a seek succeeds.
  */
 VP_EXPORT vp_status vp_seek(vp_parser *parser, int64_t pts, int64_t frame_idx);
 
@@ -851,10 +856,13 @@ VP_EXPORT vp_status vp_seek(vp_parser *parser, int64_t pts, int64_t frame_idx);
  * @param pos Byte position, usually vp_keyframe.pos of a key frame scan
  * @param frame_idx Index of the key frame (0 to INT32_MAX), usually
  * vp_keyframe.frame_idx
- * @return VP_OK; VP_ERROR_UNSUPPORTED for other containers (the parser is
- * unchanged); VP_ERROR_INVALID_ARGUMENT if there is no key frame at or after
- * `pos`; VP_ERROR_IO if reading or seeking the input fails. Errors as for
- * vp_seek().
+ * @return VP_OK; VP_ERROR_UNSUPPORTED for other containers and inputs that
+ * are not seekable; VP_ERROR_INVALID_ARGUMENT for a NULL parser, a negative
+ * `pos` or a `frame_idx` out of range; VP_ERROR_INVALID_ARGUMENT if there is
+ * no key frame at or after `pos`; VP_ERROR_IO if reading or seeking the
+ * input fails. The state after an error is as for vp_seek(): unchanged after
+ * VP_ERROR_UNSUPPORTED or a bad argument (NULL parser, negative `pos`,
+ * `frame_idx` out of range), lost after all others.
  */
 VP_EXPORT vp_status vp_seek_byte(vp_parser *parser, int64_t pos,
                                  int64_t frame_idx);

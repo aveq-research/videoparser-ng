@@ -250,7 +250,7 @@ const char *vp_status_string(vp_status status) {
   case VP_ERROR_NO_VIDEO_STREAM:
     return "no video stream";
   case VP_ERROR_UNSUPPORTED:
-    return "unsupported codec or format";
+    return "unsupported";
   case VP_ERROR_DECODE:
     return "decoding failed";
   case VP_ERROR_IO:
