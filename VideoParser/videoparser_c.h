@@ -92,7 +92,10 @@
  * - Every struct starts with `uint32_t struct_size`. Set it to `sizeof` the
  *   struct. The library fills only the fields that fit into this size. New
  *   fields are only ever appended, so a program built with an older header
- *   works with a newer library.
+ *   works with a newer library. `vp_options_init()` is a macro that passes
+ *   `sizeof` the caller's struct to `vp_options_init_size()`; bindings in
+ *   other languages call `vp_options_init_size()` with the size of their
+ *   struct.
  * - Do not use one parser (or key frame scan) from several threads at the
  *   same time. Different parsers and scans can run in parallel, also on the
  *   same file.
@@ -743,8 +746,29 @@ VP_EXPORT void vp_set_log_level(int32_t level);
  */
 VP_EXPORT void vp_set_log_callback(vp_log_callback callback, void *user_data);
 
-/** Set struct_size and the default options */
+/**
+ * @brief Set struct_size and the default options
+ *
+ * A macro for vp_options_init_size() with `sizeof(*options)`. The function
+ * of the same name remains for programs built with API version 1.2 and
+ * before, whose vp_options is smaller.
+ */
 VP_EXPORT void vp_options_init(vp_options *options);
+
+/**
+ * @brief Set struct_size and the default options of a vp_options that has
+ * `size` bytes
+ *
+ * Writes at most `size` bytes and sets struct_size to the number written, so
+ * a caller with an older, smaller vp_options is safe. Since API version 1.3.
+ *
+ * @param options The options (NULL is allowed)
+ * @param size sizeof the caller's vp_options
+ */
+VP_EXPORT void vp_options_init_size(vp_options *options, size_t size);
+
+#define vp_options_init(options)                                               \
+  vp_options_init_size((options), sizeof(*(options)))
 
 /**
  * @brief Open a local file

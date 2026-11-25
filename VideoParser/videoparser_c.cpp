@@ -276,17 +276,27 @@ void vp_set_log_callback(vp_log_callback callback, void *user_data) {
                                 user_data);
 }
 
-void vp_options_init(vp_options *options) {
-  if (!options) {
+void vp_options_init_size(vp_options *options, size_t size) {
+  if (!options || size < sizeof(options->struct_size)) {
     return;
   }
-  std::memset(options, 0, sizeof(*options));
-  options->struct_size = sizeof(*options);
-  options->max_frames = -1;
-  options->stream_index = -1;
-  options->scan = VP_SCAN_AUTO;
-  options->input_format = nullptr;
-  options->io_buffer_size = 0;
+  vp_options defaults;
+  std::memset(&defaults, 0, sizeof(defaults));
+  defaults.max_frames = -1;
+  defaults.stream_index = -1;
+  defaults.scan = VP_SCAN_AUTO;
+  defaults.input_format = nullptr;
+  defaults.io_buffer_size = 0;
+  size = std::min(size, sizeof(defaults));
+  defaults.struct_size = static_cast<uint32_t>(size);
+  std::memcpy(options, &defaults, size);
+}
+
+// The function behind the vp_options_init() macro of API version 1.2 and
+// before, called by programs built with those headers: their vp_options ends
+// with frames_without_statistics, so only that much may be written.
+void(vp_options_init)(vp_options *options) {
+  vp_options_init_size(options, kOptionsSizeV1);
 }
 
 /**
