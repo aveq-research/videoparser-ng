@@ -264,8 +264,12 @@
  * key frame whose packet starts at or after it. Use the positions of
  * `vp_keyframe_scan_next()`. It works for MPEG-TS, MPEG-PS and raw
  * bitstreams (H.264, HEVC, MPEG-1/2 elementary streams), whatever their
- * timestamps. For other containers, which have an index (MP4, Matroska, IVF),
- * it returns `VP_ERROR_UNSUPPORTED`; use `vp_seek()` there.
+ * timestamps. For other containers, which have an index (MP4, Matroska),
+ * it returns `VP_ERROR_UNSUPPORTED`; use `vp_seek()` there. After a byte
+ * seek, timestamps that the demuxer generates rather than reads differ from
+ * a pass from the start: MPEG-1/2 elementary streams get timestamps counted
+ * from the seek, and in MPEG-PS, frames at the seek position without a
+ * timestamp of their own have none until the next frame with one.
  *
  * Both need a seekable input: a file, or custom input with a seek callback.
  * Both read only as much of the input as needed: `vp_seek()` reads from the

@@ -303,7 +303,7 @@ For the implementation notes (i.e., what was modified to extract the metrics), s
 `libvideoparser` has two APIs:
 
 - The C++ API (`VideoParser.h`). The CLI in `VideoParserCli` is an example of how to use it.
-- The C API (`videoparser_c.h`), for use from other languages. It can also read from your own callbacks instead of a file, and it returns the decoded pictures.
+- The C API (`videoparser_c.h`), for use from other languages. It can also read from your own callbacks instead of a file, and it returns the decoded pictures. It can seek to key frames by timestamp or byte position, scan for key frames without decoding, and decode without computing the statistics.
 
 API documentation is available in the `docs` folder. You can [view it at this location](https://raw.githack.com/aveq-research/videoparser-ng/master/docs/html/index.html).
 

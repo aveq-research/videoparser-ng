@@ -285,6 +285,8 @@ Some CLI tests use damaged MPEG-TS clips (timestamp jumps and wrap-around, bit f
 
 The interlaced (MPEG-2 and H.264, top and bottom field first) and soft-telecine (MPEG-2 with 3:2 pulldown) clips come from `util/generate-interlaced-test-videos.sh`. It needs ffmpeg with libx264, and `mpeg2enc` from mjpegtools (set `MPEG2ENC` to its path if it is not in the `PATH`). The feature tests also compare these clips with their `.ldjson` reference files.
 
+The short-GOP clips in `test/seek/` (H.264 and HEVC with closed and open GOPs, interlaced H.264, VP9, AV1 and MPEG-2, in MP4, Matroska, MPEG-TS, MPEG-PS and raw bitstreams) come from `util/generate-seek-test-videos.sh`. It needs ffmpeg with libx264, libx265, libvpx-vp9 and libaom. They test seeking and the key frame scan.
+
 `test/test-h264-paff.264` is the H.264 conformance bitstream `Sharp_MP_Field_1_B.jvt` (field pairs, see `test/README.md`). No encoder in the toolchain writes H.264 field pictures.
 
 ### C API Testing
@@ -297,6 +299,15 @@ The interlaced (MPEG-2 and H.264, top and bottom field first) and soft-telecine 
 - `-n`: limit the number of frames
 - `--all-frames`: also return frames without statistics
 
+`test/c-api/videoparser-seek-test.c` tests seeking, the key frame scan and the decode-only mode on one clip. It decodes the clip from the start and keeps an MD5 of each picture, then checks:
+
+- that the decode-only mode returns the same pictures, indices and timestamps
+- that the key frame scan finds the same key frames, with the same indices and timestamps
+- seeks by timestamp to the key frames in random order (after decoding to the end, and also to timestamps between key frames), and seeks by byte position to the positions from the scan; after each seek, the frames up to the next key frame must have the same pictures, indices, timestamps and types
+- that a seek by timestamp is unsupported for raw bitstreams, and a seek by byte position for MP4 and Matroska
+
+Pictures may differ after a decoding error, since the decoder conceals damage with earlier pictures (counted as `concealed`). Seeks by timestamp are skipped on inputs whose key frame timestamps do not increase. After a byte seek, timestamps that the demuxer generates may differ (counted as `pts_unknown`, see "Seeking" in `videoparser_c.h`). Its options are `--seed`, `--seeks` (the number of seeks of each kind), `--max-frames` (frames compared after each seek), `--all-frames` (frames without statistics), `--io` and `--verbose`. It prints one JSON line with the counts and exits with 1 on a mismatch.
+
 `test/test-c-api.py` runs the CLI and the test program on a set of clips and compares their output byte by byte. It checks these cases:
 
 - open by path
@@ -304,6 +315,7 @@ The interlaced (MPEG-2 and H.264, top and bottom field first) and soft-telecine 
 - a frame limit
 - custom input without seek (frame and summary records only)
 - `frames_without_statistics` (for FFV1, where the CLI fails, it lists the number of frames)
+- the seek test program, by path and through custom input (clips that the CLI cannot open are listed, not counted)
 
 With `--raw`, it also compares the decoded pictures with the raw video from the `ffmpeg` program. On damaged MPEG-2 streams, the concealed pictures from `ffmpeg` change from run to run (also with a stock FFmpeg 7.1), so a mismatch there is expected. The test program's pictures are the same in every run.
 
