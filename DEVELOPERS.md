@@ -303,12 +303,13 @@ The short-GOP clips in `test/seek/` (H.264 and HEVC with closed and open GOPs, i
 
 - that the decode-only mode returns the same pictures, indices and timestamps
 - that the key frame scan finds the same key frames, with the same indices and timestamps
-- seeks by timestamp to the key frames in random order (after decoding to the end, and also to timestamps between key frames), and seeks by byte position to the positions from the scan; after each seek, the frames up to the next key frame must have the same pictures, indices, timestamps and types
+- seeks by timestamp to the key frames in random order (after decoding to the end, and also to timestamps between key frames), and seeks by byte position to the positions from the scan; after each seek, the frames up to the next key frame must have the same pictures, indices, timestamps, types and sizes
 - seeks by timestamp to key frames without a packet timestamp (MPEG-PS), which must go to the key frame before (counted as `pts_passed_over`)
 - the same seeks on a parser in decode-only mode
 - that a seek by timestamp is unsupported for raw bitstreams, and a seek by byte position for MP4 and Matroska
+- the error paths (counted as `api_checks`): that `vp_options_init()` of a program built with an older, smaller `vp_options` does not write after it, that bad arguments and custom input without a seek callback leave the parser unchanged, and that after a seek callback fails, `vp_next_frame()` returns `VP_ERROR_INVALID_STATE` until a seek works again
 
-Pictures may differ after a decoding error, since the decoder conceals damage with earlier pictures (counted as `concealed`). Seeks by timestamp are skipped on inputs whose key frame timestamps do not increase. After a byte seek, timestamps that the demuxer generates may differ (counted as `pts_unknown`, see "Seeking" in `videoparser_c.h`). Key frames without a byte position of their own (MPEG-PS) are counted as `byte_unreachable`. Its options are `--seed`, `--seeks` (the number of seeks of each kind), `--max-frames` (frames compared after each seek), `--all-frames` (frames without statistics), `--io` and `--verbose`. It prints one JSON line with the counts and exits with 1 on a mismatch.
+In decode-only mode, sizes are not compared, since the size of an H.264 field pair is that of its first field there. Pictures may differ after a decoding error, since the decoder conceals damage with earlier pictures (counted as `concealed`). Seeks by timestamp are skipped on inputs whose key frame timestamps do not increase. After a byte seek, timestamps that the demuxer generates may differ (counted as `pts_unknown`, see "Seeking" in `videoparser_c.h`). Key frames without a byte position of their own (MPEG-PS) are counted as `byte_unreachable`. Its options are `--seed`, `--seeks` (the number of seeks of each kind), `--max-frames` (frames compared after each seek), `--all-frames` (frames without statistics), `--io` and `--verbose`. It prints one JSON line with the counts and exits with 1 on a mismatch.
 
 `test/test-c-api.py` runs the CLI and the test program on a set of clips and compares their output byte by byte. It checks these cases:
 
