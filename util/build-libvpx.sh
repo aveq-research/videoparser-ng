@@ -14,7 +14,8 @@
 # (GNU diffutils, not the BusyBox one), and on x86_64 nasm or yasm.
 #
 # libvpx is licensed under BSD-3-Clause with an additional patent grant; the
-# license is installed to share/licenses/libvpx.
+# license is installed to share/licenses/libvpx, together with the ISC license
+# of the x86inc assembly macros (LICENSE.x86inc), which libvpx uses on x86.
 #
 # Set VP_CROSS_HOST to cross-compile, e.g. VP_CROSS_HOST=x86_64-w64-mingw32 for
 # Windows x86_64 (with x86_64-w64-mingw32-gcc in PATH).
@@ -149,6 +150,8 @@ make -C "${buildDir}" install
 
 mkdir -p "${prefix}/share/licenses/libvpx"
 cp "${srcDir}/LICENSE" "${srcDir}/PATENTS" "${prefix}/share/licenses/libvpx/"
+# x86inc (ISC license) is compiled into the x86 assembly
+cp "${srcDir}/third_party/x86inc/LICENSE" "${prefix}/share/licenses/libvpx/LICENSE.x86inc"
 
 endTime=$(date +%s)
 
