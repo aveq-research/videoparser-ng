@@ -8,3 +8,13 @@ set_target_properties(videoparser-c-test PROPERTIES
 )
 target_compile_options(videoparser-c-test PRIVATE -Wall -Wextra -pedantic)
 target_link_libraries(videoparser-c-test PRIVATE videoparser m)
+
+# Test program for seeking, the key frame scan and decode-only mode
+add_executable(videoparser-seek-test videoparser-seek-test.c md5.h)
+set_target_properties(videoparser-seek-test PROPERTIES
+  C_STANDARD 11
+  C_STANDARD_REQUIRED ON
+  C_EXTENSIONS OFF
+)
+target_compile_options(videoparser-seek-test PRIVATE -Wall -Wextra -pedantic)
+target_link_libraries(videoparser-seek-test PRIVATE videoparser m)

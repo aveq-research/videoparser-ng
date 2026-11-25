@@ -20,6 +20,12 @@ status, in these modes:
   where the CLI succeeds. Where it fails (for example FFV1), the number of
   frames is listed.
 
+- seek, seek-io: run test/c-api/videoparser-seek-test (by path, or through
+  custom input), which compares a pass from the start with the decode-only
+  mode, the key frame scan, and seeks by timestamp and by byte position to
+  key frames in random order (MD5 of each picture, frame indices,
+  timestamps). Clips that the CLI cannot open are listed, not counted.
+
 With --raw, also compare the decoded pictures (vp_get_picture, with
 frames_without_statistics) with the raw video from FFmpeg's ffmpeg program.
 
@@ -31,6 +37,7 @@ Usage:
 
 import argparse
 import hashlib
+import json
 import os
 import subprocess
 import sys
@@ -55,7 +62,7 @@ VIDEO_EXTENSIONS = {
     ".ivf",
     ".mov",
 }
-MODES = ["path", "io", "io-small", "n5", "io-no-seek", "all-frames"]
+MODES = ["path", "io", "io-small", "n5", "io-no-seek", "all-frames", "seek", "seek-io"]
 
 
 @dataclass
@@ -122,6 +129,24 @@ def compare(cli: Run, c: Run, skip_first_line: bool = False) -> tuple[bool, str]
     return True, ""
 
 
+def seek_note(summary: str) -> str:
+    """The parts of a seek test summary worth listing: notes other than the
+    expected ones, concealed pictures, timestamps not known after a seek"""
+    try:
+        d = json.loads(summary)
+    except json.JSONDecodeError:
+        return summary
+    notes = [
+        d[k]
+        for k in ["pts_seek_note", "byte_seek_note"]
+        if d.get(k) and "(as expected)" not in d[k]
+    ]
+    for k in ["pts_unsupported", "concealed", "pts_unknown", "scan_unknown_idx"]:
+        if d.get(k):
+            notes.append(f"{k}={d[k]}")
+    return "; ".join(notes)
+
+
 def check_clip(
     build: Path, clip: Path, group: str, modes: list[str], timeout: int
 ) -> list[Result]:
@@ -153,6 +178,25 @@ def check_clip(
                 add(mode, True, "needs seek: " + (note[-1] if note else ""))
             else:
                 add(mode, *compare(cli_full, c, skip_first_line=True))
+        elif mode in ("seek", "seek-io"):
+            if cli_full.returncode != 0:
+                add(mode, True, "the CLI cannot open it (skipped)")
+                continue
+            seek_bin = str(build / "test" / "c-api" / "videoparser-seek-test")
+            cmd = [seek_bin] + (["--io"] if mode == "seek-io" else []) + [str(clip)]
+            c = run(cmd, timeout)
+            out = c.stdout.decode(errors="replace").strip().splitlines()
+            summary = out[-1] if out else ""
+            if c.returncode != 0:
+                add(
+                    mode,
+                    False,
+                    (
+                        c.stderr.decode(errors="replace").strip()[-300:] + " " + summary
+                    ).strip(),
+                )
+            else:
+                add(mode, True, seek_note(summary))
         elif mode == "all-frames":
             c = run([c_bin, "--all-frames", str(clip)], timeout)
             if cli_full.returncode != 0 and c.returncode == 0:
@@ -200,9 +244,7 @@ def md5_of_raw_ffmpeg(ffmpeg: str, clip: Path, timeout: int) -> str:
     return hashlib.md5(proc.stdout).hexdigest()
 
 
-def check_raw(
-    build: Path, ffmpeg: str, clip: Path, group: str, timeout: int
-) -> Result:
+def check_raw(build: Path, ffmpeg: str, clip: Path, group: str, timeout: int) -> Result:
     c_md5, frames = md5_of_raw_c(build, clip, timeout)
     if not c_md5:
         return Result(str(build), clip, group, "raw", True, "no frames (skipped)")
@@ -249,7 +291,11 @@ def main() -> int:
     clips = find_clips(args.clips or [str(HERE)])
     modes = args.mode or MODES
     for build in builds:
-        for binary in ["VideoParserCli/video-parser", "test/c-api/videoparser-c-test"]:
+        for binary in [
+            "VideoParserCli/video-parser",
+            "test/c-api/videoparser-c-test",
+            "test/c-api/videoparser-seek-test",
+        ]:
             if not (build / binary).exists():
                 sys.exit(f"Missing {build / binary}; build first")
 
@@ -288,7 +334,9 @@ def main() -> int:
                 cells.append(f"{passed}/{passed + failed}")
             print(f"  {group:<12}" + "".join(f"{c:>14}" for c in cells))
 
-    notes = [r for r in results if r.ok and r.note and (args.verbose or r.mode != "raw")]
+    notes = [
+        r for r in results if r.ok and r.note and (args.verbose or r.mode != "raw")
+    ]
     if notes:
         print("\nNotes:")
         for r in notes:
