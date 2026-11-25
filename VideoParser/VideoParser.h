@@ -51,6 +51,8 @@ public:
     Internal,      /**< Unexpected FFmpeg error */
     /** A seek target has no key frame, or a call is not allowed in this mode */
     InvalidArgument,
+    /** A call is not allowed in the current state (after a failed seek) */
+    InvalidState,
   };
 
   /**
@@ -415,12 +417,15 @@ public:
    * in presentation order. The decoder and all state that depends on
    * previous frames are reset. Frames that come before the key frame in
    * presentation order (leading pictures of an open GOP) are dropped.
+   * Needs a seekable input (a file, or custom input with a seek callback).
    *
    * @param pts Timestamp in the stream time base (get_time_base())
    * @param next_frame_idx Frame index of the key frame
    * @throws Error Unsupported for inputs without timestamps (raw
-   * bitstreams); InvalidArgument if there is no key frame at or before
-   * `pts`; Io if seeking fails
+   * bitstreams) or that are not seekable, with the parser unchanged;
+   * InvalidArgument if there is no key frame at or before `pts`; Io if
+   * seeking fails. After any error other than Unsupported, parse_frame()
+   * throws InvalidState until a seek succeeds.
    */
   void seek_pts(int64_t pts, uint32_t next_frame_idx);
 
@@ -433,8 +438,11 @@ public:
    *
    * @param pos Byte position in the input
    * @param next_frame_idx Frame index of the key frame
-   * @throws Error Unsupported for other containers; InvalidArgument if there
-   * is no key frame at or after `pos`; Io if seeking fails
+   * @throws Error Unsupported for other containers or inputs that are not
+   * seekable, with the parser unchanged; InvalidArgument for a negative
+   * `pos` (the parser is unchanged) or if there is no key frame at or after
+   * `pos`; Io if seeking fails. After other errors, parse_frame() throws
+   * InvalidState until a seek succeeds.
    */
   void seek_byte(int64_t pos, uint32_t next_frame_idx);
 
@@ -448,6 +456,12 @@ public:
    * bitstreams, which have no timestamps)
    */
   bool can_seek_pts() const;
+
+  /**
+   * @brief Whether the input is seekable: a file, or custom input with a
+   * seek callback. seek_pts() and seek_byte() need it.
+   */
+  bool is_seekable() const;
 
   /**
    * @brief Read packets up to the next key frame, without decoding
@@ -549,6 +563,9 @@ private:
   AVBufferRef *seek_key_ref = nullptr;
   int dropped_after_seek = 0;
   bool seeked = false;
+  // A seek failed after it reset the parser; parse_frame() throws until a
+  // seek succeeds
+  bool seek_failed = false;
 
   // next_keyframe(): parser for the picture structure, type and order
   AVCodecParserContext *scan_parser = nullptr;
@@ -571,6 +588,8 @@ private:
   void reset_for_seek();
   void finish_seek(uint32_t next_frame_idx);
   void seek_to_start();
+  void seek_input_byte(int64_t pos, const char *message);
+  void trim_mpeg12_packet(AVPacket *packet) const;
   bool read_video_packet(AVPacket *packet);
   bool find_keyframe_by_pts(int64_t pts);
   bool next_packet(AVPacket *packet);

@@ -92,6 +92,8 @@ vp_status status_of(videoparser::Error::Code code) {
     return VP_ERROR_INTERNAL;
   case Code::InvalidArgument:
     return VP_ERROR_INVALID_ARGUMENT;
+  case Code::InvalidState:
+    return VP_ERROR_INVALID_STATE;
   }
   return VP_ERROR_INTERNAL;
 }
@@ -656,6 +658,10 @@ vp_status vp_get_summary(vp_parser *parser, vp_summary *summary) {
   return VP_OK;
 }
 
+constexpr const char *kNotSeekable =
+    "Seeking needs a seekable input: a file, or custom input with a seek "
+    "callback";
+
 /** Common part of vp_seek() and vp_seek_byte() */
 static vp_status seek_parser(vp_parser *parser, int64_t frame_idx,
                              const std::function<void(uint32_t)> &seek) {
@@ -694,6 +700,9 @@ vp_status vp_seek(vp_parser *parser, int64_t pts, int64_t frame_idx) {
     return fail(VP_ERROR_UNSUPPORTED,
                 "The input has no timestamps; seek by byte position instead");
   }
+  if (!parser->parser->is_seekable()) {
+    return fail(VP_ERROR_UNSUPPORTED, kNotSeekable);
+  }
   return seek_parser(parser, frame_idx,
                      [&](uint32_t idx) { parser->parser->seek_pts(pts, idx); });
 }
@@ -706,6 +715,9 @@ vp_status vp_seek_byte(vp_parser *parser, int64_t pos, int64_t frame_idx) {
     return fail(VP_ERROR_UNSUPPORTED,
                 "Seeking by byte position is only supported for MPEG-TS, "
                 "MPEG-PS and raw bitstreams; seek by timestamp instead");
+  }
+  if (!parser->parser->is_seekable()) {
+    return fail(VP_ERROR_UNSUPPORTED, kNotSeekable);
   }
   if (pos < 0) {
     return fail(VP_ERROR_INVALID_ARGUMENT, "pos must be >= 0");

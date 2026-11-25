@@ -962,6 +962,10 @@ void VideoParser::set_frame_info_mpeg2(FrameInfo &frame_info) {}
  * @return false If no frame was parsed (stop parsing)
  */
 bool VideoParser::parse_frame(FrameInfo &frame_info) {
+  if (seek_failed) {
+    throw Error(Error::Code::InvalidState,
+                "A seek failed; only another seek can continue");
+  }
   if (pending_error) {
     std::exception_ptr error = pending_error;
     pending_error = nullptr;
@@ -1205,6 +1209,8 @@ void VideoParser::reset_for_seek() {
     throw Error(Error::Code::InvalidArgument,
                 "Seeking needs a parser that decodes (not demux-only)");
   }
+  // Until finish_seek(), the position is lost
+  seek_failed = true;
   pending_error = nullptr;
   frame_pending = false;
   av_frame_unref(frame);
@@ -1257,6 +1263,24 @@ void VideoParser::reset_for_seek() {
 void VideoParser::finish_seek(uint32_t next_frame_idx) {
   frame_idx = next_frame_idx;
   seek_key_next = true;
+  seek_failed = false;
+}
+
+/**
+ * @brief Seek the demuxer to a byte position
+ *
+ * av_seek_frame() ignores a failed seek of the input for byte seeks and then
+ * reads on from wherever the input is, so seek the input first.
+ */
+void VideoParser::seek_input_byte(int64_t pos, const char *message) {
+  int64_t io_result = avio_seek(format_context->pb, pos, SEEK_SET);
+  if (io_result < 0) {
+    throw Error(Error::Code::Io, message, static_cast<int>(io_result));
+  }
+  int seek_result = av_seek_frame(format_context, -1, pos, AVSEEK_FLAG_BYTE);
+  if (seek_result < 0) {
+    throw Error(Error::Code::Io, message, seek_result);
+  }
 }
 
 /**
@@ -1264,16 +1288,21 @@ void VideoParser::finish_seek(uint32_t next_frame_idx) {
  */
 void VideoParser::seek_to_start() {
   if (can_seek_byte()) {
-    int seek_result = av_seek_frame(format_context, -1, 0, AVSEEK_FLAG_BYTE);
-    if (seek_result < 0) {
-      throw Error(Error::Code::Io, "Error seeking to the start of the input",
-                  seek_result);
-    }
+    seek_input_byte(0, "Error seeking to the start of the input");
     return;
   }
-  // As in scan_video_packets(), reopen formats with an index
-  avformat_close_input(&format_context);
-  open_input();
+  // As in scan_video_packets(), reopen formats with an index. Open the new
+  // context first, so that the old one stays for another seek if it fails.
+  AVFormatContext *old_context = format_context;
+  format_context = nullptr;
+  try {
+    open_input();
+  } catch (...) {
+    avformat_close_input(&format_context);
+    format_context = old_context;
+    throw;
+  }
+  avformat_close_input(&old_context);
 }
 
 /**
@@ -1327,6 +1356,13 @@ bool VideoParser::find_keyframe_by_pts(int64_t pts) {
   return found;
 }
 
+bool VideoParser::is_seekable() const {
+  // Custom input without a seek callback is not seekable; FFmpeg's byte seek
+  // would not fail there, but go on reading from the current position
+  return format_context && format_context->pb &&
+         (format_context->pb->seekable & AVIO_SEEKABLE_NORMAL);
+}
+
 bool VideoParser::can_seek_pts() const {
   return format_context &&
          !(format_context->iformat->flags & AVFMT_NOTIMESTAMPS);
@@ -1336,6 +1372,11 @@ void VideoParser::seek_pts(int64_t pts, uint32_t next_frame_idx) {
   if (!can_seek_pts()) {
     throw Error(Error::Code::Unsupported,
                 "The input has no timestamps; seek by byte position instead");
+  }
+  if (!is_seekable()) {
+    throw Error(Error::Code::Unsupported,
+                "Seeking needs a seekable input: a file, or custom input "
+                "with a seek callback");
   }
   reset_for_seek();
 
@@ -1370,21 +1411,59 @@ void VideoParser::seek_pts(int64_t pts, uint32_t next_frame_idx) {
   finish_seek(next_frame_idx);
 }
 
+/**
+ * @brief Remove the data before the first frame of an MPEG-1/2 packet
+ *
+ * After a byte seek into MPEG-PS, the first PES packet can start with the
+ * end of the slices of the frame before. The demuxer's parser, which starts
+ * fresh there, adds them to the first frame, so its size would differ from
+ * a pass from the start, where they end the frame before. A frame starts
+ * with the first start code that is not a slice (sequence, GOP or picture
+ * header, extension or user data). The decoder skips the removed data
+ * anyway.
+ */
+void VideoParser::trim_mpeg12_packet(AVPacket *packet) const {
+  AVCodecID codec_id =
+      format_context->streams[video_stream_idx]->codecpar->codec_id;
+  if (codec_id != AV_CODEC_ID_MPEG1VIDEO &&
+      codec_id != AV_CODEC_ID_MPEG2VIDEO) {
+    return;
+  }
+  for (int i = 0; i + 3 < packet->size; i++) {
+    const uint8_t *p = packet->data + i;
+    if (p[0] != 0 || p[1] != 0 || p[2] != 1) {
+      continue;
+    }
+    // Slice start codes are 0x01 to 0xAF
+    if (p[3] >= 0x01 && p[3] <= 0xAF) {
+      i += 3;
+      continue;
+    }
+    if (i > 0) {
+      packet->data += i;
+      packet->size -= i;
+    }
+    return;
+  }
+}
+
 void VideoParser::seek_byte(int64_t pos, uint32_t next_frame_idx) {
   if (!can_seek_byte()) {
     throw Error(Error::Code::Unsupported,
                 "Seeking by byte position is only supported for MPEG-TS, "
                 "MPEG-PS and raw bitstreams; seek by timestamp instead");
   }
+  if (!is_seekable()) {
+    throw Error(Error::Code::Unsupported,
+                "Seeking needs a seekable input: a file, or custom input "
+                "with a seek callback");
+  }
   if (pos < 0) {
     throw Error(Error::Code::InvalidArgument, "Negative byte position");
   }
   reset_for_seek();
 
-  int seek_result = av_seek_frame(format_context, -1, pos, AVSEEK_FLAG_BYTE);
-  if (seek_result < 0) {
-    throw Error(Error::Code::Io, "Error seeking to byte position", seek_result);
-  }
+  seek_input_byte(pos, "Error seeking to byte position");
   AVPacket *packet = av_packet_alloc();
   if (!packet) {
     throw Error(Error::Code::OutOfMemory, "Error allocating packet");
@@ -1394,6 +1473,7 @@ void VideoParser::seek_byte(int64_t pos, uint32_t next_frame_idx) {
   while (read_video_packet(packet)) {
     if ((packet->flags & AV_PKT_FLAG_KEY) &&
         (packet->pos >= pos || packet->pos < 0)) {
+      trim_mpeg12_packet(packet);
       queued_packets.push_back(packet);
       finish_seek(next_frame_idx);
       return;
