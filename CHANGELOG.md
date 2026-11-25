@@ -6,6 +6,53 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 <!-- insertion marker -->
+## [v0.16.0](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.16.0) - 2026-11-25
+
+<small>[Compare with v0.15.0](https://github.com/aveq-research/videoparser-ng/compare/v0.15.0...v0.16.0)</small>
+
+### Docs
+
+- describe the seek test's size and error checks ([2c48929](https://github.com/aveq-research/videoparser-ng/commit/2c48929013276e97f3e51ed5e731823f2143c44a) by Werner Robitza).
+- document the parser state after seek errors ([4ea29d4](https://github.com/aveq-research/videoparser-ng/commit/4ea29d484a55dbab8923cfe26e21391e3d1d310d) by Werner Robitza).
+- describe the new seek test checks ([594b27d](https://github.com/aveq-research/videoparser-ng/commit/594b27dbbc413a6d1eb0e42e84adc733e9ee90c6) by Werner Robitza).
+- describe seeking, key frame scan and their tests ([954fc95](https://github.com/aveq-research/videoparser-ng/commit/954fc9530eae279a66deccc78ebe881ff84a37b7) by Werner Robitza).
+
+### Docs
+
+- describe the seek test's size and error checks ([2c48929](https://github.com/aveq-research/videoparser-ng/commit/2c48929013276e97f3e51ed5e731823f2143c44a) by Werner Robitza).
+- document the parser state after seek errors ([4ea29d4](https://github.com/aveq-research/videoparser-ng/commit/4ea29d484a55dbab8923cfe26e21391e3d1d310d) by Werner Robitza).
+- describe the new seek test checks ([594b27d](https://github.com/aveq-research/videoparser-ng/commit/594b27dbbc413a6d1eb0e42e84adc733e9ee90c6) by Werner Robitza).
+- describe seeking, key frame scan and their tests ([954fc95](https://github.com/aveq-research/videoparser-ng/commit/954fc9530eae279a66deccc78ebe881ff84a37b7) by Werner Robitza).
+
+### Features
+
+- seek to key frames and scan for them ([b3252a8](https://github.com/aveq-research/videoparser-ng/commit/b3252a820a31357762cf4fef09664abc3d8bd6cf) by Werner Robitza).
+
+### Bug Fixes
+
+- report a failed decoder reset as decode error ([fd2ae34](https://github.com/aveq-research/videoparser-ng/commit/fd2ae34ecd34cc1ff23d29a008b1597d589680a2) by Werner Robitza).
+- make failed and unsupported seeks safe ([c47731d](https://github.com/aveq-research/videoparser-ng/commit/c47731d6a6fca18acc607f49cc88a4481373cea8) by Werner Robitza).
+- keep vp_options_init safe for older programs ([6082b72](https://github.com/aveq-research/videoparser-ng/commit/6082b72a49b79240e8a4da44cc97d0c8458a2904) by Werner Robitza).
+- pass over key frames without timestamps ([1be58b5](https://github.com/aveq-research/videoparser-ng/commit/1be58b5aaa2e1aa6b4b3524e5c6e17d45391533f) by Werner Robitza).
+
+### Tests
+
+- compare sizes and error paths in seek test ([494f8a0](https://github.com/aveq-research/videoparser-ng/commit/494f8a01a4391a07740b0671c25572a1941b6de2) by Werner Robitza).
+- seek on decode-only parsers and count skips ([cebcf4d](https://github.com/aveq-research/videoparser-ng/commit/cebcf4dd46184cd549c9176d36eabdb487f136f0) by Werner Robitza).
+- test seeking, key frame scan and decode-only ([a1fbded](https://github.com/aveq-research/videoparser-ng/commit/a1fbded5ab6644e9c343e5f37775fd356a0b88d9) by Werner Robitza).
+- allow choosing the CLI with VIDEOPARSER_CLI ([52b124c](https://github.com/aveq-research/videoparser-ng/commit/52b124c6cb426e560c30c9bf4cc2f95456b9ae61) by Werner Robitza).
+
+### Tests
+
+- compare sizes and error paths in seek test ([494f8a0](https://github.com/aveq-research/videoparser-ng/commit/494f8a01a4391a07740b0671c25572a1941b6de2) by Werner Robitza).
+- seek on decode-only parsers and count skips ([cebcf4d](https://github.com/aveq-research/videoparser-ng/commit/cebcf4dd46184cd549c9176d36eabdb487f136f0) by Werner Robitza).
+- test seeking, key frame scan and decode-only ([a1fbded](https://github.com/aveq-research/videoparser-ng/commit/a1fbded5ab6644e9c343e5f37775fd356a0b88d9) by Werner Robitza).
+- allow choosing the CLI with VIDEOPARSER_CLI ([52b124c](https://github.com/aveq-research/videoparser-ng/commit/52b124c6cb426e560c30c9bf4cc2f95456b9ae61) by Werner Robitza).
+
+### Misc
+
+- bump version to 0.16.0 ([f7bdab1](https://github.com/aveq-research/videoparser-ng/commit/f7bdab17c1a5162aceb5f2bba7c9f5c19de7d44b) by Werner Robitza).
+
 ## [v0.15.0](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.15.0) - 2026-11-15
 
 <small>[Compare with v0.14.1](https://github.com/aveq-research/videoparser-ng/compare/v0.14.1...v0.15.0)</small>
@@ -24,7 +71,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Misc
 
-- bump version to 0.15.0 ([d729cd9](https://github.com/aveq-research/videoparser-ng/commit/d729cd96333b78ab75fe1f3cd2820bb9ed863d50) by Werner Robitza).
+- bump version to 0.15.0 ([de46a94](https://github.com/aveq-research/videoparser-ng/commit/de46a9439ec51bb839d81b0f25db30802a9204a6) by Werner Robitza).
 
 ## [v0.14.1](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.14.1) - 2026-10-18
 
