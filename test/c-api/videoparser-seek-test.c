@@ -11,11 +11,14 @@
  *    index) with the key frames of the first pass.
  * 4. Seeks by timestamp to the key frames, in random order, and also to
  *    timestamps of later frames in the same GOP, then decodes up to and
- *    including the next key frame and compares index, timestamp, type and
- *    MD5 of each frame. A seek to the time of a key frame without a packet
+ *    including the next key frame and compares index, timestamp, type, size
+ *    and MD5 of each frame. A seek to the time of a key frame without a packet
  *    timestamp (see the scan) must go to the key frame before it.
  * 5. Does the same with byte positions from the scan.
  * 6. Repeats 4 and 5 on a parser in decode-only mode.
+ * 7. Checks the error paths: vp_options_init() of an older, smaller
+ *    vp_options, bad arguments, custom input without a seek callback, and a
+ *    seek callback that fails and then works again.
  *
  * Prints one JSON line with the counts and exits with 1 on any mismatch.
  *
@@ -38,6 +41,8 @@
 #include "videoparser_c.h"
 
 #include <stdarg.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -49,6 +54,7 @@ typedef struct frame_record {
   int64_t pts_raw;
   int32_t is_idr;
   int32_t frame_type;
+  int32_t size;
   int32_t decode_error;
   /* A key frame whose packet has a timestamp, which a seek by timestamp can
    * go to (see "Seeking" in videoparser_c.h) */
@@ -86,6 +92,7 @@ typedef struct counts {
   int byte_unreachable;
   int concealed;
   int pts_unknown;
+  int api_checks;
   int byte_seeks;
   int byte_frames;
   const char *pts_seek_note;
@@ -142,6 +149,16 @@ static int64_t file_seek(void *opaque, int64_t offset, int32_t whence) {
   }
   clearerr(file);
   return (int64_t)ftello(file);
+}
+
+/* Seek callback that fails while `seek_fails` is set */
+static int seek_fails;
+
+static int64_t file_seek_or_fail(void *opaque, int64_t offset, int32_t whence) {
+  if (seek_fails) {
+    return -1;
+  }
+  return file_seek(opaque, offset, whence);
 }
 
 typedef struct opened {
@@ -226,6 +243,7 @@ static void decode_all(vp_parser *parser, frame_list *list) {
                            .pts_raw = frame.pts_raw,
                            .is_idr = frame.is_idr,
                            .frame_type = frame.frame_type,
+                           .size = frame.size,
                            .decode_error = frame.decode_error};
     picture_md5(parser, record.md5);
     add_frame(list, &record);
@@ -233,6 +251,13 @@ static void decode_all(vp_parser *parser, frame_list *list) {
   if (status != VP_END) {
     die("vp_next_frame", status);
   }
+}
+
+/* Whether the size of a frame is that of the first pass. In decode-only mode,
+ * the size of an H.264 field pair is that of its first field (see
+ * "Decode-only mode"), so it is not compared there. */
+static int same_size(const vp_frame_info *frame, const frame_record *expected) {
+  return seek_decode_only || frame->size == expected->size;
 }
 
 /* Index of the first key frame after `idx` in the first pass, or the frame
@@ -297,13 +322,14 @@ static int check_after_seek(vp_parser *parser, const frame_list *full,
     }
     if (frame.frame_idx != expected->frame_idx || !same_pts ||
         frame.is_idr != expected->is_idr ||
-        frame.frame_type != expected->frame_type || !same_picture) {
+        frame.frame_type != expected->frame_type ||
+        !same_size(&frame, expected) || !same_picture) {
       mismatch("%s seek to %lld (frame %zu): frame %zu differs: idx %d/%d "
-               "pts %lld/%lld idr %d/%d md5 %s",
+               "pts %lld/%lld idr %d/%d size %d/%d md5 %s",
                kind, (long long)target, key, i, frame.frame_idx,
                expected->frame_idx, (long long)frame.pts_raw,
                (long long)expected->pts_raw, frame.is_idr, expected->is_idr,
-               same_picture ? "same" : "differs");
+               frame.size, expected->size, same_picture ? "same" : "differs");
       return compared;
     }
     compared++;
@@ -534,6 +560,192 @@ static void test_byte_seeks(const frame_list *full, const scan_entry *scan,
   close_input(&in);
 }
 
+static void api_check(int ok, const char *format, ...) {
+  if (ok) {
+    result.api_checks++;
+    return;
+  }
+  result.mismatches++;
+  va_list args;
+  va_start(args, format);
+  fprintf(stderr, "mismatch: api: ");
+  vfprintf(stderr, format, args);
+  fprintf(stderr, "\n");
+  va_end(args);
+}
+
+/* vp_options_init() of a program built with API version 1.2, whose
+ * vp_options ends with frames_without_statistics: the function (not the
+ * macro) must not write after it */
+static void test_options_size(void) {
+  size_t old_size =
+      offsetof(vp_options, frames_without_statistics) + sizeof(int32_t);
+  union {
+    vp_options options;
+    unsigned char bytes[sizeof(vp_options) + 16];
+  } buf;
+  memset(&buf, 0xAA, sizeof(buf));
+  (vp_options_init)(&buf.options);
+  int untouched = 1;
+  for (size_t i = old_size; i < sizeof(buf.bytes); i++) {
+    untouched &= buf.bytes[i] == 0xAA;
+  }
+  api_check(untouched && buf.options.struct_size == old_size &&
+                buf.options.max_frames == -1,
+            "vp_options_init() of an older vp_options: struct_size %u, "
+            "wrote after it: %s",
+            buf.options.struct_size, untouched ? "no" : "yes");
+
+  memset(&buf, 0xAA, sizeof(buf));
+  vp_options_init_size(&buf.options, old_size);
+  untouched = 1;
+  for (size_t i = old_size; i < sizeof(buf.bytes); i++) {
+    untouched &= buf.bytes[i] == 0xAA;
+  }
+  api_check(untouched && buf.options.struct_size == old_size,
+            "vp_options_init_size() of an older vp_options");
+
+  /* Opening with it leaves the newer options at their defaults */
+  vp_parser *parser = NULL;
+  vp_status status = vp_open_file(opts->filename, &buf.options, &parser);
+  vp_frame_info frame = {.struct_size = sizeof(frame)};
+  if (status == VP_OK) {
+    status = vp_next_frame(parser, &frame);
+  }
+  api_check(status == VP_OK && frame.has_statistics,
+            "open with an older vp_options: %s", vp_status_string(status));
+  vp_close(parser);
+
+  memset(&buf, 0xAA, sizeof(buf));
+  vp_options_init(&buf.options);
+  api_check(buf.options.struct_size == sizeof(vp_options) &&
+                buf.options.decode_only == 0 &&
+                buf.bytes[sizeof(vp_options)] == 0xAA,
+            "vp_options_init() macro");
+}
+
+typedef vp_status (*seek_function)(vp_parser *, int64_t, int64_t);
+
+/* Read a frame, expect `expected` from the seek, and check that the parser
+ * goes on with the next frame */
+static void check_unchanged(vp_parser *parser, seek_function seek,
+                            int64_t target, int64_t frame_idx,
+                            vp_status expected, const char *what) {
+  vp_frame_info before = {.struct_size = sizeof(before)};
+  vp_frame_info after = {.struct_size = sizeof(after)};
+  vp_status first = vp_next_frame(parser, &before);
+  vp_status status = seek(parser, target, frame_idx);
+  vp_status next = vp_next_frame(parser, &after);
+  int goes_on = first != VP_OK || next == VP_END ||
+                (next == VP_OK && after.frame_idx == before.frame_idx + 1);
+  api_check(status == expected && goes_on, "%s: %s, then %s", what,
+            vp_status_string(status), vp_status_string(next));
+}
+
+static void test_seek_errors(const frame_list *full) {
+  if (full->count == 0) {
+    return;
+  }
+  /* The first key frame */
+  const frame_record *key = &full->frames[0];
+  for (size_t i = 0; i < full->count; i++) {
+    if (full->frames[i].is_idr) {
+      key = &full->frames[i];
+      break;
+    }
+  }
+
+  /* Bad arguments leave the parser unchanged */
+  opened in;
+  open_input(&in, 0, 0);
+  check_unchanged(in.parser, vp_seek, key->pts_raw, -5,
+                  no_timestamps ? VP_ERROR_UNSUPPORTED
+                                : VP_ERROR_INVALID_ARGUMENT,
+                  "vp_seek() with frame_idx -5");
+  /* Byte seeks are unsupported for MP4 and Matroska (an index out of range
+   * tells which it is, without changing the parser) */
+  vp_status expected =
+      vp_seek_byte(in.parser, 0, (int64_t)INT32_MAX + 1) == VP_ERROR_UNSUPPORTED
+          ? VP_ERROR_UNSUPPORTED
+          : VP_ERROR_INVALID_ARGUMENT;
+  check_unchanged(in.parser, vp_seek_byte, -1, 0, expected,
+                  "vp_seek_byte() to -1");
+  api_check(vp_seek(NULL, 0, 0) == VP_ERROR_INVALID_ARGUMENT &&
+                vp_seek_byte(NULL, 0, 0) == VP_ERROR_INVALID_ARGUMENT,
+            "seek on NULL");
+  close_input(&in);
+
+  /* Custom input without a seek callback cannot seek; the parser goes on */
+  FILE *file = fopen(opts->filename, "rb");
+  if (!file) {
+    fprintf(stderr, "Error: cannot open %s\n", opts->filename);
+    exit(2);
+  }
+  vp_options options;
+  vp_options_init(&options);
+  options.frames_without_statistics = opts->all_frames;
+  vp_io io = {.struct_size = sizeof(io), .read = file_read, .opaque = file};
+  vp_parser *parser = NULL;
+  if (vp_open_io(&io, &options, &parser) == VP_OK) {
+    check_unchanged(parser, vp_seek, key->pts_raw, key->frame_idx,
+                    VP_ERROR_UNSUPPORTED, "vp_seek() without seek callback");
+    check_unchanged(parser, vp_seek_byte, 0, key->frame_idx,
+                    VP_ERROR_UNSUPPORTED,
+                    "vp_seek_byte() without seek callback");
+  }
+  vp_close(parser);
+  fclose(file);
+
+  /* A seek callback that fails: the seek fails or works (if the data is
+   * still buffered), and after a failure only a seek continues; once the
+   * callback works again, a seek works */
+  file = fopen(opts->filename, "rb");
+  if (!file) {
+    fprintf(stderr, "Error: cannot open %s\n", opts->filename);
+    exit(2);
+  }
+  io.seek = file_seek_or_fail;
+  io.opaque = file;
+  parser = NULL;
+  if (vp_open_io(&io, &options, &parser) != VP_OK) {
+    die("open", VP_ERROR_OPEN);
+  }
+  vp_frame_info frame = {.struct_size = sizeof(frame)};
+  for (size_t i = 0; i < full->count / 2; i++) {
+    if (vp_next_frame(parser, &frame) != VP_OK) {
+      break;
+    }
+  }
+  int by_pts = !no_timestamps && key->pts_raw != VP_NOPTS;
+  seek_fails = 1;
+  vp_status status = by_pts ? vp_seek(parser, key->pts_raw, key->frame_idx)
+                            : vp_seek_byte(parser, 0, key->frame_idx);
+  seek_fails = 0;
+  if (status != VP_OK) {
+    vp_status next = vp_next_frame(parser, &frame);
+    api_check(next == VP_ERROR_INVALID_STATE,
+              "vp_next_frame() after a failed seek (%s): %s",
+              vp_status_string(status), vp_status_string(next));
+    status = by_pts ? vp_seek(parser, key->pts_raw, key->frame_idx)
+                    : vp_seek_byte(parser, 0, key->frame_idx);
+    api_check(status == VP_OK, "seek after the seek callback works again: %s",
+              vp_status_string(status));
+  }
+  if (status == VP_OK) {
+    vp_status next = vp_next_frame(parser, &frame);
+    api_check(next == VP_OK && frame.frame_idx == key->frame_idx &&
+                  frame.size == key->size &&
+                  (frame.pts_raw == key->pts_raw || !by_pts),
+              "first frame after the seek: %s, idx %d/%d size %d/%d pts "
+              "%lld/%lld",
+              vp_status_string(next), frame.frame_idx, key->frame_idx,
+              frame.size, key->size, (long long)frame.pts_raw,
+              (long long)key->pts_raw);
+  }
+  vp_close(parser);
+  fclose(file);
+}
+
 static void usage(void) {
   fprintf(stderr, "Usage: videoparser-seek-test [--seed <n>] [--seeks <n>] "
                   "[--max-frames <n>] [--all-frames] [--io] [--verbose] "
@@ -691,6 +903,10 @@ int main(int argc, char *argv[]) {
         result.pts_seeks + result.byte_seeks - seeks_before;
   }
 
+  /* 7. Error paths */
+  test_options_size();
+  test_seek_errors(&full);
+
   printf("{\"file\":\"%s\",\"frames\":%d,\"keyframes\":%d,"
          "\"decode_only_frames\":%d,\"scan_keyframes\":%d,"
          "\"scan_unknown_idx\":%d,\"pts_seeks\":%d,\"pts_frames\":%d,"
@@ -704,8 +920,10 @@ int main(int argc, char *argv[]) {
          result.byte_unreachable, result.byte_seeks, result.byte_frames);
   print_json_string("pts_seek_note", result.pts_seek_note);
   print_json_string("byte_seek_note", result.byte_seek_note);
-  printf(",\"concealed\":%d,\"pts_unknown\":%d,\"mismatches\":%d}\n",
-         result.concealed, result.pts_unknown, result.mismatches);
+  printf(",\"concealed\":%d,\"pts_unknown\":%d,\"api_checks\":%d,"
+         "\"mismatches\":%d}\n",
+         result.concealed, result.pts_unknown, result.api_checks,
+         result.mismatches);
 
   free(scan);
   free(keys);
