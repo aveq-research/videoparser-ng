@@ -18,6 +18,8 @@
  *   MPEG-TS from memory or from the network)
  * - access the decoded pictures without a copy, for pixel-based or
  *   full-reference metrics
+ * - seek to a key frame and decode from there, for example in a viewer that
+ *   shows single frames, and find the key frames without decoding
  *
  * ## Example
  *
@@ -72,8 +74,8 @@
  * codec without statistics. Damaged data that the decoder conceals is not an
  * error. It shows up in `decode_error` and in the summary.
  *
- * After an error, only `vp_get_sequence_info()`, `vp_get_summary()` and
- * `vp_close()` are allowed.
+ * After an error, only `vp_get_sequence_info()`, `vp_get_summary()`,
+ * `vp_close()` and a seek (see below) are allowed.
  *
  * ## Conventions
  *
@@ -91,8 +93,9 @@
  *   struct. The library fills only the fields that fit into this size. New
  *   fields are only ever appended, so a program built with an older header
  *   works with a newer library.
- * - Do not use one parser from several threads at the same time. Different
- *   parsers can run in parallel.
+ * - Do not use one parser (or key frame scan) from several threads at the
+ *   same time. Different parsers and scans can run in parallel, also on the
+ *   same file.
  * - Strings are UTF-8 and null-terminated. Paths are passed to FFmpeg
  *   unchanged.
  *
@@ -198,6 +201,119 @@
  * name of the pixel format, such as `"yuv420p"` or `"yuv420p10le"`. Unlike
  * FFmpeg's enum values, the names stay the same across FFmpeg versions.
  *
+ * ## Seeking
+ *
+ * `vp_seek()` and `vp_seek_byte()` move an open parser to a key frame. The
+ * next `vp_next_frame()` returns that key frame, and the following calls the
+ * frames after it in presentation order, as in a pass from the start.
+ *
+ * A key frame is a frame whose packet the demuxer marks as a key frame and
+ * from which the decoder can start. In a pass from the start, these frames
+ * have `is_idr` set:
+ *
+ * - H.264: IDR pictures, and I-pictures with a recovery point SEI (as written
+ *   by encoders with open GOPs, for example x264 with `open-gop`)
+ * - HEVC: IRAP pictures (IDR, CRA, BLA)
+ * - MPEG-1/2: I-pictures (the demuxer marks every I-picture)
+ * - VP9 and AV1: key frames
+ *
+ * Open GOPs (H.264 recovery points, HEVC CRA, MPEG-2 I-pictures without
+ * `closed_gop`) have leading pictures: they follow the key frame in decoding
+ * order, but are shown before it, and may reference frames before it. After a
+ * seek, they cannot be decoded correctly, so the parser drops all frames that
+ * the decoder returns before the key frame. Their indices are lower than that
+ * of the key frame, so they belong to the previous GOP: to show them, seek to
+ * the key frame before. The pictures of the key frame and of all frames after
+ * it are the same as in a pass from the start (for streams without damage;
+ * the tests check this with an MD5 of each picture). The decoder may still
+ * log errors for the dropped pictures.
+ *
+ * What a seek resets:
+ *
+ * - the decoder (flushed; libaom is opened again, since it has no flush)
+ * - the packets read ahead, the field pairing of H.264, and the timestamp
+ *   estimation for frames without timestamps
+ * - the summary (`vp_get_summary()` counts from the seek on), the frame limit
+ *   (`max_frames` counts from the seek on), and the end of the stream
+ * - an error of `vp_next_frame()` or of a previous seek
+ *
+ * Frame indices: `frame_idx` is the index that the key frame gets; the frames
+ * after it count up from there. The parser cannot know the index of a frame
+ * without counting all frames before it, so pass the index that the key frame
+ * had in a pass from the start, or that `vp_keyframe_scan_next()` returns.
+ * The timestamps of frames without one (raw bitstreams) are estimated from
+ * the index, so they match the pass from the start too.
+ *
+ * Statistics: the pictures, indices, timestamps, frame types, sizes and flags
+ * are the same as in a pass from the start, but values that depend on earlier
+ * frames may not be: `poc_diff` of the key frame, `discontinuity` (never set
+ * on the key frame), and statistics that refer to previous frames (in legacy
+ * mode, the VP9 motion statistics). After the first seek,
+ * `vp_get_sequence_info()` no longer fills in values from the parsed frames.
+ *
+ * `vp_seek()` takes a presentation timestamp in the stream's time base
+ * (`vp_sequence_info.time_base_num`/`time_base_den`, as `pts_raw`). It goes to
+ * the last key frame, in file order, whose timestamp is at or before it. It
+ * needs timestamps that increase with the position in the file: on inputs
+ * where they jump back (an MPEG-TS that was cut together, or with a
+ * timestamp wrap-around in a long recording), a timestamp can be ambiguous, and
+ * the search can take long. Raw bitstreams have no timestamps; there it
+ * returns `VP_ERROR_UNSUPPORTED`.
+ *
+ * `vp_seek_byte()` takes a byte position in the input and goes to the first
+ * key frame whose packet starts at or after it. Use the positions of
+ * `vp_keyframe_scan_next()`. It works for MPEG-TS, MPEG-PS and raw
+ * bitstreams (H.264, HEVC, MPEG-1/2 elementary streams), whatever their
+ * timestamps. For other containers, which have an index (MP4, Matroska, IVF),
+ * it returns `VP_ERROR_UNSUPPORTED`; use `vp_seek()` there.
+ *
+ * Both need a seekable input: a file, or custom input with a seek callback.
+ * Both read only as much of the input as needed: `vp_seek()` reads from the
+ * position that the demuxer finds for the timestamp (with an index, the key
+ * frame itself) up to the timestamp, and starts earlier if it does not find a
+ * key frame there.
+ *
+ * ## Key frame scan
+ *
+ * `vp_keyframe_scan_open_file()` or `vp_keyframe_scan_open_io()` open the
+ * input for a scan: it reads the packets of the video stream, but does not
+ * decode them, so it is much faster than decoding. `vp_keyframe_scan_next()`
+ * returns the key frames one by one, with their byte position, timestamps
+ * and the index they get in a pass from the start. The scan has its own
+ * handle, so it can run on another thread while a parser of the same input
+ * decodes (with custom input, give each its own callbacks and state).
+ *
+ * The index is counted from the packets: the frames before the key frame in
+ * decoding order, plus the frames after it that are shown before it (leading
+ * pictures). These come from the timestamps, or without timestamps from the
+ * picture order count (H.264, HEVC) or the picture types (MPEG-1/2). Pairs of
+ * H.264 field pictures (PAFF) count as one frame, as in the decoder. Repeated
+ * fields (soft telecine, pulldown) do not change the index, since every coded
+ * frame is one frame. `frame_idx` is -1 where it cannot be determined:
+ *
+ * - after a packet that the demuxer marked as corrupt (for example MPEG-TS
+ *   continuity errors), since the decoder may drop frames
+ * - if the stream does not start with a key frame, since the decoder may
+ *   drop the frames before the first key frame
+ * - for MPEG-1/2 field pictures
+ *
+ * Damage that only the decoder detects (for example bit errors) can also make
+ * the decoder drop frames, so the index is then not certain. The index also
+ * assumes that the frames before a key frame in decoding order are shown
+ * before it, which is the case in all common encoders.
+ *
+ * ## Decode-only mode
+ *
+ * With `decode_only` set to 1, the parser skips its own work on the
+ * statistics: it does not compute the averages and deviations from the
+ * decoder's data, and it does not parse H.264 field pairs for the frame size.
+ * The decoders of the FFmpeg fork still collect the statistics while
+ * decoding, since this cannot be turned off at run time, so the gain is
+ * small. The same frames are returned, with the same pictures, indices,
+ * timestamps, types and flags, but `has_statistics` and all statistics are 0,
+ * and `size` of an H.264 field pair is that of its first field only. Use it
+ * for requests that need only pictures.
+ *
  * ## Logging
  *
  * Logging applies to the whole process, since FFmpeg's logging is global.
@@ -278,7 +394,7 @@ extern "C" {
 /** Major version of the C API; changes on incompatible changes */
 #define VP_API_VERSION_MAJOR 1
 /** Minor version of the C API; changes when functions or fields are added */
-#define VP_API_VERSION_MINOR 2
+#define VP_API_VERSION_MINOR 3
 /** Version of the C API as returned by vp_api_version() */
 #define VP_API_VERSION ((VP_API_VERSION_MAJOR << 16) | VP_API_VERSION_MINOR)
 
@@ -335,6 +451,9 @@ typedef int32_t vp_status;
 /** Opaque parser handle */
 typedef struct vp_parser vp_parser;
 
+/** Opaque handle of a key frame scan (since API version 1.3) */
+typedef struct vp_keyframe_scan vp_keyframe_scan;
+
 /**
  * @brief Options for opening an input
  *
@@ -356,6 +475,11 @@ typedef struct vp_options {
    * references for full-reference metrics), with has_statistics 0 and the
    * statistics 0; 0 (default) to skip them, as the CLI does */
   int32_t frames_without_statistics;
+
+  /* Since API version 1.3 */
+  /** 1 to decode the pictures only, without the statistics (see "Decode-only
+   * mode"); 0 (default) for the statistics */
+  int32_t decode_only;
 } vp_options;
 
 /**
@@ -546,6 +670,26 @@ typedef struct vp_picture {
 } vp_picture;
 
 /**
+ * @brief A key frame found by vp_keyframe_scan_next() (since API version 1.3)
+ */
+typedef struct vp_keyframe {
+  uint32_t struct_size; /**< sizeof(vp_keyframe) */
+  /** Byte position of the packet in the input, for vp_seek_byte(); -1 if the
+   * demuxer does not report it */
+  int64_t pos;
+  /** Presentation timestamp in the stream's time base, for vp_seek(); or
+   * VP_NOPTS */
+  int64_t pts_raw;
+  /** Decoding timestamp in the stream's time base, or VP_NOPTS */
+  int64_t dts_raw;
+  /** Index of the frame in a pass from the start (vp_frame_info.frame_idx),
+   * or -1 if it cannot be determined without decoding */
+  int64_t frame_idx;
+  /** Number of video packets before this one, in decoding order */
+  int64_t packet_idx;
+} vp_keyframe;
+
+/**
  * @brief Log callback
  *
  * @param user_data Pointer passed to vp_set_log_callback()
@@ -644,8 +788,91 @@ VP_EXPORT vp_status vp_get_picture(vp_parser *parser, vp_picture *picture);
 /** Get the counts over the frames returned so far */
 VP_EXPORT vp_status vp_get_summary(vp_parser *parser, vp_summary *summary);
 
+/**
+ * @brief Continue at the key frame at or before a presentation timestamp
+ *
+ * See "Seeking". Since API version 1.3.
+ *
+ * @param parser The parser
+ * @param pts Presentation timestamp in the stream's time base
+ * @param frame_idx Index of the key frame (0 to INT32_MAX); the frames after
+ * it count up from there
+ * @return VP_OK; VP_ERROR_UNSUPPORTED for raw bitstreams (the parser is
+ * unchanged); VP_ERROR_INVALID_ARGUMENT if there is no key frame at or before
+ * `pts`; VP_ERROR_IO if reading or seeking the input fails;
+ * VP_ERROR_DECODE if the decoder cannot be reset. After an error other than
+ * VP_ERROR_UNSUPPORTED, vp_next_frame() returns VP_ERROR_INVALID_STATE until
+ * a seek succeeds.
+ */
+VP_EXPORT vp_status vp_seek(vp_parser *parser, int64_t pts, int64_t frame_idx);
+
+/**
+ * @brief Continue at the first key frame whose packet starts at or after a
+ * byte position
+ *
+ * See "Seeking". For MPEG-TS, MPEG-PS and raw bitstreams. Since API version
+ * 1.3.
+ *
+ * @param parser The parser
+ * @param pos Byte position, usually vp_keyframe.pos of a key frame scan
+ * @param frame_idx Index of the key frame (0 to INT32_MAX), usually
+ * vp_keyframe.frame_idx
+ * @return VP_OK; VP_ERROR_UNSUPPORTED for other containers (the parser is
+ * unchanged); VP_ERROR_INVALID_ARGUMENT if there is no key frame at or after
+ * `pos`; VP_ERROR_IO if reading or seeking the input fails. Errors as for
+ * vp_seek().
+ */
+VP_EXPORT vp_status vp_seek_byte(vp_parser *parser, int64_t pos,
+                                 int64_t frame_idx);
+
 /** Close the input and free the parser (NULL is allowed) */
 VP_EXPORT void vp_close(vp_parser *parser);
+
+/**
+ * @brief Open a local file for a key frame scan
+ *
+ * See "Key frame scan". Of the options, only `stream_index` and
+ * `input_format` apply. Since API version 1.3.
+ *
+ * @param path Path to the file
+ * @param options Options, or NULL for the defaults
+ * @param out Receives the scan; free it with vp_keyframe_scan_close()
+ */
+VP_EXPORT vp_status vp_keyframe_scan_open_file(const char *path,
+                                               const vp_options *options,
+                                               vp_keyframe_scan **out);
+
+/**
+ * @brief Open custom input for a key frame scan
+ *
+ * As vp_keyframe_scan_open_file(). The callbacks are called on the thread
+ * that calls the scan functions. Since API version 1.3.
+ *
+ * @param io Callbacks and their opaque pointer (copied)
+ * @param options Options, or NULL for the defaults (`stream_index`,
+ * `input_format` and `io_buffer_size` apply)
+ * @param out Receives the scan; free it with vp_keyframe_scan_close()
+ */
+VP_EXPORT vp_status vp_keyframe_scan_open_io(const vp_io *io,
+                                             const vp_options *options,
+                                             vp_keyframe_scan **out);
+
+/**
+ * @brief Read the input up to the next key frame
+ *
+ * The key frames come in file order. To find the frames shown before a key
+ * frame, the scan reads up to 32 frames past it before it returns it. Since
+ * API version 1.3.
+ *
+ * @return VP_OK with a key frame, VP_END at the end of the input, or an
+ * error (VP_ERROR_IO if a read callback failed)
+ */
+VP_EXPORT vp_status vp_keyframe_scan_next(vp_keyframe_scan *scan,
+                                          vp_keyframe *keyframe);
+
+/** Close the input and free the scan (NULL is allowed). Since API version
+ * 1.3. */
+VP_EXPORT void vp_keyframe_scan_close(vp_keyframe_scan *scan);
 
 #ifdef __cplusplus
 }

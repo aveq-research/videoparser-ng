@@ -61,6 +61,10 @@ constexpr double MAX_TIMESTAMP_STEP_BACK = 1.0;
 // Largest number of slice threads for decoders without statistics
 constexpr int MAX_DECODER_THREADS = 8;
 
+// Largest number of frames dropped after a seek before the key frame comes
+// out of the decoder (leading pictures; at most 16 in H.264 and HEVC)
+constexpr int MAX_DROPPED_AFTER_SEEK = 64;
+
 /**
  * @brief Whether the FFmpeg fork patches the decoder of a codec to compute
  * statistics
@@ -215,6 +219,11 @@ void VideoParser::open() {
   sequence_info.video_frame_count =
       format_context->streams[video_stream_idx]->nb_frames;
 
+  if (options.demux_only) {
+    open_scan_parser();
+    return;
+  }
+
   // Containers like MPEG-TS/PS or raw bitstreams signal neither bitrate nor
   // frame count, so estimate them from the video packets
   // The scan needs to go back to the start afterwards
@@ -222,12 +231,86 @@ void VideoParser::open() {
   if (options.scan && seekable &&
       (sequence_info.video_bitrate == 0 ||
        sequence_info.video_frame_count == 0)) {
+    // May reopen the file
     scan_video_packets();
-    // The scan may have reopened the file
-    codec_parameters = format_context->streams[video_stream_idx]->codecpar;
   }
 
-  // Open codec
+  open_decoder();
+
+  // Legacy mode: FFmpeg 3.2 in the legacy parser truncated the default packet
+  // duration of Matroska tracks to the stream time base, while current FFmpeg
+  // rounds it (for example, 16 instead of 17 ms at 60 fps). The legacy VP9
+  // motion statistics divide by this duration.
+  AVStream *stream = format_context->streams[video_stream_idx];
+  if (videoparser_legacy_mode() && codec->id == AV_CODEC_ID_VP9 &&
+      strstr(format_context->iformat->name, "matroska") &&
+      stream->avg_frame_rate.num > 0 && stream->avg_frame_rate.den > 0) {
+    AVRational frame_period = av_inv_q(stream->avg_frame_rate);
+    legacy_rounded_duration = av_rescale_q(1, frame_period, stream->time_base);
+    legacy_truncated_duration =
+        av_rescale_q_rnd(1, frame_period, stream->time_base, AV_ROUND_DOWN);
+  }
+
+  const char *pix_fmt_name = av_get_pix_fmt_name(codec_context->pix_fmt);
+  strncpy(sequence_info.video_pix_fmt, pix_fmt_name ? pix_fmt_name : "",
+          sizeof(sequence_info.video_pix_fmt) - 1);
+  sequence_info.video_pix_fmt[sizeof(sequence_info.video_pix_fmt) - 1] = '\0';
+  // Unknown if the stream information could not be read, for example if the
+  // container declares the wrong codec
+  const AVPixFmtDescriptor *pix_fmt_desc =
+      av_pix_fmt_desc_get(codec_context->pix_fmt);
+  if (!pix_fmt_desc) {
+    throw Error(
+        Error::Code::Unsupported,
+        "Cannot determine the video format (unknown pixel format); the stream "
+        "may be damaged or declare the wrong codec");
+  }
+  sequence_info.video_bit_depth = pix_fmt_desc->comp[0].depth;
+
+  AVDictionary *opts = nullptr;
+  // TODO: this is how we can get the motion vectors from ffmpeg, but only for
+  // H.264
+  // // https://ffmpeg.org/doxygen/trunk/extract_mvs_8c-example.html
+  // av_dict_set(&opts, "flags2", "+export_mvs", 0);
+
+  int open_result = avcodec_open2(codec_context, nullptr, &opts);
+  av_dict_free(&opts);
+  if (open_result < 0) {
+    throw Error(Error::Code::Unsupported, "Error opening codec", open_result);
+  }
+
+  // Allocate packet and frame
+  current_packet = av_packet_alloc();
+  if (!current_packet) {
+    throw Error(Error::Code::OutOfMemory, "Error allocating packet");
+  }
+
+  frame = av_frame_alloc();
+  if (!frame) {
+    throw Error(Error::Code::OutOfMemory, "Error allocating frame");
+  }
+
+  // The H.264 demuxers return each field of a field pair as its own packet
+  // (see add_second_field_size()). Only needed for the frame size.
+  if (codec->id == AV_CODEC_ID_H264 && !options.decode_only) {
+    init_field_parser();
+  }
+
+  decode_first_frame();
+}
+
+/**
+ * @brief Allocate the decoder context and set its options, without opening
+ * it
+ */
+void VideoParser::open_decoder() {
+  AVCodecParameters *codec_parameters =
+      format_context->streams[video_stream_idx]->codecpar;
+  const AVCodec *codec = avcodec_find_decoder(codec_parameters->codec_id);
+  if (!codec) {
+    throw Error(Error::Code::Unsupported, "Error finding the video codec");
+  }
+
   codec_context = avcodec_alloc_context3(codec);
   if (!codec_context) {
     throw Error(Error::Code::OutOfMemory, "Error allocating codec context");
@@ -258,82 +341,35 @@ void VideoParser::open() {
     codec_context->idct_algo = FF_IDCT_SIMPLE;
   }
 
-  // Legacy mode: FFmpeg 3.2 in the legacy parser truncated the default packet
-  // duration of Matroska tracks to the stream time base, while current FFmpeg
-  // rounds it (for example, 16 instead of 17 ms at 60 fps). The legacy VP9
-  // motion statistics divide by this duration.
-  AVStream *stream = format_context->streams[video_stream_idx];
-  if (videoparser_legacy_mode() && codec->id == AV_CODEC_ID_VP9 &&
-      strstr(format_context->iformat->name, "matroska") &&
-      stream->avg_frame_rate.num > 0 && stream->avg_frame_rate.den > 0) {
-    AVRational frame_period = av_inv_q(stream->avg_frame_rate);
-    legacy_rounded_duration = av_rescale_q(1, frame_period, stream->time_base);
-    legacy_truncated_duration =
-        av_rescale_q_rnd(1, frame_period, stream->time_base, AV_ROUND_DOWN);
-  }
-
   // Preserve packet metadata on the decoded frame. This is needed for codecs
   // with frame reordering, where the packet being read is not necessarily the
   // packet corresponding to the frame returned by the decoder.
   codec_context->flags |= AV_CODEC_FLAG_COPY_OPAQUE;
+}
 
-  const char *pix_fmt_name = av_get_pix_fmt_name(codec_context->pix_fmt);
-  strncpy(sequence_info.video_pix_fmt, pix_fmt_name ? pix_fmt_name : "",
-          sizeof(sequence_info.video_pix_fmt) - 1);
-  sequence_info.video_pix_fmt[sizeof(sequence_info.video_pix_fmt) - 1] = '\0';
-  // Unknown if the stream information could not be read, for example if the
-  // container declares the wrong codec
-  const AVPixFmtDescriptor *pix_fmt_desc =
-      av_pix_fmt_desc_get(codec_context->pix_fmt);
-  if (!pix_fmt_desc) {
-    throw Error(
-        Error::Code::Unsupported,
-        "Cannot determine the video format (unknown pixel format); the stream "
-        "may be damaged or declare the wrong codec");
+/**
+ * @brief Set up the H.264 parser that finds the second field of a field pair
+ */
+void VideoParser::init_field_parser() {
+  av_parser_close(field_parser);
+  field_parser = nullptr;
+  avcodec_free_context(&field_parser_context);
+  av_buffer_unref(&first_field_size);
+  first_field_structure = AV_PICTURE_STRUCTURE_UNKNOWN;
+
+  field_parser = av_parser_init(AV_CODEC_ID_H264);
+  field_parser_context = avcodec_alloc_context3(nullptr);
+  if (!field_parser || !field_parser_context) {
+    throw Error(Error::Code::OutOfMemory, "Error allocating field parser");
   }
-  sequence_info.video_bit_depth = pix_fmt_desc->comp[0].depth;
-
-  AVDictionary *opts = nullptr;
-  // TODO: this is how we can get the motion vectors from ffmpeg, but only for
-  // H.264
-  // // https://ffmpeg.org/doxygen/trunk/extract_mvs_8c-example.html
-  // av_dict_set(&opts, "flags2", "+export_mvs", 0);
-
-  int open_result = avcodec_open2(codec_context, codec, &opts);
-  av_dict_free(&opts);
-  if (open_result < 0) {
-    throw Error(Error::Code::Unsupported, "Error opening codec", open_result);
+  int params_result = avcodec_parameters_to_context(
+      field_parser_context,
+      format_context->streams[video_stream_idx]->codecpar);
+  if (params_result < 0) {
+    throw Error(Error::Code::Internal, "Error setting field parser parameters",
+                params_result);
   }
-
-  // Allocate packet and frame
-  current_packet = av_packet_alloc();
-  if (!current_packet) {
-    throw Error(Error::Code::OutOfMemory, "Error allocating packet");
-  }
-
-  frame = av_frame_alloc();
-  if (!frame) {
-    throw Error(Error::Code::OutOfMemory, "Error allocating frame");
-  }
-
-  // The H.264 demuxers return each field of a field pair as its own packet
-  // (see add_second_field_size())
-  if (codec->id == AV_CODEC_ID_H264) {
-    field_parser = av_parser_init(AV_CODEC_ID_H264);
-    field_parser_context = avcodec_alloc_context3(nullptr);
-    if (!field_parser || !field_parser_context) {
-      throw Error(Error::Code::OutOfMemory, "Error allocating field parser");
-    }
-    params_result =
-        avcodec_parameters_to_context(field_parser_context, codec_parameters);
-    if (params_result < 0) {
-      throw Error(Error::Code::Internal,
-                  "Error setting field parser parameters", params_result);
-    }
-    field_parser->flags |= PARSER_FLAG_COMPLETE_FRAMES;
-  }
-
-  decode_first_frame();
+  field_parser->flags |= PARSER_FLAG_COMPLETE_FRAMES;
 }
 
 /**
@@ -585,8 +621,9 @@ void VideoParser::scan_video_packets() {
  */
 SequenceInfo VideoParser::get_sequence_info() {
   // update the sequence info based on the accumulated video duration and packet
-  // size sum, if frames were read at all
-  if (frame_idx > 0) {
+  // size sum, if frames were read at all (not after a seek, which skips
+  // frames)
+  if (frame_idx > 0 && !seeked) {
     if (sequence_info.video_duration == 0) {
       std::ostringstream message;
       message << "Warning: video duration not set initially, setting to "
@@ -665,9 +702,15 @@ void VideoParser::set_frame_info(FrameInfo &frame_info) {
   // get the SharedFrameInfo, sometimes it's empty, so we skip this iteration,
   // unless frames without statistics are requested (for codecs that the fork
   // does not patch)
+  // Decode-only: the same frames are returned, but the statistics are not
+  // computed from the side data
+  bool has_side_data =
+      av_frame_get_side_data(frame, AV_FRAME_DATA_VIDEOPARSER_INFO) != nullptr;
   SharedFrameInfo *shared_frame_info =
-      videoparser_get_final_shared_frame_info(frame);
-  if (!shared_frame_info && !options.frames_without_statistics) {
+      has_side_data && !options.decode_only
+          ? videoparser_get_final_shared_frame_info(frame)
+          : nullptr;
+  if (!has_side_data && !options.frames_without_statistics) {
     throw std::runtime_error("No shared frame info found");
   }
 
@@ -759,7 +802,7 @@ void VideoParser::set_frame_info(FrameInfo &frame_info) {
   frame_info.top_field_first = frame->flags & AV_FRAME_FLAG_TOP_FIELD_FIRST;
   frame_info.repeated_fields = frame->repeat_pict;
 
-  frame_info.has_statistics = shared_frame_info != nullptr;
+  frame_info.has_statistics = has_side_data && !options.decode_only;
   if (shared_frame_info) {
     if (verbose)
       print_shared_frame_info(*shared_frame_info);
@@ -818,7 +861,7 @@ void VideoParser::set_frame_info(FrameInfo &frame_info) {
   } else if (codec_context->codec_id == AV_CODEC_ID_MPEG2VIDEO ||
              codec_context->codec_id == AV_CODEC_ID_MPEG1VIDEO) {
     set_frame_info_mpeg2(frame_info);
-  } else if (shared_frame_info) {
+  } else if (has_side_data) {
     log(AV_LOG_WARNING, std::string("Warning: unsupported codec ") +
                             avcodec_get_name(codec_context->codec_id) +
                             ", no extra information will be available.");
@@ -927,6 +970,18 @@ bool VideoParser::parse_frame(FrameInfo &frame_info) {
 
   while (frame_pending || receive_frame()) {
     frame_pending = false;
+    // After a seek, drop the frames shown before the key frame (leading
+    // pictures of an open GOP), which may reference frames before it
+    if (seek_key_ref) {
+      if (!frame->opaque_ref || frame->opaque_ref->data != seek_key_ref->data) {
+        if (++dropped_after_seek > MAX_DROPPED_AFTER_SEEK) {
+          throw Error(Error::Code::Decode,
+                      "The key frame at the seek position was not decoded");
+        }
+        continue;
+      }
+      av_buffer_unref(&seek_key_ref);
+    }
     try {
       set_frame_info(frame_info);
       return true;
@@ -938,6 +993,10 @@ bool VideoParser::parse_frame(FrameInfo &frame_info) {
       }
       // Continue to the next decoded frame if this one has no parser data.
     }
+  }
+  if (seek_key_ref) {
+    throw Error(Error::Code::Decode,
+                "The key frame at the seek position was not decoded");
   }
   return false;
 }
@@ -984,12 +1043,7 @@ bool VideoParser::receive_frame() {
     }
 
     bool packet_sent = false;
-    while (av_read_frame(format_context, current_packet) == 0) {
-      if (current_packet->stream_index != video_stream_idx) {
-        av_packet_unref(current_packet);
-        continue;
-      }
-
+    while (next_packet(current_packet)) {
       current_packet->opaque_ref =
           av_buffer_alloc(sizeof(current_packet->size));
       if (!current_packet->opaque_ref) {
@@ -999,6 +1053,17 @@ bool VideoParser::receive_frame() {
       }
       memcpy(current_packet->opaque_ref->data, &current_packet->size,
              sizeof(current_packet->size));
+      // The first packet after a seek is the key frame; its decoded frame
+      // carries the same buffer
+      if (seek_key_next) {
+        seek_key_next = false;
+        seek_key_ref = av_buffer_ref(current_packet->opaque_ref);
+        if (!seek_key_ref) {
+          av_packet_unref(current_packet);
+          throw Error(Error::Code::OutOfMemory,
+                      "Error allocating packet metadata");
+        }
+      }
 
       if (field_parser) {
         add_second_field_size(current_packet);
@@ -1090,10 +1155,473 @@ void VideoParser::add_second_field_size(const AVPacket *packet) {
 }
 
 /**
+ * @brief Read the next packet of the video stream from the demuxer
+ *
+ * @return false at the end of the input or on a read error
+ */
+bool VideoParser::read_video_packet(AVPacket *packet) {
+  while (av_read_frame(format_context, packet) == 0) {
+    if (packet->stream_index == video_stream_idx) {
+      return true;
+    }
+    av_packet_unref(packet);
+  }
+  return false;
+}
+
+/**
+ * @brief Get the next video packet for the decoder: first the packets that a
+ * seek has read, then those of the demuxer
+ */
+bool VideoParser::next_packet(AVPacket *packet) {
+  if (!queued_packets.empty()) {
+    AVPacket *queued = queued_packets.front();
+    queued_packets.pop_front();
+    av_packet_move_ref(packet, queued);
+    av_packet_free(&queued);
+    return true;
+  }
+  return read_video_packet(packet);
+}
+
+bool VideoParser::can_seek_byte() const {
+  if (!format_context) {
+    return false;
+  }
+  // As in scan_video_packets(): formats without reliable timestamps
+  // (MPEG-TS/PS, raw bitstreams). Others, such as MP4 and Matroska, do not
+  // support byte seeks or keep their state after one.
+  const AVInputFormat *input_format = format_context->iformat;
+  return (input_format->flags & (AVFMT_TS_DISCONT | AVFMT_NOTIMESTAMPS)) &&
+         !(input_format->flags & AVFMT_NO_BYTE_SEEK);
+}
+
+/**
+ * @brief Reset the decoder and all state that depends on previous frames,
+ * before a seek
+ */
+void VideoParser::reset_for_seek() {
+  if (!codec_context || !frame) {
+    throw Error(Error::Code::InvalidArgument,
+                "Seeking needs a parser that decodes (not demux-only)");
+  }
+  pending_error = nullptr;
+  frame_pending = false;
+  av_frame_unref(frame);
+  for (AVPacket *packet : queued_packets) {
+    av_packet_free(&packet);
+  }
+  queued_packets.clear();
+  av_buffer_unref(&seek_key_ref);
+  seek_key_next = false;
+  dropped_after_seek = 0;
+  // Freed at the end of the stream
+  if (!current_packet) {
+    current_packet = av_packet_alloc();
+    if (!current_packet) {
+      throw Error(Error::Code::OutOfMemory, "Error allocating packet");
+    }
+  }
+  av_packet_unref(current_packet);
+
+  // libaom has no flush in FFmpeg, so open a new decoder. The other
+  // decoders keep their parameter sets over a flush, which raw bitstreams
+  // may send only once at the start.
+  if (strcmp(codec_context->codec->name, "libaom-av1") == 0) {
+    avcodec_free_context(&codec_context);
+    open_decoder();
+    int open_result = avcodec_open2(codec_context, nullptr, nullptr);
+    if (open_result < 0) {
+      throw Error(Error::Code::Unsupported, "Error opening codec", open_result);
+    }
+  } else {
+    avcodec_flush_buffers(codec_context);
+  }
+  decoder_draining = false;
+  decoder_finished = false;
+
+  if (field_parser) {
+    init_field_parser();
+  }
+
+  last_valid_pts = TimestampAnchor();
+  last_valid_dts = TimestampAnchor();
+  next_pts = std::nan("");
+  summary = Summary();
+  seeked = true;
+}
+
+/**
+ * @brief Set the state after a seek: the next packet is the key frame
+ */
+void VideoParser::finish_seek(uint32_t next_frame_idx) {
+  frame_idx = next_frame_idx;
+  seek_key_next = true;
+}
+
+/**
+ * @brief Go back to the start of the input
+ */
+void VideoParser::seek_to_start() {
+  if (can_seek_byte()) {
+    int seek_result = av_seek_frame(format_context, -1, 0, AVSEEK_FLAG_BYTE);
+    if (seek_result < 0) {
+      throw Error(Error::Code::Io, "Error seeking to the start of the input",
+                  seek_result);
+    }
+    return;
+  }
+  // As in scan_video_packets(), reopen formats with an index
+  avformat_close_input(&format_context);
+  open_input();
+}
+
+/**
+ * @brief Read packets from the current position and queue those from the
+ * last key frame at or before `pts` on
+ *
+ * Stops at the first packet whose decoding timestamp is after `pts`, since
+ * no later key frame can be shown at or before it.
+ *
+ * @return true if a key frame was found
+ */
+bool VideoParser::find_keyframe_by_pts(int64_t pts) {
+  AVPacket *packet = av_packet_alloc();
+  if (!packet) {
+    throw Error(Error::Code::OutOfMemory, "Error allocating packet");
+  }
+  ScopeExit free_packet([&packet]() { av_packet_free(&packet); });
+  bool found = false;
+  // A key frame without a timestamp after the last one found may be the one
+  // to return (MPEG-PS gives a timestamp only to the first frame that starts
+  // in a PES packet)
+  bool ambiguous = false;
+  while (read_video_packet(packet)) {
+    if (packet->flags & AV_PKT_FLAG_KEY) {
+      if (packet->pts == AV_NOPTS_VALUE) {
+        ambiguous = true;
+      } else if (packet->pts <= pts) {
+        for (AVPacket *queued : queued_packets) {
+          av_packet_free(&queued);
+        }
+        queued_packets.clear();
+        found = true;
+        ambiguous = false;
+      }
+    }
+    int64_t decoding_time = packet->dts;
+    if (decoding_time == AV_NOPTS_VALUE && (packet->flags & AV_PKT_FLAG_KEY)) {
+      decoding_time = packet->pts;
+    }
+    bool past_target = decoding_time != AV_NOPTS_VALUE && decoding_time > pts;
+    if (found) {
+      // Includes the packet that ends the search, as it follows the others
+      AVPacket *queued = av_packet_alloc();
+      if (!queued) {
+        throw Error(Error::Code::OutOfMemory, "Error allocating packet");
+      }
+      av_packet_move_ref(queued, packet);
+      queued_packets.push_back(queued);
+    } else {
+      av_packet_unref(packet);
+    }
+    if (past_target) {
+      break;
+    }
+  }
+  if (ambiguous) {
+    throw Error(Error::Code::Unsupported,
+                "Key frames without timestamps; seek by byte position instead");
+  }
+  return found;
+}
+
+bool VideoParser::can_seek_pts() const {
+  return format_context &&
+         !(format_context->iformat->flags & AVFMT_NOTIMESTAMPS);
+}
+
+void VideoParser::seek_pts(int64_t pts, uint32_t next_frame_idx) {
+  if (!can_seek_pts()) {
+    throw Error(Error::Code::Unsupported,
+                "The input has no timestamps; seek by byte position instead");
+  }
+  reset_for_seek();
+
+  AVStream *stream = format_context->streams[video_stream_idx];
+  int64_t one_second = av_rescale_q(1, AVRational{1, 1}, stream->time_base);
+  // The demuxer may land after the key frame (for example MPEG-TS, which
+  // searches by timestamp, not by key frame), so start earlier and earlier,
+  // and finally at the start of the input
+  int64_t back = 0;
+  constexpr int64_t MAX_BACK_SECONDS = 64;
+  while (true) {
+    bool at_start = back > MAX_BACK_SECONDS * one_second;
+    if (at_start) {
+      seek_to_start();
+    } else {
+      int seek_result = av_seek_frame(format_context, video_stream_idx,
+                                      pts - back, AVSEEK_FLAG_BACKWARD);
+      if (seek_result < 0) {
+        at_start = true;
+        seek_to_start();
+      }
+    }
+    if (find_keyframe_by_pts(pts)) {
+      break;
+    }
+    if (at_start) {
+      throw Error(Error::Code::InvalidArgument,
+                  "No key frame at or before timestamp " + std::to_string(pts));
+    }
+    back = back == 0 ? one_second : back * 2;
+  }
+  finish_seek(next_frame_idx);
+}
+
+void VideoParser::seek_byte(int64_t pos, uint32_t next_frame_idx) {
+  if (!can_seek_byte()) {
+    throw Error(Error::Code::Unsupported,
+                "Seeking by byte position is only supported for MPEG-TS, "
+                "MPEG-PS and raw bitstreams; seek by timestamp instead");
+  }
+  if (pos < 0) {
+    throw Error(Error::Code::InvalidArgument, "Negative byte position");
+  }
+  reset_for_seek();
+
+  int seek_result = av_seek_frame(format_context, -1, pos, AVSEEK_FLAG_BYTE);
+  if (seek_result < 0) {
+    throw Error(Error::Code::Io, "Error seeking to byte position", seek_result);
+  }
+  AVPacket *packet = av_packet_alloc();
+  if (!packet) {
+    throw Error(Error::Code::OutOfMemory, "Error allocating packet");
+  }
+  // Every packet read now starts at or after the position. Some have no
+  // position (frames that do not start a PES packet in MPEG-PS).
+  while (read_video_packet(packet)) {
+    if ((packet->flags & AV_PKT_FLAG_KEY) &&
+        (packet->pos >= pos || packet->pos < 0)) {
+      queued_packets.push_back(packet);
+      finish_seek(next_frame_idx);
+      return;
+    }
+    av_packet_unref(packet);
+  }
+  av_packet_free(&packet);
+  throw Error(Error::Code::InvalidArgument,
+              "No key frame at or after byte position " + std::to_string(pos));
+}
+
+/**
+ * @brief Set up the parser of next_keyframe() for the picture structure
+ * (field pairs), the picture type and the picture order count
+ */
+void VideoParser::open_scan_parser() {
+  AVCodecParameters *codec_parameters =
+      format_context->streams[video_stream_idx]->codecpar;
+  switch (codec_parameters->codec_id) {
+  case AV_CODEC_ID_H264:
+  case AV_CODEC_ID_HEVC:
+  case AV_CODEC_ID_MPEG1VIDEO:
+  case AV_CODEC_ID_MPEG2VIDEO:
+    break;
+  default:
+    return;
+  }
+  scan_parser = av_parser_init(codec_parameters->codec_id);
+  scan_parser_context = avcodec_alloc_context3(nullptr);
+  if (!scan_parser || !scan_parser_context) {
+    throw Error(Error::Code::OutOfMemory, "Error allocating parser");
+  }
+  int params_result =
+      avcodec_parameters_to_context(scan_parser_context, codec_parameters);
+  if (params_result < 0) {
+    throw Error(Error::Code::Internal, "Error setting parser parameters",
+                params_result);
+  }
+  scan_parser->flags |= PARSER_FLAG_COMPLETE_FRAMES;
+}
+
+/**
+ * @brief Whether a frame after a key frame in decoding order is shown before
+ * it
+ */
+bool VideoParser::scan_is_leading(const PendingKeyframe &pending,
+                                  const ScanFrame &scan_frame) const {
+  const Keyframe &key = pending.frame.keyframe;
+  const Keyframe &other = scan_frame.keyframe;
+  if (key.pts != AV_NOPTS_VALUE && other.pts != AV_NOPTS_VALUE) {
+    // A timestamp far before the key frame is a discontinuity, not a
+    // leading picture
+    AVStream *stream = format_context->streams[video_stream_idx];
+    int64_t max_gap =
+        av_rescale_q(static_cast<int64_t>(MAX_TIMESTAMP_GAP * AV_TIME_BASE),
+                     AV_TIME_BASE_Q, stream->time_base);
+    return other.pts < key.pts && key.pts - other.pts <= max_gap;
+  }
+  AVCodecID codec_id =
+      format_context->streams[video_stream_idx]->codecpar->codec_id;
+  if (codec_id == AV_CODEC_ID_MPEG1VIDEO ||
+      codec_id == AV_CODEC_ID_MPEG2VIDEO) {
+    // B-frames before the next I- or P-frame are shown before the key frame
+    return !pending.anchor_seen && scan_frame.pict_type == AV_PICTURE_TYPE_B;
+  }
+  if (pending.frame.has_poc && scan_frame.has_poc) {
+    return scan_frame.poc < pending.frame.poc;
+  }
+  return false;
+}
+
+/**
+ * @brief Count a frame of next_keyframe() for the key frames before it
+ */
+void VideoParser::scan_add_frame(const ScanFrame &scan_frame) {
+  // Frames shown before a key frame come within the reordering delay (at
+  // most 16 frames in H.264 and HEVC) and before the next key frame
+  constexpr int MAX_LOOKAHEAD = 32;
+  for (PendingKeyframe &pending : scan_pending) {
+    if (pending.done) {
+      continue;
+    }
+    if (scan_frame.key) {
+      pending.done = true;
+      continue;
+    }
+    if (scan_is_leading(pending, scan_frame)) {
+      pending.leading++;
+    }
+    if (scan_frame.pict_type == AV_PICTURE_TYPE_I ||
+        scan_frame.pict_type == AV_PICTURE_TYPE_P) {
+      pending.anchor_seen = true;
+    }
+    if (++pending.frames_after >= MAX_LOOKAHEAD) {
+      pending.done = true;
+    }
+  }
+  if (scan_frame.key) {
+    PendingKeyframe pending;
+    pending.frame = scan_frame;
+    scan_pending.push_back(pending);
+  }
+}
+
+bool VideoParser::next_keyframe(Keyframe &keyframe) {
+  if (!options.demux_only) {
+    throw Error(Error::Code::InvalidArgument,
+                "next_keyframe() needs a demux-only parser");
+  }
+  AVPacket *packet = nullptr;
+  ScopeExit free_packet([&packet]() { av_packet_free(&packet); });
+  while (true) {
+    if (!scan_pending.empty() && (scan_pending.front().done || scan_finished)) {
+      PendingKeyframe pending = scan_pending.front();
+      scan_pending.pop_front();
+      keyframe = pending.frame.keyframe;
+      if (keyframe.frame_idx >= 0) {
+        keyframe.frame_idx += pending.leading;
+      }
+      return true;
+    }
+    if (scan_finished) {
+      return false;
+    }
+    if (!packet) {
+      packet = av_packet_alloc();
+      if (!packet) {
+        throw Error(Error::Code::OutOfMemory, "Error allocating packet");
+      }
+    }
+    if (!read_video_packet(packet)) {
+      scan_finished = true;
+      continue;
+    }
+
+    ScanFrame scan_frame;
+    scan_frame.key = packet->flags & AV_PKT_FLAG_KEY;
+    scan_frame.keyframe.pos = packet->pos;
+    // A frame without a position (in MPEG-PS, a frame that does not start a
+    // PES packet) starts after the last known position, so a byte seek there
+    // finds it, unless another key frame comes first
+    if (packet->pos >= 0) {
+      scan_last_pos = packet->pos;
+      scan_last_pos_used = false;
+    } else if (scan_frame.key) {
+      scan_frame.keyframe.pos = scan_last_pos_used ? -1 : scan_last_pos;
+    }
+    if (scan_frame.key) {
+      scan_last_pos_used = true;
+    }
+    scan_frame.keyframe.pts = packet->pts;
+    scan_frame.keyframe.dts = packet->dts;
+    scan_frame.keyframe.packet_idx = scan_packets++;
+    // Packets with damage that the demuxer detected may be dropped by the
+    // decoder, so the frame indices after them are not known
+    if (packet->flags & AV_PKT_FLAG_CORRUPT) {
+      scan_unreliable = true;
+    }
+    // Frames before the first key frame may not be decoded
+    if (scan_frame.keyframe.packet_idx == 0 && !scan_frame.key) {
+      scan_unreliable = true;
+    }
+
+    bool second_field = false;
+    if (scan_parser) {
+      uint8_t *out_data = nullptr;
+      int out_size = 0;
+      scan_parser->output_picture_number = INT_MIN;
+      av_parser_parse2(scan_parser, scan_parser_context, &out_data, &out_size,
+                       packet->data, packet->size, AV_NOPTS_VALUE,
+                       AV_NOPTS_VALUE, 0);
+      scan_frame.pict_type = scan_parser->pict_type;
+      if (scan_parser->output_picture_number != INT_MIN) {
+        scan_frame.poc = scan_parser->output_picture_number;
+        scan_frame.has_poc = true;
+      }
+      // H.264: a field that follows a field of the opposite parity is the
+      // second field of a frame, as in add_second_field_size()
+      int structure = scan_parser->picture_structure;
+      bool is_field = structure == AV_PICTURE_STRUCTURE_TOP_FIELD ||
+                      structure == AV_PICTURE_STRUCTURE_BOTTOM_FIELD;
+      AVCodecID codec_id = scan_parser_context->codec_id;
+      if (codec_id == AV_CODEC_ID_H264) {
+        second_field = is_field && scan_first_field &&
+                       structure != scan_first_field_structure &&
+                       scan_parser->field_order != AV_FIELD_UNKNOWN;
+        scan_first_field = is_field && !second_field;
+        scan_first_field_structure = structure;
+      } else if (is_field && codec_id != AV_CODEC_ID_HEVC) {
+        // MPEG-1/2 field pictures: whether the demuxer returns the two
+        // fields of a frame in one packet is not checked. (HEVC decodes each
+        // field as its own frame.)
+        scan_unreliable = true;
+      }
+    }
+    av_packet_unref(packet);
+    if (second_field) {
+      continue;
+    }
+
+    scan_frame.keyframe.frame_idx = scan_unreliable ? -1 : scan_frames;
+    scan_frames++;
+    scan_add_frame(scan_frame);
+  }
+}
+
+/**
  * @brief Close the input and free memory
  */
 void VideoParser::close() {
   frame_pending = false;
+  for (AVPacket *packet : queued_packets) {
+    av_packet_free(&packet);
+  }
+  queued_packets.clear();
+  av_buffer_unref(&seek_key_ref);
+  av_parser_close(scan_parser);
+  scan_parser = nullptr;
+  avcodec_free_context(&scan_parser_context);
   av_buffer_unref(&first_field_size);
   av_parser_close(field_parser);
   field_parser = nullptr;

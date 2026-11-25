@@ -10,6 +10,7 @@
 
 #include <cmath>
 #include <cstdlib>
+#include <deque>
 #include <exception>
 #include <filesystem>
 #include <fstream>
@@ -48,6 +49,8 @@ public:
     Io,            /**< Reading or seeking the input failed */
     OutOfMemory,   /**< An allocation failed */
     Internal,      /**< Unexpected FFmpeg error */
+    /** A seek target has no key frame, or a call is not allowed in this mode */
+    InvalidArgument,
   };
 
   /**
@@ -92,6 +95,33 @@ struct OpenOptions {
    * FFmpeg fork does not patch, such as FFV1), with FrameInfo::has_statistics
    * false and the statistics at their defaults */
   bool frames_without_statistics = false;
+  /** Decode the pictures only: skip the work of the library on the
+   * statistics (see VideoParser::parse_frame()). The FFmpeg fork still
+   * computes them while decoding. The pictures, the frame indices and the
+   * frame types and timestamps are the same as without this option; the
+   * statistics are 0. */
+  bool decode_only = false;
+  /** Only read packets, for next_keyframe(); no decoder is opened, and
+   * parse_frame() returns no frames */
+  bool demux_only = false;
+};
+
+/**
+ * @brief A key frame found by VideoParser::next_keyframe()
+ */
+struct Keyframe {
+  /** Byte position of the packet in the input, for seek_byte(); -1 if the
+   * demuxer does not report it */
+  int64_t pos = -1;
+  /** Presentation timestamp in the stream time base, or AV_NOPTS_VALUE */
+  int64_t pts = AV_NOPTS_VALUE;
+  /** Decoding timestamp in the stream time base, or AV_NOPTS_VALUE */
+  int64_t dts = AV_NOPTS_VALUE;
+  /** Index the frame gets when all frames are parsed from the start, or -1
+   * if it cannot be determined without decoding */
+  int64_t frame_idx = -1;
+  /** Number of video packets before this one, in decoding order */
+  int64_t packet_idx = 0;
 };
 
 class ScopeExit {
@@ -378,6 +408,58 @@ public:
   const AVFrame *get_frame() const;
 
   /**
+   * @brief Continue at the key frame at or before a presentation timestamp
+   *
+   * The next parse_frame() returns the last key frame (in file order) whose
+   * packet has a timestamp at or before `pts`, and then the frames after it
+   * in presentation order. The decoder and all state that depends on
+   * previous frames are reset. Frames that come before the key frame in
+   * presentation order (leading pictures of an open GOP) are dropped.
+   *
+   * @param pts Timestamp in the stream time base (get_time_base())
+   * @param next_frame_idx Frame index of the key frame
+   * @throws Error Unsupported for inputs without timestamps (raw
+   * bitstreams); InvalidArgument if there is no key frame at or before
+   * `pts`; Io if seeking fails
+   */
+  void seek_pts(int64_t pts, uint32_t next_frame_idx);
+
+  /**
+   * @brief Continue at the first key frame whose packet starts at or after a
+   * byte position
+   *
+   * As seek_pts(), for inputs with unreliable timestamps. Use the positions
+   * of next_keyframe(). Only for MPEG-TS, MPEG-PS and raw bitstreams.
+   *
+   * @param pos Byte position in the input
+   * @param next_frame_idx Frame index of the key frame
+   * @throws Error Unsupported for other containers; InvalidArgument if there
+   * is no key frame at or after `pos`; Io if seeking fails
+   */
+  void seek_byte(int64_t pos, uint32_t next_frame_idx);
+
+  /**
+   * @brief Whether seek_byte() is supported for the input
+   */
+  bool can_seek_byte() const;
+
+  /**
+   * @brief Whether seek_pts() is supported for the input (not for raw
+   * bitstreams, which have no timestamps)
+   */
+  bool can_seek_pts() const;
+
+  /**
+   * @brief Read packets up to the next key frame, without decoding
+   *
+   * Only with OpenOptions::demux_only.
+   *
+   * @param keyframe Receives the key frame
+   * @return false at the end of the input
+   */
+  bool next_keyframe(Keyframe &keyframe);
+
+  /**
    * @brief Get the index of the parsed video stream in the container
    */
   int get_stream_index() const;
@@ -441,8 +523,60 @@ private:
   OpenOptions options;
   std::string input_format_name; // copy of options.input_format
 
+  /** A frame seen by next_keyframe(), in decoding order */
+  struct ScanFrame {
+    Keyframe keyframe;
+    bool key = false;
+    int pict_type = AV_PICTURE_TYPE_NONE;
+    /** Picture order count from the parser (H.264, HEVC), or INT_MIN */
+    int poc = 0;
+    bool has_poc = false;
+  };
+  /** A key frame of next_keyframe() that waits for the frames after it */
+  struct PendingKeyframe {
+    ScanFrame frame;
+    int64_t leading = 0;      // frames after it, shown before it
+    int frames_after = 0;     // frames after it seen so far
+    bool anchor_seen = false; // MPEG-1/2: an I or P frame after it
+    bool done = false;
+  };
+
+  // Packets read by seek_pts() or seek_byte(), sent to the decoder first
+  std::deque<AVPacket *> queued_packets;
+  // The first packet sent after a seek is the key frame; frames before it
+  // in presentation order are dropped
+  bool seek_key_next = false;
+  AVBufferRef *seek_key_ref = nullptr;
+  int dropped_after_seek = 0;
+  bool seeked = false;
+
+  // next_keyframe(): parser for the picture structure, type and order
+  AVCodecParserContext *scan_parser = nullptr;
+  AVCodecContext *scan_parser_context = nullptr;
+  bool scan_first_field = false;
+  int scan_first_field_structure = AV_PICTURE_STRUCTURE_UNKNOWN;
+  int64_t scan_packets = 0;
+  int64_t scan_frames = 0;
+  bool scan_unreliable = false;
+  int64_t scan_last_pos = 0;       // last known packet position
+  bool scan_last_pos_used = false; // a key frame comes after it
+  bool scan_finished = false;
+  std::deque<PendingKeyframe> scan_pending;
+
   void open();
   void open_input();
+  void open_decoder();
+  void open_scan_parser();
+  void init_field_parser();
+  void reset_for_seek();
+  void finish_seek(uint32_t next_frame_idx);
+  void seek_to_start();
+  bool read_video_packet(AVPacket *packet);
+  bool find_keyframe_by_pts(int64_t pts);
+  bool next_packet(AVPacket *packet);
+  void scan_add_frame(const ScanFrame &scan_frame);
+  bool scan_is_leading(const PendingKeyframe &pending,
+                       const ScanFrame &frame) const;
   void scan_video_packets();
   void decode_first_frame();
   bool receive_frame();

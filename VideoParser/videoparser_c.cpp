@@ -15,6 +15,7 @@
 #include <cerrno>
 #include <cstdarg>
 #include <cstring>
+#include <functional>
 #include <memory>
 #include <new>
 #include <string>
@@ -39,6 +40,7 @@ constexpr size_t kSequenceInfoSizeV1 =
 constexpr size_t kFrameInfoSizeV1 = VP_SIZE_V1(vp_frame_info, has_statistics);
 constexpr size_t kSummarySizeV1 = VP_SIZE_V1(vp_summary, discontinuities);
 constexpr size_t kPictureSizeV1 = VP_SIZE_V1(vp_picture, color_transfer);
+constexpr size_t kKeyframeSizeV1 = VP_SIZE_V1(vp_keyframe, packet_idx);
 
 thread_local std::string last_error;
 
@@ -88,6 +90,8 @@ vp_status status_of(videoparser::Error::Code code) {
     return VP_ERROR_OUT_OF_MEMORY;
   case Code::Internal:
     return VP_ERROR_INTERNAL;
+  case Code::InvalidArgument:
+    return VP_ERROR_INVALID_ARGUMENT;
   }
   return VP_ERROR_INTERNAL;
 }
@@ -196,6 +200,16 @@ struct vp_parser {
   vp_status failed = VP_OK;
   double last_pts = 0.0;
   int64_t last_pts_raw = VP_NOPTS;
+  /** vp_seek() or vp_seek_byte() succeeded at least once */
+  bool seeked = false;
+};
+
+struct vp_keyframe_scan {
+  std::unique_ptr<videoparser::VideoParser> parser;
+  std::unique_ptr<IoState> io;
+  /** Error of vp_keyframe_scan_next(), after which it cannot be called again */
+  vp_status failed = VP_OK;
+  bool ended = false;
 };
 
 extern "C" {
@@ -306,6 +320,30 @@ static vp_status convert_options(const vp_options *in, vp_options &options,
   open_options.scan = options.scan == VP_SCAN_AUTO;
   open_options.frames_without_statistics =
       options.frames_without_statistics != 0;
+  open_options.decode_only = options.decode_only != 0;
+  return VP_OK;
+}
+
+/** Set up custom input for the parser from the caller's callbacks */
+static vp_status make_custom_input(const vp_io *io, const vp_options &opts,
+                                   std::unique_ptr<IoState> &state,
+                                   videoparser::CustomInput &input) {
+  if (!valid_struct(io, kIoSizeV1)) {
+    return fail(VP_ERROR_INVALID_ARGUMENT, "vp_io: struct_size is too small");
+  }
+  if (!io->read) {
+    return fail(VP_ERROR_INVALID_ARGUMENT, "vp_io: read must not be NULL");
+  }
+  state = std::make_unique<IoState>();
+  state->read = io->read;
+  state->seek = io->seek;
+  state->opaque = io->opaque;
+  input.read = read_trampoline;
+  input.seek = io->seek ? seek_trampoline : nullptr;
+  input.opaque = state.get();
+  if (opts.io_buffer_size > 0) {
+    input.buffer_size = opts.io_buffer_size;
+  }
   return VP_OK;
 }
 
@@ -354,17 +392,10 @@ vp_status vp_open_io(const vp_io *io, const vp_options *options,
   try {
     auto handle = std::make_unique<vp_parser>();
     handle->max_frames = opts.max_frames;
-    handle->io = std::make_unique<IoState>();
-    handle->io->read = io->read;
-    handle->io->seek = io->seek;
-    handle->io->opaque = io->opaque;
-
     videoparser::CustomInput input;
-    input.read = read_trampoline;
-    input.seek = io->seek ? seek_trampoline : nullptr;
-    input.opaque = handle->io.get();
-    if (opts.io_buffer_size > 0) {
-      input.buffer_size = opts.io_buffer_size;
+    status = make_custom_input(io, opts, handle->io, input);
+    if (status != VP_OK) {
+      return status;
     }
     try {
       handle->parser =
@@ -461,7 +492,7 @@ vp_status vp_next_frame(vp_parser *parser, vp_frame_info *frame) {
           VP_ERROR_IO, "The input callback failed; the stream ended early");
       return parser->failed;
     }
-    if (parser->frames_returned == 0) {
+    if (parser->frames_returned == 0 && !parser->seeked) {
       parser->failed =
           fail(VP_ERROR_NO_FRAMES,
                "No frames could be parsed from the video stream (unsupported "
@@ -613,6 +644,182 @@ vp_status vp_get_summary(vp_parser *parser, vp_summary *summary) {
   result.repeated_fields = in.repeated_fields;
   copy_out(summary, result);
   return VP_OK;
+}
+
+/** Common part of vp_seek() and vp_seek_byte() */
+static vp_status seek_parser(vp_parser *parser, int64_t frame_idx,
+                             const std::function<void(uint32_t)> &seek) {
+  if (frame_idx < 0 || frame_idx > INT32_MAX) {
+    return fail(VP_ERROR_INVALID_ARGUMENT,
+                "frame_idx must be between 0 and INT32_MAX");
+  }
+  parser->has_picture = false;
+  if (parser->io) {
+    parser->io->failed = false;
+  }
+  try {
+    seek(static_cast<uint32_t>(frame_idx));
+  } catch (...) {
+    vp_status status = fail_with_current_exception();
+    if (parser->io && parser->io->failed) {
+      status = fail(VP_ERROR_IO,
+                    "The input callback failed: " + std::string(last_error));
+    }
+    // The position is lost, and only another seek can continue
+    parser->failed = status;
+    return status;
+  }
+  parser->failed = VP_OK;
+  parser->ended = false;
+  parser->frames_returned = 0;
+  parser->seeked = true;
+  return VP_OK;
+}
+
+vp_status vp_seek(vp_parser *parser, int64_t pts, int64_t frame_idx) {
+  if (!parser) {
+    return fail(VP_ERROR_INVALID_ARGUMENT, "parser must not be NULL");
+  }
+  if (!parser->parser->can_seek_pts()) {
+    return fail(VP_ERROR_UNSUPPORTED,
+                "The input has no timestamps; seek by byte position instead");
+  }
+  return seek_parser(parser, frame_idx,
+                     [&](uint32_t idx) { parser->parser->seek_pts(pts, idx); });
+}
+
+vp_status vp_seek_byte(vp_parser *parser, int64_t pos, int64_t frame_idx) {
+  if (!parser) {
+    return fail(VP_ERROR_INVALID_ARGUMENT, "parser must not be NULL");
+  }
+  if (!parser->parser->can_seek_byte()) {
+    return fail(VP_ERROR_UNSUPPORTED,
+                "Seeking by byte position is only supported for MPEG-TS, "
+                "MPEG-PS and raw bitstreams; seek by timestamp instead");
+  }
+  if (pos < 0) {
+    return fail(VP_ERROR_INVALID_ARGUMENT, "pos must be >= 0");
+  }
+  return seek_parser(parser, frame_idx, [&](uint32_t idx) {
+    parser->parser->seek_byte(pos, idx);
+  });
+}
+
+vp_status vp_keyframe_scan_open_file(const char *path,
+                                     const vp_options *options,
+                                     vp_keyframe_scan **out) {
+  if (!path || !out) {
+    return fail(VP_ERROR_INVALID_ARGUMENT, "path and out must not be NULL");
+  }
+  *out = nullptr;
+  vp_options opts;
+  videoparser::OpenOptions open_options;
+  vp_status status = convert_options(options, opts, open_options);
+  if (status != VP_OK) {
+    return status;
+  }
+  open_options.demux_only = true;
+  try {
+    auto handle = std::make_unique<vp_keyframe_scan>();
+    handle->parser =
+        std::make_unique<videoparser::VideoParser>(path, open_options);
+    *out = handle.release();
+    return VP_OK;
+  } catch (...) {
+    return fail_with_current_exception();
+  }
+}
+
+vp_status vp_keyframe_scan_open_io(const vp_io *io, const vp_options *options,
+                                   vp_keyframe_scan **out) {
+  if (!io || !out) {
+    return fail(VP_ERROR_INVALID_ARGUMENT, "io and out must not be NULL");
+  }
+  *out = nullptr;
+  vp_options opts;
+  videoparser::OpenOptions open_options;
+  vp_status status = convert_options(options, opts, open_options);
+  if (status != VP_OK) {
+    return status;
+  }
+  open_options.demux_only = true;
+  try {
+    auto handle = std::make_unique<vp_keyframe_scan>();
+    videoparser::CustomInput input;
+    status = make_custom_input(io, opts, handle->io, input);
+    if (status != VP_OK) {
+      return status;
+    }
+    try {
+      handle->parser =
+          std::make_unique<videoparser::VideoParser>(input, open_options);
+    } catch (...) {
+      status = fail_with_current_exception();
+      if (handle->io->failed) {
+        return fail(VP_ERROR_IO,
+                    "The input callback failed: " + std::string(last_error));
+      }
+      return status;
+    }
+    *out = handle.release();
+    return VP_OK;
+  } catch (...) {
+    return fail_with_current_exception();
+  }
+}
+
+vp_status vp_keyframe_scan_next(vp_keyframe_scan *scan, vp_keyframe *keyframe) {
+  if (!scan || !valid_struct(keyframe, kKeyframeSizeV1)) {
+    return fail(VP_ERROR_INVALID_ARGUMENT,
+                "scan and keyframe must not be NULL, and "
+                "keyframe->struct_size must be set");
+  }
+  if (scan->failed != VP_OK) {
+    return fail(VP_ERROR_INVALID_STATE,
+                "vp_keyframe_scan_next() failed before with: " +
+                    std::string(vp_status_string(scan->failed)));
+  }
+  if (scan->ended) {
+    return VP_END;
+  }
+  videoparser::Keyframe in;
+  bool found = false;
+  try {
+    found = scan->parser->next_keyframe(in);
+  } catch (...) {
+    scan->failed = fail_with_current_exception();
+    return scan->failed;
+  }
+  if (!found) {
+    scan->ended = true;
+    if (scan->io && scan->io->failed) {
+      scan->failed =
+          fail(VP_ERROR_IO, "The input callback failed; the scan ended early");
+      return scan->failed;
+    }
+    return VP_END;
+  }
+  vp_keyframe result;
+  std::memset(&result, 0, sizeof(result));
+  result.pos = in.pos;
+  result.pts_raw = in.pts != AV_NOPTS_VALUE ? in.pts : VP_NOPTS;
+  result.dts_raw = in.dts != AV_NOPTS_VALUE ? in.dts : VP_NOPTS;
+  result.frame_idx = in.frame_idx;
+  result.packet_idx = in.packet_idx;
+  copy_out(keyframe, result);
+  return VP_OK;
+}
+
+void vp_keyframe_scan_close(vp_keyframe_scan *scan) {
+  if (!scan) {
+    return;
+  }
+  try {
+    scan->parser.reset();
+  } catch (...) {
+    // close() does not throw; ignore anything unexpected
+  }
+  delete scan;
 }
 
 void vp_close(vp_parser *parser) {
