@@ -304,9 +304,11 @@ The short-GOP clips in `test/seek/` (H.264 and HEVC with closed and open GOPs, i
 - that the decode-only mode returns the same pictures, indices and timestamps
 - that the key frame scan finds the same key frames, with the same indices and timestamps
 - seeks by timestamp to the key frames in random order (after decoding to the end, and also to timestamps between key frames), and seeks by byte position to the positions from the scan; after each seek, the frames up to the next key frame must have the same pictures, indices, timestamps and types
+- seeks by timestamp to key frames without a packet timestamp (MPEG-PS), which must go to the key frame before (counted as `pts_passed_over`)
+- the same seeks on a parser in decode-only mode
 - that a seek by timestamp is unsupported for raw bitstreams, and a seek by byte position for MP4 and Matroska
 
-Pictures may differ after a decoding error, since the decoder conceals damage with earlier pictures (counted as `concealed`). Seeks by timestamp are skipped on inputs whose key frame timestamps do not increase. After a byte seek, timestamps that the demuxer generates may differ (counted as `pts_unknown`, see "Seeking" in `videoparser_c.h`). Its options are `--seed`, `--seeks` (the number of seeks of each kind), `--max-frames` (frames compared after each seek), `--all-frames` (frames without statistics), `--io` and `--verbose`. It prints one JSON line with the counts and exits with 1 on a mismatch.
+Pictures may differ after a decoding error, since the decoder conceals damage with earlier pictures (counted as `concealed`). Seeks by timestamp are skipped on inputs whose key frame timestamps do not increase. After a byte seek, timestamps that the demuxer generates may differ (counted as `pts_unknown`, see "Seeking" in `videoparser_c.h`). Key frames without a byte position of their own (MPEG-PS) are counted as `byte_unreachable`. Its options are `--seed`, `--seeks` (the number of seeks of each kind), `--max-frames` (frames compared after each seek), `--all-frames` (frames without statistics), `--io` and `--verbose`. It prints one JSON line with the counts and exits with 1 on a mismatch.
 
 `test/test-c-api.py` runs the CLI and the test program on a set of clips and compares their output byte by byte. It checks these cases:
 
@@ -315,7 +317,7 @@ Pictures may differ after a decoding error, since the decoder conceals damage wi
 - a frame limit
 - custom input without seek (frame and summary records only)
 - `frames_without_statistics` (for FFV1, where the CLI fails, it lists the number of frames)
-- the seek test program, by path and through custom input (clips that the CLI cannot open are listed, not counted)
+- the seek test program, by path and through custom input; it fails if a clip has no frames or no seek was possible. Clips that the CLI cannot open are skipped, shown as `(1s)` and listed.
 
 With `--raw`, it also compares the decoded pictures with the raw video from the `ffmpeg` program. On damaged MPEG-2 streams, the concealed pictures from `ffmpeg` change from run to run (also with a stock FFmpeg 7.1), so a mismatch there is expected. The test program's pictures are the same in every run.
 
