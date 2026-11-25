@@ -24,10 +24,16 @@
 # Combined with --shared, the build goes to build/ffmpeg-shared-legacy.
 #
 # Set VP_CROSS_HOST to cross-compile, e.g. VP_CROSS_HOST=x86_64-w64-mingw32
-# for Windows x86_64 (with x86_64-w64-mingw32-gcc in PATH). libaom and libvmaf
-# are then cross-compiled too. On Windows, the build uses Win32 threads, and
-# the shared libraries are DLLs in bin/ (next to the programs) with import
-# libraries in lib/.
+# for Windows x86_64 (with x86_64-w64-mingw32-gcc in PATH). libaom, libvmaf,
+# libvpx and libopus are then cross-compiled too. On Windows, the build uses
+# Win32 threads, and the shared libraries are DLLs in bin/ (next to the
+# programs) with import libraries in lib/.
+#
+# libvpx and libopus record their target (VP_CROSS_HOST or native, and
+# MACOSX_DEPLOYMENT_TARGET); if it differs from the current one, they are
+# built again and ffmpeg is cleaned. libaom, libvmaf and the ffmpeg build
+# directories do not, so use --clean (and remove build/libvmaf and the libaom
+# build) when switching the target in the same tree.
 
 set -e
 
@@ -139,13 +145,21 @@ if [[ "$shared" = true ]]; then
     echo "Building libvmaf first..."
     "${SCRIPT_DIR}/build-libvmaf.sh" --prefix "${LIBVMAF_PREFIX}"
   fi
-  if [[ ! -f "${LIBVPX_PREFIX}/lib/libvpx.a" ]]; then
-    echo "Building libvpx first..."
+  # Same target string as in build-libvpx.sh and build-libopus.sh. A library
+  # built for another target is built again, and ffmpeg is cleaned so that
+  # libavcodec is linked with the new one.
+  depTarget="${VP_CROSS_HOST:-native}${MACOSX_DEPLOYMENT_TARGET:+ macOS ${MACOSX_DEPLOYMENT_TARGET}}"
+  if [[ ! -f "${LIBVPX_PREFIX}/lib/libvpx.a" ]] ||
+      [[ "$(cat "${LIBVPX_PREFIX}/share/libvpx-target" 2>/dev/null)" != "${depTarget}" ]]; then
+    echo "Building libvpx for ${depTarget} first..."
     "${SCRIPT_DIR}/build-libvpx.sh" --prefix "${LIBVPX_PREFIX}"
+    clean=true
   fi
-  if [[ ! -f "${LIBOPUS_PREFIX}/lib/libopus.a" ]]; then
-    echo "Building libopus first..."
+  if [[ ! -f "${LIBOPUS_PREFIX}/lib/libopus.a" ]] ||
+      [[ "$(cat "${LIBOPUS_PREFIX}/share/libopus-target" 2>/dev/null)" != "${depTarget}" ]]; then
+    echo "Building libopus for ${depTarget} first..."
     "${SCRIPT_DIR}/build-libopus.sh" --prefix "${LIBOPUS_PREFIX}"
+    clean=true
   fi
 fi
 

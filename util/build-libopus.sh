@@ -106,6 +106,18 @@ if [[ -n "${VP_CROSS_HOST:-}" ]]; then
   fi
 fi
 
+# The target of the build, recorded in the build directory and in the
+# install prefix. A build for another target (VP_CROSS_HOST or
+# MACOSX_DEPLOYMENT_TARGET) is removed and configured again.
+# util/build-ffmpeg.sh computes the same string.
+target="${VP_CROSS_HOST:-native}${MACOSX_DEPLOYMENT_TARGET:+ macOS ${MACOSX_DEPLOYMENT_TARGET}}"
+targetFile="${prefix}/share/libopus-target"
+if [[ -d "${buildDir}" ]] && [[ "$(cat "${buildDir}/vp-target" 2>/dev/null)" != "${target}" ]]; then
+  echo "Removing the libopus build for another target..."
+  rm -rf "${buildDir}"
+fi
+rm -f "${targetFile}"
+
 if [[ ! -f "${buildDir}/CMakeCache.txt" ]]; then
   echo "Configuring libopus..."
   cmake -S "${srcDir}" -B "${buildDir}" "${crossArgs[@]}" \
@@ -122,6 +134,7 @@ if [[ ! -f "${buildDir}/CMakeCache.txt" ]]; then
     -DOPUS_DRED=OFF \
     -DOPUS_OSCE=OFF
 fi
+echo "${target}" > "${buildDir}/vp-target"
 
 echo "Building libopus..."
 
@@ -132,6 +145,7 @@ cmake --install "${buildDir}"
 
 mkdir -p "${prefix}/share/licenses/libopus"
 cp "${srcDir}/COPYING" "${prefix}/share/licenses/libopus/COPYING"
+echo "${target}" > "${targetFile}"
 
 endTime=$(date +%s)
 

@@ -115,6 +115,18 @@ if [[ -n "${VP_CROSS_HOST:-}" ]]; then
   export CROSS="${VP_CROSS_HOST}-"
 fi
 
+# The target of the build, recorded in the build directory and in the
+# install prefix. A build for another target (VP_CROSS_HOST or
+# MACOSX_DEPLOYMENT_TARGET) is removed and configured again.
+# util/build-ffmpeg.sh computes the same string.
+target="${VP_CROSS_HOST:-native}${MACOSX_DEPLOYMENT_TARGET:+ macOS ${MACOSX_DEPLOYMENT_TARGET}}"
+targetFile="${prefix}/share/libvpx-target"
+if [[ -d "${buildDir}" ]] && [[ "$(cat "${buildDir}/vp-target" 2>/dev/null)" != "${target}" ]]; then
+  echo "Removing the libvpx build for another target..."
+  rm -rf "${buildDir}"
+fi
+rm -f "${targetFile}"
+
 if [[ ! -f "${buildDir}/config.mk" ]]; then
   echo "Configuring libvpx..."
   mkdir -p "${buildDir}"
@@ -140,6 +152,7 @@ if [[ ! -f "${buildDir}/config.mk" ]]; then
       --disable-libyuv
   )
 fi
+echo "${target}" > "${buildDir}/vp-target"
 
 echo "Building libvpx..."
 
@@ -152,6 +165,7 @@ mkdir -p "${prefix}/share/licenses/libvpx"
 cp "${srcDir}/LICENSE" "${srcDir}/PATENTS" "${prefix}/share/licenses/libvpx/"
 # x86inc (ISC license) is compiled into the x86 assembly
 cp "${srcDir}/third_party/x86inc/LICENSE" "${prefix}/share/licenses/libvpx/LICENSE.x86inc"
+echo "${target}" > "${targetFile}"
 
 endTime=$(date +%s)
 
