@@ -1,0 +1,154 @@
+name: Check for new FFmpeg release
+
+# Opens an issue when upstream FFmpeg publishes a new major/minor release
+# (tag nX.Y) whose branch point is not yet contained in our external/ffmpeg
+# submodule. Point releases (nX.Y.Z) are ignored: they live on release
+# branches, and we track upstream master.
+#
+# The issue reports how far behind master we are and whether our patches
+# rebase cleanly onto upstream master (a trial rebase, nothing is pushed).
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+env:
+  UPSTREAM_URL: https://github.com/FFmpeg/FFmpeg.git
+  FORK_URL: https://github.com/aveq-research/ffmpeg.git
+  LABEL: ffmpeg-update
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Find latest release and submodule state
+        id: check
+        run: |
+          set -euo pipefail
+
+          SUBMODULE_SHA=$(git ls-tree HEAD external/ffmpeg | awk '{print $3}')
+          echo "Submodule commit: ${SUBMODULE_SHA}"
+
+          LATEST_RELEASE=$(git ls-remote --tags --refs "$UPSTREAM_URL" 'n*' |
+            grep -oP 'refs/tags/\Kn[0-9]+\.[0-9]+$' | sort -V | tail -1)
+          echo "Latest upstream release: ${LATEST_RELEASE}"
+
+          # Treeful but blobless history is enough for ancestry checks and a
+          # trial rebase; blobs are fetched lazily when needed.
+          git init -q ffmpeg
+          cd ffmpeg
+          git remote add upstream "$UPSTREAM_URL"
+          git remote add fork "$FORK_URL"
+          git fetch -q --filter=blob:none upstream master \
+            "+refs/tags/${LATEST_RELEASE}:refs/tags/${LATEST_RELEASE}" \
+            '+refs/tags/n*-dev:refs/tags/n*-dev'
+          git fetch -q --filter=blob:none fork "$SUBMODULE_SHA"
+
+          # The commit on master where the release branch was cut
+          BRANCH_POINT=$(git merge-base "$LATEST_RELEASE" upstream/master)
+          CURRENT=$(git describe --tags --match 'n*-dev' "$SUBMODULE_SHA")
+          BEHIND=$(git rev-list --count "${SUBMODULE_SHA}..upstream/master")
+          PATCHES=$(git rev-list --count "upstream/master..${SUBMODULE_SHA}")
+          echo "Submodule is at ${CURRENT}, ${BEHIND} commits behind master, carrying ${PATCHES} patches"
+
+          {
+            echo "submodule_sha=${SUBMODULE_SHA}"
+            echo "latest_release=${LATEST_RELEASE}"
+            echo "current=${CURRENT}"
+            echo "behind=${BEHIND}"
+            echo "patches=${PATCHES}"
+          } >> "$GITHUB_OUTPUT"
+
+          if git merge-base --is-ancestor "$BRANCH_POINT" "$SUBMODULE_SHA"; then
+            echo "Already contains ${LATEST_RELEASE}"
+            echo "update_available=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "New release available: ${LATEST_RELEASE}"
+            echo "update_available=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check for an existing issue
+        if: steps.check.outputs.update_available == 'true'
+        id: existing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE: ${{ steps.check.outputs.latest_release }}
+        run: |
+          set -euo pipefail
+          TITLE="Update FFmpeg to ${RELEASE}"
+          COUNT=$(gh issue list --state all --label "$LABEL" --search "in:title \"${TITLE}\"" \
+            --json number --jq length)
+          echo "title=${TITLE}" >> "$GITHUB_OUTPUT"
+          echo "exists=$([ "$COUNT" -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      - name: Trial rebase onto upstream master
+        if: steps.check.outputs.update_available == 'true' && steps.existing.outputs.exists == 'false'
+        id: rebase
+        working-directory: ffmpeg
+        env:
+          SHA: ${{ steps.check.outputs.submodule_sha }}
+        run: |
+          set -uo pipefail
+          git config user.name ci
+          git config user.email ci@localhost
+          git switch -q --detach "$SHA"
+          if git rebase -q upstream/master > ../rebase.log 2>&1; then
+            echo "clean=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "clean=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "Stopped at: $(git log -1 --format='%h %s' REBASE_HEAD 2>/dev/null || echo unknown)"
+              echo
+              echo "Conflicting files:"
+              git diff --name-only --diff-filter=U | sed 's/^/  /'
+            } > ../conflicts.txt
+            git rebase --abort
+          fi
+
+      - name: Open issue
+        if: steps.check.outputs.update_available == 'true' && steps.existing.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: ${{ steps.existing.outputs.title }}
+          RELEASE: ${{ steps.check.outputs.latest_release }}
+          CURRENT: ${{ steps.check.outputs.current }}
+          BEHIND: ${{ steps.check.outputs.behind }}
+          PATCHES: ${{ steps.check.outputs.patches }}
+          CLEAN: ${{ steps.rebase.outputs.clean }}
+        run: |
+          set -euo pipefail
+          gh label create "$LABEL" --color 0e8a16 \
+            --description "New upstream FFmpeg release" --force
+
+          if [ "$CLEAN" = "true" ]; then
+            REBASE="All ${PATCHES} patches rebase cleanly onto upstream master."
+          else
+            REBASE=$(printf 'The trial rebase of our %s patches onto upstream master stopped with conflicts:\n\n```\n%s\n```' \
+              "$PATCHES" "$(cat conflicts.txt)")
+          fi
+
+          cat > body.md <<EOF
+          FFmpeg [${RELEASE}](https://github.com/FFmpeg/FFmpeg/releases/tag/${RELEASE}) has been released ([Changelog](https://github.com/FFmpeg/FFmpeg/blob/${RELEASE}/Changelog)).
+
+          Our \`external/ffmpeg\` submodule is at \`${CURRENT}\`, ${BEHIND} commits behind upstream master.
+
+          ${REBASE}
+
+          To update, run \`util/rebase-ffmpeg.sh\` locally, then check the test results and the changes in the parser-relevant code (\`libavcodec/h264*\`, \`hevc/\`, \`vp9*\`, \`av1*\`, \`mpeg12*\`) before pushing.
+
+          This issue was opened by the [Check for new FFmpeg release](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) workflow.
+          EOF
+
+          gh issue create --title "$TITLE" --label "$LABEL" --body-file body.md
