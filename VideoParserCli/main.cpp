@@ -67,6 +67,7 @@ void print_general_frame_info(const videoparser::FrameInfo &frame_info) {
   std::cerr << "Size        = " << frame_info.size << " bytes" << std::endl;
   std::cerr << "Frame type  = " << frame_info.frame_type << std::endl;
   std::cerr << "Is IDR      = " << frame_info.is_idr << std::endl;
+  std::cerr << "Is keyframe = " << frame_info.is_keyframe << std::endl;
 }
 
 void print_frame_info_json(const videoparser::FrameInfo &frame_info) {
@@ -78,6 +79,7 @@ void print_frame_info_json(const videoparser::FrameInfo &frame_info) {
   j["size"] = frame_info.size;
   j["frame_type"] = frame_info.frame_type;
   j["is_idr"] = frame_info.is_idr;
+  j["is_keyframe"] = frame_info.is_keyframe;
   j["decode_error"] = frame_info.decode_error;
   j["discontinuity"] = frame_info.discontinuity;
 

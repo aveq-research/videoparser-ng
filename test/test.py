@@ -112,6 +112,7 @@ FRAME_INFO_KEYS = [
     "interlaced",
     "is_all_skip",
     "is_idr",
+    "is_keyframe",
     "mb_mv_count",
     "motion_avg",
     "motion_bit_count",

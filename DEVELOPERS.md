@@ -209,7 +209,7 @@ Frame metadata is extracted via standard FFmpeg API:
 
 - `frame_type`: Extracted from frame header via ffmpeg's `pict_type` (1=I, 2=P, 3=B).
 - `frame_idx`: Zero-based index tracked by the parser during decoding in `decode.c`.
-- `is_keyframe`: the key frame flag (`AV_FRAME_FLAG_KEY`), which seeking and the key frame scan use. H.264: NAL unit type 5, or a recovery point SEI. HEVC: IRAP pictures (IDR, CRA and BLA). VP9/AV1: keyframes. It is not in the CLI output.
+- `is_keyframe`: the key frame flag (`AV_FRAME_FLAG_KEY`), which seeking and the key frame scan use. H.264: NAL unit type 5, or a recovery point SEI. HEVC: IRAP pictures (IDR, CRA and BLA). VP9/AV1: keyframes.
 - `is_idr`: the same as `is_keyframe`, except for HEVC in legacy mode: there, `hevc_frame_start()` sets `SharedFrameInfo.is_idr_picture` for IDR_W_RADL and IDR_N_LP NAL units only, and `VideoParser` uses it instead (also in decode-only mode).
 - `size`: Extracted from packet size directly in ffmpeg. For H.264, `add_second_field_size()` finds the second field of a field pair with the H.264 parser and adds its size to the frame of the first field.
 - `pts`/`dts`: Converted from ffmpeg's timestamps using stream time base.

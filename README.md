@@ -173,6 +173,7 @@ This would print:
   "frame_idx": 0,
   "frame_type": 1,
   "is_idr": true,
+  "is_keyframe": true,
   "mb_mv_count": 0,
   "motion_avg": 0.0,
   "motion_bit_count": 0,
@@ -243,6 +244,7 @@ Note: If the container does not signal the bitrate or frame count (for example, 
 | `size`              | Frame size                                             | bytes    |
 | `frame_type`        | Frame type (1=I, 2=P, 3=B)                             | enum     |
 | `is_idr`            | Whether frame is an IDR/keyframe (legacy HEVC: IDR)    | boolean  |
+| `is_keyframe`       | Whether frame is a keyframe (HEVC: IDR, CRA, BLA)      | boolean  |
 | `decode_error`      | Whether the decoder reported errors (e.g. concealment) | boolean  |
 | `discontinuity`     | Whether the timestamp jumps before this frame          | boolean  |
 | `qp_avg`            | Average QP of all coding units                         | QP index |
