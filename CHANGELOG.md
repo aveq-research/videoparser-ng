@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 <!-- insertion marker -->
+## [v0.18.1](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.18.1) - 2026-11-27
+
+<small>[Compare with v0.18.0](https://github.com/aveq-research/videoparser-ng/compare/v0.18.0...v0.18.1)</small>
+
+### Docs
+
+- add is_keyframe, simplify HEVC notes ([216ab3b](https://github.com/aveq-research/videoparser-ng/commit/216ab3b095518c7d4f337ee8ebf76405c071352f) by Werner Robitza).
+
+### Docs
+
+- add is_keyframe, simplify HEVC notes ([216ab3b](https://github.com/aveq-research/videoparser-ng/commit/216ab3b095518c7d4f337ee8ebf76405c071352f) by Werner Robitza).
+
+### Features
+
+- add is_keyframe to the JSON output ([f7c7774](https://github.com/aveq-research/videoparser-ng/commit/f7c7774283770d623096d25208ba9fca992ea574) by Werner Robitza).
+
+### Misc
+
+- bump version to 0.18.1 ([39849f5](https://github.com/aveq-research/videoparser-ng/commit/39849f5c4fa74d04f97de41d894aa82f5cd32324) by Werner Robitza).
+
 ## [v0.18.0](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.18.0) - 2026-11-27
 
 <small>[Compare with v0.17.1](https://github.com/aveq-research/videoparser-ng/compare/v0.17.1...v0.18.0)</small>
@@ -28,7 +48,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Misc
 
-- bump version to 0.18.0 ([e963c52](https://github.com/aveq-research/videoparser-ng/commit/e963c52f6d7a5ac7dcc7f4a19064dade9c6ff876) by Werner Robitza).
+- bump version to 0.18.0 ([f79a8bc](https://github.com/aveq-research/videoparser-ng/commit/f79a8bc8b3944abfa0553820a0e1792bf37b9b66) by Werner Robitza).
 
 ## [v0.17.1](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.17.1) - 2026-11-26
 
