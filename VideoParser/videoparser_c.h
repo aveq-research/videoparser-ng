@@ -212,7 +212,7 @@
  *
  * A key frame is a frame whose packet the demuxer marks as a key frame and
  * from which the decoder can start. In a pass from the start, these frames
- * have `is_idr` set:
+ * have `is_keyframe` set (since API version 1.4; `is_idr` is the same):
  *
  * - H.264: IDR pictures, and I-pictures with a recovery point SEI (as written
  *   by encoders with open GOPs, for example x264 with `open-gop`)
@@ -324,9 +324,10 @@
  * The decoders of the FFmpeg fork still collect the statistics while
  * decoding, since this cannot be turned off at run time, so the gain is
  * small. The same frames are returned, with the same pictures, indices,
- * timestamps, types and flags, but `has_statistics` and all statistics are 0,
- * and `size` of an H.264 field pair is that of its first field only. Use it
- * for requests that need only pictures.
+ * timestamps, types and flags (also `is_idr` and `is_keyframe`), but
+ * `has_statistics` and all statistics are 0, and `size` of an H.264 field
+ * pair is that of its first field only. Use it for requests that need only
+ * pictures.
  *
  * ## Logging
  *
@@ -408,7 +409,7 @@ extern "C" {
 /** Major version of the C API; changes on incompatible changes */
 #define VP_API_VERSION_MAJOR 1
 /** Minor version of the C API; changes when functions or fields are added */
-#define VP_API_VERSION_MINOR 3
+#define VP_API_VERSION_MINOR 4
 /** Version of the C API as returned by vp_api_version() */
 #define VP_API_VERSION ((VP_API_VERSION_MAJOR << 16) | VP_API_VERSION_MINOR)
 
@@ -635,6 +636,11 @@ typedef struct vp_frame_info {
    * (FFmpeg's repeat_pict): 1 for a repeated first field, 2 for frame
    * doubling, 4 for frame tripling, otherwise 0 */
   int32_t repeated_fields;
+
+  /* Since API version 1.4 */
+  /** 1 if the decoder marks the frame as a key frame, from which decoding can
+   * start (see "Seeking"). Not in the CLI output. */
+  int32_t is_keyframe;
 } vp_frame_info;
 
 /**

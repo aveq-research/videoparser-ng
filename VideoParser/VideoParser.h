@@ -195,6 +195,9 @@ struct FrameInfo {
   /** Frame type (0 = unknown, 1 = I, 2 = P, 3 = B) */
   FrameType frame_type = UNKNOWN;
   bool is_idr = false; /**< Whether the frame is an IDR frame */
+  /** Whether the decoder marks the frame as a key frame, from which decoding
+   * can start (for HEVC, all IRAP pictures). Not in the CLI output. */
+  bool is_keyframe = false;
   /** Whether the decoder reported errors for this frame (for example,
    * concealed macroblocks or missing references) */
   bool decode_error = false;

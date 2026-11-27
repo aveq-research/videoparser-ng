@@ -53,6 +53,7 @@ typedef struct frame_record {
   int32_t frame_idx;
   int64_t pts_raw;
   int32_t is_idr;
+  int32_t is_keyframe;
   int32_t frame_type;
   int32_t size;
   int32_t decode_error;
@@ -242,6 +243,7 @@ static void decode_all(vp_parser *parser, frame_list *list) {
     frame_record record = {.frame_idx = frame.frame_idx,
                            .pts_raw = frame.pts_raw,
                            .is_idr = frame.is_idr,
+                           .is_keyframe = frame.is_keyframe,
                            .frame_type = frame.frame_type,
                            .size = frame.size,
                            .decode_error = frame.decode_error};
@@ -264,7 +266,7 @@ static int same_size(const vp_frame_info *frame, const frame_record *expected) {
  * count */
 static size_t next_keyframe_after(const frame_list *full, size_t idx) {
   for (size_t i = idx + 1; i < full->count; i++) {
-    if (full->frames[i].is_idr) {
+    if (full->frames[i].is_keyframe) {
       return i;
     }
   }
@@ -298,7 +300,7 @@ static int check_after_seek(vp_parser *parser, const frame_list *full,
       return compared;
     }
     const frame_record *expected = &full->frames[i];
-    if (expected->is_idr && i != key) {
+    if (expected->is_keyframe && i != key) {
       damaged = 0;
     }
     if (expected->decode_error) {
@@ -322,14 +324,16 @@ static int check_after_seek(vp_parser *parser, const frame_list *full,
     }
     if (frame.frame_idx != expected->frame_idx || !same_pts ||
         frame.is_idr != expected->is_idr ||
+        frame.is_keyframe != expected->is_keyframe ||
         frame.frame_type != expected->frame_type ||
         !same_size(&frame, expected) || !same_picture) {
       mismatch("%s seek to %lld (frame %zu): frame %zu differs: idx %d/%d "
-               "pts %lld/%lld idr %d/%d size %d/%d md5 %s",
+               "pts %lld/%lld idr %d/%d key %d/%d size %d/%d md5 %s",
                kind, (long long)target, key, i, frame.frame_idx,
                expected->frame_idx, (long long)frame.pts_raw,
                (long long)expected->pts_raw, frame.is_idr, expected->is_idr,
-               frame.size, expected->size, same_picture ? "same" : "differs");
+               frame.is_keyframe, expected->is_keyframe, frame.size,
+               expected->size, same_picture ? "same" : "differs");
       return compared;
     }
     compared++;
@@ -341,7 +345,7 @@ static int check_after_seek(vp_parser *parser, const frame_list *full,
  * to, or the frame count */
 static size_t next_seekable_after(const frame_list *full, size_t idx) {
   for (size_t i = idx + 1; i < full->count; i++) {
-    if (full->frames[i].is_idr && full->frames[i].seekable) {
+    if (full->frames[i].is_keyframe && full->frames[i].seekable) {
       return i;
     }
   }
@@ -363,7 +367,7 @@ static int keyframe_pts_increase(const frame_list *full) {
   int64_t last = VP_NOPTS;
   for (size_t i = 0; i < full->count; i++) {
     const frame_record *f = &full->frames[i];
-    if (!f->is_idr || !f->seekable) {
+    if (!f->is_keyframe || !f->seekable) {
       continue;
     }
     if (last != VP_NOPTS && f->pts_raw <= last) {
@@ -428,7 +432,7 @@ static void test_pts_seeks(const frame_list *full, size_t *keys,
       /* A seek to the time of a key frame without a packet timestamp goes to
        * the key frame before it that has one */
       size_t before = key;
-      while (before > 0 && !(full->frames[before - 1].is_idr &&
+      while (before > 0 && !(full->frames[before - 1].is_keyframe &&
                              full->frames[before - 1].seekable)) {
         before--;
       }
@@ -649,7 +653,7 @@ static void test_seek_errors(const frame_list *full) {
   /* The first key frame */
   const frame_record *key = &full->frames[0];
   for (size_t i = 0; i < full->count; i++) {
-    if (full->frames[i].is_idr) {
+    if (full->frames[i].is_keyframe) {
       key = &full->frames[i];
       break;
     }
@@ -811,7 +815,7 @@ int main(int argc, char *argv[]) {
   size_t *keys = malloc((full.count + 1) * sizeof(size_t));
   size_t key_count = 0;
   for (size_t i = 0; i < full.count; i++) {
-    if (full.frames[i].is_idr) {
+    if (full.frames[i].is_keyframe) {
       keys[key_count++] = i;
     }
   }
@@ -830,8 +834,8 @@ int main(int argc, char *argv[]) {
   for (size_t i = 0; i < decode_only.count && i < full.count; i++) {
     const frame_record *a = &full.frames[i], *b = &decode_only.frames[i];
     if (a->frame_idx != b->frame_idx || a->pts_raw != b->pts_raw ||
-        a->is_idr != b->is_idr || a->frame_type != b->frame_type ||
-        memcmp(a->md5, b->md5, 16) != 0) {
+        a->is_idr != b->is_idr || a->is_keyframe != b->is_keyframe ||
+        a->frame_type != b->frame_type || memcmp(a->md5, b->md5, 16) != 0) {
       mismatch("decode-only: frame %zu differs", i);
       break;
     }

@@ -794,7 +794,8 @@ void VideoParser::set_frame_info(FrameInfo &frame_info) {
   frame_info.dts = dts;
   frame_info.size = packet_size;
   frame_info.frame_type = frame_type;
-  frame_info.is_idr = frame->flags & AV_FRAME_FLAG_KEY;
+  frame_info.is_keyframe = frame->flags & AV_FRAME_FLAG_KEY;
+  frame_info.is_idr = frame_info.is_keyframe;
   frame_info.decode_error =
       frame->decode_error_flags != 0 || (frame->flags & AV_FRAME_FLAG_CORRUPT);
   frame_info.discontinuity = discontinuity;

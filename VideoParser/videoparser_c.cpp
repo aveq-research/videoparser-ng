@@ -570,6 +570,7 @@ vp_status vp_next_frame(vp_parser *parser, vp_frame_info *frame) {
   result.interlaced = in.interlaced ? 1 : 0;
   result.top_field_first = in.top_field_first ? 1 : 0;
   result.repeated_fields = in.repeated_fields;
+  result.is_keyframe = in.is_keyframe ? 1 : 0;
   copy_out(frame, result);
 
   parser->frames_returned++;
