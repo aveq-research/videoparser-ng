@@ -79,7 +79,7 @@ QP (Quantization Parameter) values are codec-specific indices that control quant
 
 | Metric | Description |
 | ------ | ----------- |
-| `qp_avg` | Average QP of all coding units in the frame. |
+| `qp_avg` | Average QP of all coding units in the frame. In legacy mode, HEVC weighs the coding units by area and leaves out skipped ones (see [HEVC: QP Average and IDR Pictures](#hevc-qp-average-and-idr-pictures)). |
 | `qp_stdev` | Standard deviation of QP values within a frame. |
 | `qp_min` | Minimum QP value encountered in the frame. |
 | `qp_max` | Maximum QP value encountered in the frame. |
@@ -153,7 +153,7 @@ POC (Picture Order Count) is a frame ordering mechanism used in H.264 and HEVC t
 | ------ | ----------- |
 | `frame_type` | Type of the frame: 1 = I (Intra), 2 = P (Predicted), 3 = B (Bi-directional). |
 | `frame_idx` | Zero-based index of the frame in decode order. |
-| `is_idr` | Whether the frame is an IDR (Instantaneous Decoder Refresh) or keyframe. |
+| `is_idr` | Whether the frame is an IDR (Instantaneous Decoder Refresh) or keyframe. For HEVC, also CRA and BLA pictures, except in legacy mode. |
 | `size` | Frame size in bytes. For an H.264 field pair, the size of both fields. |
 | `pts` | Presentation timestamp in seconds. |
 | `dts` | Decoding timestamp in seconds. |
@@ -373,6 +373,8 @@ uv run ./test/compare_parsers.py /Volumes/Data/Databases/a2_2k_reencoded
 | qp_stdev          | 3.25581     | 3.30155  | 0.045737  | +7.8129      |
 | size              | 26132.6     | 26132.6  | 0         | +0.0000      |
 
+The QP rows of this table are from before v0.17.2. Since then, the legacy mode computes the HEVC QP statistics as the legacy parser does (see [HEVC: QP Average and IDR Pictures](#hevc-qp-average-and-idr-pictures)).
+
 #### Codec: vp9 (19 videos)
 
 | Metric            | Legacy Mean | New Mean | Diff Mean | Rel Diff (%) |
@@ -468,6 +470,14 @@ videoparser-ng uses standard variance accumulation without the extra count multi
 The legacy implementation applied various scaling factors (e.g., `4.0 *` multiplier on MV lengths) that were likely historical artifacts.
 
 videoparser-ng outputs unscaled values in native codec units (1/4 pel for H.264/HEVC, 1/8 pel for VP9/AV1).
+
+### HEVC: QP Average and IDR Pictures
+
+The legacy parser (`MbStatistcsHEVC`) adds the QP of a coding unit once per minimum coding block (usually 8x8) that it covers, so its QP average is weighted by area. It leaves out skipped coding units, whose QP is only the predicted QP, except the first coding unit of the frame. It also sets `IsIDR` only for IDR pictures (NAL unit types `IDR_W_RADL` and `IDR_N_LP`).
+
+videoparser-ng counts each coding unit once, including skipped ones, in the QP statistics. For HEVC, `is_idr` is set for all key frames (IRAP pictures), so also for CRA and BLA pictures. An encoder with open GOPs (such as x265 by default) codes all I-frames after the first one as CRA pictures.
+
+In legacy mode, videoparser-ng computes `qp_avg`, `qp_stdev`, `qp_min`, `qp_max` and the `qp_bb_*` fields of HEVC as the legacy parser does, and sets `is_idr` only for IDR pictures. The `is_keyframe` field of the library (not in the CLI output) still marks all key frames, which seeking and the key frame scan use. P.1204.3 starts a new GOP at each IDR picture, and uses the mean QP of the non-I frames, so both differences changed its score: for the HEVC test video of the P.1204.3 reference implementation, by about 0.12 MOS before v0.17.2. `qp_init` and the `qp_coded_*` fields are the same in both modes.
 
 ### H.264: Size of Field Pairs
 

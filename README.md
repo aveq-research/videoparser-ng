@@ -242,7 +242,7 @@ Note: If the container does not signal the bitrate or frame count (for example, 
 | `dts`               | Decoding timestamp                                     | seconds  |
 | `size`              | Frame size                                             | bytes    |
 | `frame_type`        | Frame type (1=I, 2=P, 3=B)                             | enum     |
-| `is_idr`            | Whether frame is an IDR/keyframe                       | boolean  |
+| `is_idr`            | Whether frame is an IDR/keyframe (legacy HEVC: IDR)    | boolean  |
 | `decode_error`      | Whether the decoder reported errors (e.g. concealment) | boolean  |
 | `discontinuity`     | Whether the timestamp jumps before this frame          | boolean  |
 | `qp_avg`            | Average QP of all coding units                         | QP index |

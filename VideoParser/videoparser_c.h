@@ -212,11 +212,14 @@
  *
  * A key frame is a frame whose packet the demuxer marks as a key frame and
  * from which the decoder can start. In a pass from the start, these frames
- * have `is_keyframe` set (since API version 1.4; `is_idr` is the same):
+ * have `is_keyframe` set (since API version 1.4; `is_idr` is the same,
+ * except for HEVC in legacy mode, see below):
  *
  * - H.264: IDR pictures, and I-pictures with a recovery point SEI (as written
  *   by encoders with open GOPs, for example x264 with `open-gop`)
- * - HEVC: IRAP pictures (IDR, CRA, BLA)
+ * - HEVC: IRAP pictures (IDR, CRA, BLA). In legacy mode, `is_idr` is set only
+ *   for IDR pictures, as in the legacy parser, since P.1204.3 starts a new GOP
+ *   only there.
  * - MPEG-1/2: I-pictures (the demuxer marks every I-picture)
  * - VP9 and AV1: key frames
  *
@@ -575,9 +578,11 @@ typedef struct vp_frame_info {
   int64_t pts_raw;
   /** Decoding timestamp in the stream's time base, or VP_NOPTS */
   int64_t dts_raw;
-  int32_t size;         /**< Frame size in bytes */
-  int32_t frame_type;   /**< VP_FRAME_TYPE_* */
-  int32_t is_idr;       /**< 1 for IDR or key frames */
+  int32_t size;       /**< Frame size in bytes */
+  int32_t frame_type; /**< VP_FRAME_TYPE_* */
+  /** 1 for IDR or key frames; in legacy mode, HEVC sets it only for IDR
+   * pictures (see is_keyframe) */
+  int32_t is_idr;
   int32_t decode_error; /**< 1 if the decoder reported errors for this frame */
   int32_t
       discontinuity; /**< 1 if the timestamp jumps against the previous frame */
@@ -639,7 +644,9 @@ typedef struct vp_frame_info {
 
   /* Since API version 1.4 */
   /** 1 if the decoder marks the frame as a key frame, from which decoding can
-   * start (see "Seeking"). Not in the CLI output. */
+   * start (see "Seeking"). The same as is_idr, except for HEVC in legacy
+   * mode, where CRA and BLA pictures are key frames, but not IDR. Not in the
+   * CLI output. */
   int32_t is_keyframe;
 } vp_frame_info;
 

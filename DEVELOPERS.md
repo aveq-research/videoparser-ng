@@ -57,7 +57,7 @@ QP (Quantization Parameter) values are codec-specific indices that control quant
 To obtain the QP information, we modify:
 
 - **H.264**: `h264_mb.c`, function `ff_h264_hl_decode_mb`. Extracts QP from `sl->qscale` (the slice-level QP). Per-macroblock QP is accumulated via `videoparser_shared_frame_info_update_qp()` which tracks `qp_sum`, `qp_cnt`, `qp_sum_sqr` for standard deviation, and updates `qp_min`/`qp_max`.
-- **HEVC**: `hevcdec.c`, function `hls_coding_unit`. Extracts QP from `lc->qp_y` (the luma QP for the coding unit). Per-coding-unit QP statistics are accumulated similarly to H.264.
+- **HEVC**: `hevcdec.c`, function `hls_coding_unit`. Extracts QP from `lc->qp_y` (the luma QP for the coding unit). Per-coding-unit QP statistics are accumulated similarly to H.264. In legacy mode, `videoparser_shared_frame_info_update_qp_weighted()` counts the QP once per minimum coding block of the coding unit, and skipped coding units are left out, except the first one of the frame, as in the legacy parser.
 - **VP9**: `vp9.c`, function `vp9_decode_frame`. Extracts QP from `s->s.h.yac_qi` (the Y-AC quantizer index). Note: QP metrics are not yet implemented for segmented streams.
 - **AV1**: `libaomdec.c`, function `aom_decode`. Extracts QP via `aom_codec_control(&ctx->decoder, AOMD_GET_LAST_QUANTIZER, &qp)`.
 - **MPEG-2**: `mpeg12dec.c`, function `mb_statistics_mpeg12`, called for every macroblock (including skipped ones) from `mpeg_decode_slice`. Uses `s->c.qscale`, which holds the `quantiser_scale` value after mapping the 5-bit code through the linear or non-linear table. For MPEG-1, the decoder stores the value doubled, so it is halved.
@@ -210,7 +210,7 @@ Frame metadata is extracted via standard FFmpeg API:
 - `frame_type`: Extracted from frame header via ffmpeg's `pict_type` (1=I, 2=P, 3=B).
 - `frame_idx`: Zero-based index tracked by the parser during decoding in `decode.c`.
 - `is_keyframe`: the key frame flag (`AV_FRAME_FLAG_KEY`), which seeking and the key frame scan use. H.264: NAL unit type 5, or a recovery point SEI. HEVC: IRAP pictures (IDR, CRA and BLA). VP9/AV1: keyframes. It is not in the CLI output.
-- `is_idr`: the same as `is_keyframe`.
+- `is_idr`: the same as `is_keyframe`, except for HEVC in legacy mode: there, `hevc_frame_start()` sets `SharedFrameInfo.is_idr_picture` for IDR_W_RADL and IDR_N_LP NAL units only, and `VideoParser` uses it instead (also in decode-only mode).
 - `size`: Extracted from packet size directly in ffmpeg. For H.264, `add_second_field_size()` finds the second field of a field pair with the H.264 parser and adds its size to the frame of the first field.
 - `pts`/`dts`: Converted from ffmpeg's timestamps using stream time base.
 - `interlaced`, `top_field_first`, `repeated_fields`: the frame flags `AV_FRAME_FLAG_INTERLACED` and `AV_FRAME_FLAG_TOP_FIELD_FIRST`, and `repeat_pict`, as the unmodified decoders set them (see [METRICS.md](METRICS.md#interlacing)).
@@ -237,6 +237,8 @@ uv run test/test.py -k "libx264"
 ```
 
 The test compares all frames in each test video against the expected output in the corresponding `.ldjson` file. Any differences are reported with a readable table showing expected vs actual values.
+
+`TestLegacyMode` runs the legacy-mode CLI (`build/legacy/VideoParserCli/video-parser`, from `util/build-cmake.sh --legacy`, or `VIDEOPARSER_LEGACY_CLI`) and compares it with the output of the legacy parser in `test/test-libx265-legacy-reference.ldjson` (see `test/README.md`). It is skipped if that CLI does not exist.
 
 ### Regenerating Test Reference Files
 

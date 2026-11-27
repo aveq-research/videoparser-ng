@@ -332,6 +332,78 @@ class TestVideoParser:
             pytest.fail(error_msg)
 
 
+# The legacy-mode CLI (util/build-cmake.sh --legacy); set VIDEOPARSER_LEGACY_CLI
+# to test another build
+LEGACY_CLI = os.environ.get(
+    "VIDEOPARSER_LEGACY_CLI",
+    os.path.join(HERE, "..", "build", "legacy", "VideoParserCli", "video-parser"),
+)
+
+# Output of the legacy parser (bitstream_mode3_videoparser), converted to the
+# keys of videoparser-ng (see test/README.md). The legacy mode must give the
+# same values.
+LEGACY_FIXTURES = [
+    pytest.param(
+        {
+            "expected_features": "test-libx265-legacy-reference.ldjson",
+            "video": "test-libx265.mp4",
+        },
+        id="libx265-h265-legacy",
+    ),
+]
+
+# Tolerance for floating point comparisons with the legacy parser
+LEGACY_FLOAT_TOLERANCE = 1e-6
+
+
+class TestLegacyMode:
+    @pytest.mark.parametrize("fixture", LEGACY_FIXTURES)
+    def test_legacy_output(self, fixture: dict[str, str]):
+        if not os.path.exists(LEGACY_CLI):
+            pytest.skip(f"legacy CLI not found: {LEGACY_CLI}")
+
+        video_name = fixture["video"]
+        output = subprocess.check_output(
+            [LEGACY_CLI, os.path.join(HERE, video_name)], cwd=HERE
+        )
+        parsed_frames = [
+            entry
+            for entry in map(json.loads, output.decode("utf-8").splitlines())
+            if entry.get("type") == "frame_info"
+        ]
+        expected_frames = load_expected_data(fixture["expected_features"])
+
+        assert len(parsed_frames) == len(expected_frames), (
+            f"[{video_name}] Expected {len(expected_frames)} frames, got {len(parsed_frames)}"
+        )
+
+        value_errors: list[dict] = []
+        for idx, (expected_entry, parsed_entry) in enumerate(
+            zip(expected_frames, parsed_frames)
+        ):
+            for key, expected_value in expected_entry.items():
+                parsed_value = parsed_entry.get(key, "MISSING")
+                if isinstance(expected_value, float) and isinstance(
+                    parsed_value, (int, float)
+                ):
+                    equal = abs(expected_value - parsed_value) < LEGACY_FLOAT_TOLERANCE
+                else:
+                    equal = expected_value == parsed_value
+                if not equal:
+                    value_errors.append(
+                        {
+                            "frame_index": str(idx),
+                            "key": key,
+                            "expected": expected_value,
+                            "actual": parsed_value,
+                        }
+                    )
+
+        if value_errors:
+            keys_with_errors = set(error["key"] for error in value_errors)
+            pytest.fail(format_value_errors(video_name, value_errors, keys_with_errors))
+
+
 if __name__ == "__main__":
     import sys
 

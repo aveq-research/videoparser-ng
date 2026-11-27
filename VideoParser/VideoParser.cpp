@@ -796,6 +796,17 @@ void VideoParser::set_frame_info(FrameInfo &frame_info) {
   frame_info.frame_type = frame_type;
   frame_info.is_keyframe = frame->flags & AV_FRAME_FLAG_KEY;
   frame_info.is_idr = frame_info.is_keyframe;
+  // Set by decoders that tell IDR pictures from other key frames (HEVC in
+  // legacy mode). Read directly from the side data, so that it is the same in
+  // decode-only mode.
+  if (has_side_data) {
+    const SharedFrameInfo *side_info =
+        reinterpret_cast<const SharedFrameInfo *>(
+            av_frame_get_side_data(frame, AV_FRAME_DATA_VIDEOPARSER_INFO)
+                ->data);
+    if (side_info->is_idr_picture >= 0)
+      frame_info.is_idr = side_info->is_idr_picture;
+  }
   frame_info.decode_error =
       frame->decode_error_flags != 0 || (frame->flags & AV_FRAME_FLAG_CORRUPT);
   frame_info.discontinuity = discontinuity;
