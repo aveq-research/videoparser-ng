@@ -265,11 +265,13 @@ wget https://storage.googleapis.com/aveq-storage/data/videoparser-ng/test/test.z
 unzip test/legacy/test.zip -d test/legacy
 ```
 
-Then run the legacy tests:
+Then run the legacy tests, with the legacy-mode CLI:
 
 ```bash
-uv run test/legacy/test.py
+VIDEOPARSER_CLI=build/legacy/VideoParserCli/video-parser uv run test/legacy/test.py
 ```
+
+Without `VIDEOPARSER_CLI`, they use the normal build in `build/`.
 
 Note: Some tests may fail due to intentional differences documented in [METRICS.md](METRICS.md#differences-with-legacy-implementation).
 

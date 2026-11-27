@@ -11,6 +11,12 @@ import subprocess
 import pytest
 
 HERE = os.path.dirname(os.path.realpath(__file__))
+# The CLI to test; set VIDEOPARSER_CLI to test another build, e.g. the legacy
+# mode build in build/legacy
+CLI = os.environ.get(
+    "VIDEOPARSER_CLI",
+    os.path.join(HERE, "..", "..", "build", "VideoParserCli", "video-parser"),
+)
 
 FIXTURES = [
     pytest.param(
@@ -187,7 +193,7 @@ def call_parser(video_file, num_frames: int = 5) -> list[dict]:
     # get stdout only
     output = subprocess.check_output(
         [
-            "../../build/VideoParserCli/video-parser",
+            CLI,
             video_file,
             "-n",  # number of frames to parse
             str(num_frames),
