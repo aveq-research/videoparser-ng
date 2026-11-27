@@ -46,6 +46,7 @@ The following table shows which metrics are available for each supported codec.
 | `frame_type`              |   ✅   |   ✅   |   ✅   |   ✅   |   ✅    |
 | `frame_idx`               |   ✅   |   ✅   |   ✅   |   ✅   |   ✅    |
 | `is_idr`                  |   ✅   |   ✅   |   ✅   |   ✅   |   ✅    |
+| `is_keyframe`             |   ✅   |   ✅   |   ✅   |   ✅   |   ✅    |
 | `size`                    |   ✅   |   ✅   |   ✅   |   ✅   |   ✅    |
 | `pts`                     |   ✅   |   ✅   |   ✅   |   ✅   |   ✅    |
 | `dts`                     |   ✅   |   ✅   |   ✅   |   ✅   |   ✅    |
@@ -154,6 +155,7 @@ POC (Picture Order Count) is a frame ordering mechanism used in H.264 and HEVC t
 | `frame_type` | Type of the frame: 1 = I (Intra), 2 = P (Predicted), 3 = B (Bi-directional). |
 | `frame_idx` | Zero-based index of the frame in decode order. |
 | `is_idr` | Whether the frame is an IDR (Instantaneous Decoder Refresh) or keyframe. For HEVC, also CRA and BLA pictures, except in legacy mode. |
+| `is_keyframe` | Whether the frame is a keyframe, where decoding can start. It differs from `is_idr` only for HEVC in legacy mode, where it is also set for CRA and BLA pictures. |
 | `size` | Frame size in bytes. For an H.264 field pair, the size of both fields. |
 | `pts` | Presentation timestamp in seconds. |
 | `dts` | Decoding timestamp in seconds. |
@@ -473,11 +475,26 @@ videoparser-ng outputs unscaled values in native codec units (1/4 pel for H.264/
 
 ### HEVC: QP Average and IDR Pictures
 
-The legacy parser (`MbStatistcsHEVC`) adds the QP of a coding unit once per minimum coding block (usually 8x8) that it covers, so its QP average is weighted by area. It leaves out skipped coding units, whose QP is only the predicted QP, except the first coding unit of the frame. It also sets `IsIDR` only for IDR pictures (NAL unit types `IDR_W_RADL` and `IDR_N_LP`).
+The legacy parser and videoparser-ng compute the QP statistics and the IDR flag of HEVC in different ways.
 
-videoparser-ng counts each coding unit once, including skipped ones, in the QP statistics. For HEVC, `is_idr` is set for all key frames (IRAP pictures), so also for CRA and BLA pictures. An encoder with open GOPs (such as x265 by default) codes all I-frames after the first one as CRA pictures.
+The legacy parser (`MbStatistcsHEVC`):
 
-In legacy mode, videoparser-ng computes `qp_avg`, `qp_stdev`, `qp_min`, `qp_max` and the `qp_bb_*` fields of HEVC as the legacy parser does, and sets `is_idr` only for IDR pictures. The `is_keyframe` field of the library (not in the CLI output) still marks all key frames, which seeking and the key frame scan use. P.1204.3 starts a new GOP at each IDR picture, and uses the mean QP of the non-I frames, so both differences changed its score: for the HEVC test video of the P.1204.3 reference implementation, by about 0.12 MOS before v0.17.2. `qp_init` and the `qp_coded_*` fields are the same in both modes.
+- adds the QP of a coding unit once for each minimum coding block (usually 8x8) that it covers, so large coding units count more
+- leaves out skipped coding units, except the first coding unit of a frame. The QP of a skipped coding unit is only the predicted QP.
+- sets `IsIDR` only for IDR pictures (NAL unit types `IDR_W_RADL` and `IDR_N_LP`)
+
+videoparser-ng:
+
+- counts each coding unit once, including skipped ones
+- sets `is_idr` for all key frames (IRAP pictures), which are IDR, CRA and BLA pictures
+
+The IDR flag differs for open GOPs. By default, x265 codes every I-frame after the first one as a CRA picture.
+
+In legacy mode, videoparser-ng does what the legacy parser does. It computes `qp_avg`, `qp_stdev`, `qp_min`, `qp_max` and the `qp_bb_*` fields in the same way, and sets `is_idr` only for IDR pictures. `qp_init` and the `qp_coded_*` fields are the same in both modes.
+
+`is_keyframe` marks all key frames in both modes. Seeking and the key frame scan use it. In legacy mode, a CRA picture has `is_idr` set to false and `is_keyframe` set to true.
+
+Both differences change the P.1204.3 score. P.1204.3 starts a new GOP at each IDR picture, and it uses the mean QP of the non-I frames. Since v0.18.0, which added the legacy behavior, the HEVC test video of the P.1204.3 reference implementation scores about 0.12 MOS higher.
 
 ### H.264: Size of Field Pairs
 
