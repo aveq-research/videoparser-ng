@@ -60,6 +60,7 @@ fi
 
 VERSION_FILE="VERSION"
 VERSION_HEADER_FILE="VideoParser/VideoParser.h"
+CHANGELOG_SECTIONS="feat,fix,perf,refactor,revert,docs,test,build,ci,deps,style,chore"
 
 if [ ! -f "$VERSION_FILE" ]; then
     echo "Error: VERSION file not found."
@@ -96,17 +97,22 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     perl -pi -e "s/#define VIDEOPARSER_VERSION_MINOR .*/#define VIDEOPARSER_VERSION_MINOR $V_MINOR/" "$VERSION_HEADER_FILE"
     perl -pi -e "s/#define VIDEOPARSER_VERSION_PATCH .*/#define VIDEOPARSER_VERSION_PATCH $V_PATCH/" "$VERSION_HEADER_FILE"
 
+    # Generate the changelog before the commit, so that every hash in it
+    # is final. The sections are listed, since ":all:" repeats the sections
+    # of types with the same title (doc and docs, ref and refactor, test and
+    # tests).
+    uvx git+https://github.com/pawamoy/git-changelog@15bcad73cc328ef7572515f599826fcf9bb2f4ad \
+        --include-all --convention angular \
+        --sections "$CHANGELOG_SECTIONS" \
+        --bump "v$new_version" > CHANGELOG.md
+
+    # Leave out the version bump commits, and the Misc sections they leave empty
+    perl -0pi -e 's/^- bump version to [^\n]*\n//mg; s/\n{3,}/\n\n/g; s/### Misc\n\n(?=## |\z)//g; s/\n+\z/\n/' CHANGELOG.md
+
     # commit changes
-    git add "$VERSION_FILE" "$VERSION_HEADER_FILE"
+    git add "$VERSION_FILE" "$VERSION_HEADER_FILE" CHANGELOG.md
     git commit -m "bump version to $new_version"
     git tag -a "v$new_version" -m "v$new_version"
-
-    # generate changelog
-    uvx git+https://github.com/pawamoy/git-changelog@15bcad73cc328ef7572515f599826fcf9bb2f4ad --include-all --convention angular --sections :all: > CHANGELOG.md
-
-    git add CHANGELOG.md
-    git commit --no-verify --amend --no-edit
-    git tag -a -f -m "v$new_version" "v$new_version"
 
     # push changes
     git push origin master
