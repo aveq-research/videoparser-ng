@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 <!-- insertion marker -->
+## [v0.18.0](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.18.0) - 2026-11-27
+
+<small>[Compare with v0.17.1](https://github.com/aveq-research/videoparser-ng/compare/v0.17.1...v0.18.0)</small>
+
+### Features
+
+- add is_keyframe to the frame info ([655ec90](https://github.com/aveq-research/videoparser-ng/commit/655ec90ad993a76e09b12f33b60d92c0822520ad) by Werner Robitza).
+
+### Bug Fixes
+
+- match legacy QP average and IDR flag ([7d388fe](https://github.com/aveq-research/videoparser-ng/commit/7d388fe97e7d479471fe4f2813d17a0576daf0a7) by Werner Robitza).
+
+### Tests
+
+- allow choosing the CLI to test ([f124d54](https://github.com/aveq-research/videoparser-ng/commit/f124d543e17b1135c3fee446077c5c2065fdfc23) by Werner Robitza).
+
+### Tests
+
+- allow choosing the CLI to test ([f124d54](https://github.com/aveq-research/videoparser-ng/commit/f124d543e17b1135c3fee446077c5c2065fdfc23) by Werner Robitza).
+
+### Misc
+
+- bump version to 0.18.0 ([e963c52](https://github.com/aveq-research/videoparser-ng/commit/e963c52f6d7a5ac7dcc7f4a19064dade9c6ff876) by Werner Robitza).
+
 ## [v0.17.1](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.17.1) - 2026-11-26
 
 <small>[Compare with v0.17.0](https://github.com/aveq-research/videoparser-ng/compare/v0.17.0...v0.17.1)</small>
@@ -20,7 +44,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Misc
 
-- bump version to 0.17.1 ([c63dea7](https://github.com/aveq-research/videoparser-ng/commit/c63dea7700a50479c4c8bc72810bc391d470526e) by Werner Robitza).
+- bump version to 0.17.1 ([7f2257c](https://github.com/aveq-research/videoparser-ng/commit/7f2257c93091d0a0443ae6b38a4d02aebaaa8aac) by Werner Robitza).
 
 ## [v0.17.0](https://github.com/aveq-research/videoparser-ng/releases/tag/v0.17.0) - 2026-11-25
 
